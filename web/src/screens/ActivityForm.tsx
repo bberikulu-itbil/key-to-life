@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { errText, getActivity, listStaff, submitActivity, type ActivityType } from '../lib/api'
+import { errText, getActivity, listStaff, submitActivity, updateActivity, type ActivityType } from '../lib/api'
 import { TYPE_LABEL, WD_SHORT, addDays, today } from '../lib/time'
 import { useMe } from '../App'
 import { Button, Card, ErrorBox, Field, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
@@ -31,27 +31,30 @@ export function validate(f: F, t = today()): Partial<Record<keyof F, string>> {
   return e
 }
 
-export default function ActivityForm({ id }: { id?: string }) {
+export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: string }) {
   const { me } = useMe()
   const staff = useLoad(listStaff, [])
   const t = today()
   const [f, setF] = useState<F>({ type: 'club', title: '', description: '', supervisor_id: me.role !== 'student' ? me.id : '', place: '', audience: [], capacity: '',
     schedule: 'weekly', on_date: addDays(t, 7), weekdays: [], date_from: t, date_to: addDays(t, 60), start_time: '15:00', end_time: '16:30', perDay: false, times: {}, extra: [] })
-  const [loaded, setLoaded] = useState(!id)
+  const [loaded, setLoaded] = useState(!id && !copyOf)
+  const [approved, setApproved] = useState(false)
   const [touched, setTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
   useEffect(() => {
-    if (!id) return
-    getActivity(id).then((a) => {
+    const src = id ?? copyOf
+    if (!src) return
+    getActivity(src).then((a) => {
+      setApproved(!!id && a.status === 'approved')
       setF({ type: a.type, title: a.title, description: a.description, supervisor_id: a.supervisor_id, place: a.place, audience: a.audience_grades,
         capacity: a.capacity ? String(a.capacity) : '', schedule: a.schedule, on_date: a.on_date ?? addDays(t, 7), weekdays: a.weekdays ?? [],
         date_from: a.date_from ?? t, date_to: a.date_to ?? addDays(t, 60), start_time: a.start_time.slice(0, 5), end_time: a.end_time.slice(0, 5),
         perDay: !!a.slots?.length, times: Object.fromEntries((a.slots ?? []).map((x) => [x.wd, { start: x.start, end: x.end }])), extra: [] })
       setLoaded(true)
     }, (e) => setErr(errText(e)))
-  }, [id])
+  }, [id, copyOf])
 
   const errors = touched ? validate(f, t) : {}
   const set = <K extends keyof F>(k: K, v: F[K]) => setF({ ...f, [k]: v })
@@ -67,6 +70,7 @@ export default function ActivityForm({ id }: { id?: string }) {
         audience_grades: f.audience, capacity: f.capacity || null, schedule: f.schedule,
         start_time: slots[0]?.start ?? f.start_time, end_time: slots[0]?.end ?? f.end_time, slots,
         ...(f.schedule === 'once' ? { on_date: f.on_date, extra: f.extra } : { weekdays: f.weekdays, date_from: f.date_from, date_to: f.date_to }) }
+      if (approved && id) { await updateActivity(id, p); toast('Сақталды. Уақыты өзгерсе, қатысушыларға хабар кетті'); go(`/a/${id}`); return }
       const newId = await submitActivity(p, id)
       toast(me.role === 'deputy' || me.role === 'admin' ? 'Жарияланды' : me.role === 'student' ? 'Сынып жетекшісіне жіберілді' : 'Орынбасарға жіберілді')
       go(`/a/${newId}`)
@@ -79,7 +83,7 @@ export default function ActivityForm({ id }: { id?: string }) {
 
   return (
     <form onSubmit={submit} noValidate className="grid gap-4 pb-6">
-      <PageHead title={id ? 'Ұсынысты өңдеу' : 'Іс-шара ұсыну'} back />
+      <PageHead title={approved ? 'Іс-шараны өңдеу' : id ? 'Ұсынысты өңдеу' : copyOf ? 'Көшірмесін жасау' : 'Іс-шара ұсыну'} back />
       <p className="text-sm text-muted -mt-2">{route}</p>
 
       <Card className="grid gap-4">

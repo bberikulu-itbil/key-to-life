@@ -30,7 +30,7 @@ export default function Feed({ query }: { query: string }) {
 
   const upcoming = useMemo(() => {
     const t = today()
-    return (acts.data ?? []).filter((a) => a.status === 'approved').map((a) => ({ a, d: nextSession(a, t, 30) }))
+    return (acts.data ?? []).filter((a) => a.status === 'approved' && !a.archived_at).map((a) => ({ a, d: nextSession(a, t, 30) }))
       .filter((x): x is { a: Activity; d: string } => !!x.d).sort((x, y) => (x.d + sessionTime(x.a, x.d).start).localeCompare(y.d + sessionTime(y.a, y.d).start))
   }, [acts.data])
 

@@ -11,6 +11,7 @@ import ChatRoom from './screens/ChatRoom'
 import Activities from './screens/Activities'
 import ActivityDetail from './screens/ActivityDetail'
 import ActivityForm from './screens/ActivityForm'
+import ActivitySettings from './screens/ActivitySettings'
 import Notifications from './screens/Notifications'
 import Profile from './screens/Profile'
 import Book from './screens/Book'
@@ -66,6 +67,8 @@ function Shell({ me }: { me: Me }) {
   const [, seg, id] = path.split('/')
   let screen
   if (seg === 'a' && id === 'new') screen = <ActivityForm />
+  else if (seg === 'a' && id === 'copy') screen = <ActivityForm key={path} copyOf={path.split('/')[3]} />
+  else if (seg === 'a' && path.endsWith('/settings')) screen = <ActivitySettings id={id} />
   else if (seg === 'a' && path.endsWith('/edit')) screen = <ActivityForm id={id} />
   else if (seg === 'a' && id) screen = <ActivityDetail id={id} />
   else if (seg === 'activities' && (id === 'mine' || id === 'review')) screen = <Activities tab={id} />

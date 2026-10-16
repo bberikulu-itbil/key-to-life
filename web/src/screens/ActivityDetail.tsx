@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  cancelActivity, decideAbsence, decideActivity, getActivity, getAttendance, joinActivity, leaveActivity, listRequests, markAttendance,
+  decideAbsence, decideActivity, getActivity, getAttendance, joinActivity, leaveActivity, listRequests, markAttendance,
   errText, listLeaves, setCurator, activityChatId, myAttendance, setActivityFeatures, activityAttendance, addSession, removeSession, type ActivityFull, type Feature, type Mark,
 } from '../lib/api'
 import { when } from './Leaves'
@@ -22,18 +22,16 @@ export default function ActivityDetail({ id }: { id: string }) {
   const { data: a, error, loading, reload } = useLoad(() => getActivity(id), [id])
   const [busy, setBusy] = useState('')
   const [returning, setReturning] = useState(false)
-  const [cancelling, setCancelling] = useState(false)
   const [note, setNote] = useState('')
   const [absence, setAbsence] = useState(false)
   const [tab, setTab] = useState<'about' | 'feed' | Feature>('about')
-  const [settings, setSettings] = useState(false)
 
   if (loading && !a) return <><PageHead title="" back /><Skeleton rows={4} /></>
   if (error || !a) return <><PageHead title="Іс-шара" back /><ErrorBox text={error ?? 'Табылмады'} retry={reload} /></>
 
   const run = async (key: string, fn: () => Promise<unknown>, done: string) => {
     setBusy(key)
-    try { await fn(); toast(done); setReturning(false); setCancelling(false); setNote(''); reload() } catch (e) { toast(errText(e)) } finally { setBusy('') }
+    try { await fn(); toast(done); setReturning(false); setNote(''); reload() } catch (e) { toast(errText(e)) } finally { setBusy('') }
   }
 
   const mine = a.enrollments.find((e) => e.student_id === me.id)
@@ -56,12 +54,14 @@ export default function ActivityDetail({ id }: { id: string }) {
     <div className="grid gap-3 pb-6">
       <PageHead title="" back right={<div className="flex gap-1">
         {chatOn && <ChatButton a={a} />}
-        {manager && a.status === 'approved' && <button type="button" onClick={() => setSettings(true)} aria-label="Баптаулар" className="size-11 grid place-items-center rounded-md text-muted"><Icon n="more" size={24} /></button>}
+        {manager && a.status === 'approved' && <button type="button" onClick={() => go(`/a/${a.id}/settings`)} aria-label="Баптаулар" className="size-11 grid place-items-center rounded-md text-muted"><Icon n="more" size={24} /></button>}
       </div>} />
       <div className="flex gap-2 flex-wrap -mt-2">
         <Badge tone="accent">{TYPE_LABEL[a.type]}</Badge>
         <Badge tone={statusTone(a.status)}>{STATUS_LABEL[a.status]}</Badge>
         {ended && a.status === 'approved' && <Badge tone="muted">Аяқталған</Badge>}
+        {a.archived_at && <Badge tone="muted">Архивте</Badge>}
+        {!a.enrollment_open && a.status === 'approved' && <Badge tone="warn">Тіркелу жабық</Badge>}
       </div>
       <h1 className="text-xl font-bold text-balance break-words">{a.title}</h1>
 
@@ -169,21 +169,9 @@ export default function ActivityDetail({ id }: { id: string }) {
             </ol>
           </section>
 
-          {isOwner && a.status === 'approved' && !ended && (
-            cancelling ? (
-              <Card className="grid gap-3">
-                <Field label="Тоқтату себебі" hint="Қатысушыларға хабарлама барады">
-                  {(fid, d) => <input id={fid} aria-describedby={d} value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} />}
-                </Field>
-                <div className="flex gap-2"><Button kind="danger" loading={busy === 'cancel'} disabled={!note.trim()} onClick={() => run('cancel', () => cancelActivity(a.id, note), 'Іс-шара тоқтатылды')}>Тоқтату</Button>
-                  <Button kind="ghost" onClick={() => setCancelling(false)}>Жоқ</Button></div>
-              </Card>
-            ) : <div><Button kind="ghost" onClick={() => setCancelling(true)}>Іс-шараны тоқтату</Button></div>
-          )}
 
         </>
       )}
-      {settings && <Sheet title="Іс-шара баптаулары" onClose={() => setSettings(false)}><Settings a={a} onDone={() => { setSettings(false); reload() }} /></Sheet>}
       {absence && <Sheet title="Рұқсат сұрау" onClose={() => setAbsence(false)}><AbsenceForm activityId={a.id} onDone={() => setAbsence(false)} /></Sheet>}
     </div>
   )
@@ -194,6 +182,7 @@ const Row = ({ icon, children }: { icon: string; children: React.ReactNode }) =>
 )
 
 function JoinButton({ a, grade, busy, onJoin }: { a: ActivityFull; grade?: number; busy: boolean; onJoin: () => void }) {
+  if (!a.enrollment_open || a.archived_at) return <p className="text-sm text-muted">Тіркелу жабық. Қосылғыңыз келсе, жетекшіге жазыңыз.</p>
   if (a.audience_grades.length && (!grade || !a.audience_grades.includes(grade)))
     return <p className="text-sm text-muted">Бұл іс-шара {a.audience_grades.join(', ')}-сыныптарға арналған.</p>
   const full = a.capacity !== null && a.enrollments.filter((e) => !e.waitlisted).length >= a.capacity
@@ -314,7 +303,7 @@ const FEATURE_HINT: Record<Feature, string> = {
   attendance: 'Шолуда қатысу анализі, журнал мен рұқсат сұраулары',
 }
 
-function Settings({ a, onDone }: { a: ActivityFull; onDone: () => void }) {
+export function Modules({ a, onDone }: { a: ActivityFull; onDone: () => void }) {
   const [on, setOn] = useState<Feature[]>(a.features)
   const [busy, setBusy] = useState(false)
   const save = async () => { setBusy(true); try { await setActivityFeatures(a.id, on); toast('Сақталды'); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }

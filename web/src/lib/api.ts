@@ -17,7 +17,7 @@ export type Activity = {
   audience_grades: number[]; capacity: number | null; schedule: 'once' | 'weekly'
   on_date: string | null; weekdays: number[] | null; date_from: string | null; date_to: string | null
   start_time: string; end_time: string; author_id: string; supervisor_id: string; curator_id: string | null; created_at: string
-  features: Feature[]
+  features: Feature[]; enrollment_open: boolean; archived_at: string | null
   slots: TimeSlot[] | null; extra: Extra[]
   author: { full_name: string; class: { name: string; teacher_id: string | null } | null }
   supervisor: { full_name: string }
@@ -55,7 +55,7 @@ export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
-const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, slots, extra:activity_sessions(id, on_date, start_time, end_time, note), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
+const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, extra:activity_sessions(id, on_date, start_time, end_time, note), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
 
 export const listActivities = () =>
   ok(supabase.from('activities').select(ACT).order('created_at', { ascending: false })) as unknown as Promise<Activity[]>
@@ -97,7 +97,10 @@ export const submitActivity = (p: Record<string, unknown>, id?: string) => rpc<s
 export const decideActivity = (id: string, approve: boolean, comment?: string) => rpc('decide_activity', { p_id: id, p_approve: approve, p_comment: comment ?? null })
 export const cancelActivity = (id: string, reason: string) => rpc('cancel_activity', { p_id: id, p_reason: reason })
 export const joinActivity = (id: string) => rpc<boolean>('join_activity', { p_id: id })
-export const leaveActivity = (id: string) => rpc('leave_activity', { p_id: id })
+export const leaveActivity = async (id: string) => {
+  const { data } = await supabase.auth.getUser()
+  return ok(supabase.from('enrollments').delete().eq('activity_id', id).eq('student_id', data.user!.id))
+}
 export const markAttendance = (id: string, date: string, rows: { student_id: string; status: Mark }[]) =>
   rpc<number>('mark_attendance', { p_id: id, p_date: date, p_rows: rows })
 export const requestAbsence = (activity: string, date: string, category: string, reason: string) =>
@@ -363,3 +366,11 @@ export const listActivityPosts = (activityId: string) =>
   ok(supabase.from('posts').select(POST).eq('activity_id', activityId).order('created_at', { ascending: false }).limit(100)) as unknown as Promise<Post[]>
 export const createActivityPost = (activityId: string, title: string, body: string, photo: string | null, visibility: 'public' | 'members') =>
   rpc<string>('create_activity_post', { p_activity: activityId, p_title: title, p_body: body, p_photo: photo, p_visibility: visibility })
+
+/* ---------- managing an activity ---------- */
+export const updateActivity = (id: string, p: Record<string, unknown>) => rpc('update_activity', { p_id: id, p })
+export const setActivityFlags = (id: string, open: boolean | null, archived: boolean | null) => rpc('set_activity_flags', { p_id: id, p_open: open, p_archived: archived })
+export const removeActivity = (id: string) => rpc('remove_activity', { p_id: id })
+export const addParticipant = (activity: string, student: string) => ok(supabase.from('enrollments').insert({ activity_id: activity, student_id: student, waitlisted: false }))
+export const removeParticipant = (activity: string, student: string) => ok(supabase.from('enrollments').delete().eq('activity_id', activity).eq('student_id', student))
+export const acceptWaitlisted = (activity: string, student: string) => ok(supabase.from('enrollments').update({ waitlisted: false }).eq('activity_id', activity).eq('student_id', student))

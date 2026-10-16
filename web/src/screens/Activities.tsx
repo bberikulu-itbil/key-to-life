@@ -26,7 +26,7 @@ export default function Activities({ tab, feed, embedded }: { tab: Tab; feed?: b
     let l =
       tab === 'review' ? all.filter((a) => needsMyDecision(me, a))
       : tab === 'mine' ? all.filter((a) => a.author_id === me.id || a.supervisor_id === me.id || a.enrollments.some((e) => e.student_id === me.id))
-      : all.filter((a) => a.status === 'approved' && lastDay(a) >= t)
+      : all.filter((a) => a.status === 'approved' && !a.archived_at && lastDay(a) >= t)
           .map((a) => [a, nextSession(a, t, 120) ?? '9999'] as const).sort((x, y) => x[1].localeCompare(y[1])).map(([a]) => a)
     if (type !== 'all') l = l.filter((a) => a.type === type)
     if (q.trim()) l = l.filter((a) => (a.title + a.place + a.supervisor.full_name).toLowerCase().includes(q.trim().toLowerCase()))
