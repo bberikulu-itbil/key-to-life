@@ -84,8 +84,8 @@ create or replace function chat_audience(p_chat uuid) returns setof uuid languag
     where c.id = p_chat and (c.kind = 'class' or c.audience = 'class') and x.u is not null
   union select x.u from chats c join activities a on a.id = c.activity_id cross join lateral unnest(array[a.supervisor_id, a.author_id, a.curator_id]) x(u)
     where c.id = p_chat and x.u is not null and 'chat' = any(a.features)
-  union select ac.student_id from chats c join activity_curators ac on ac.activity_id = c.activity_id
-    where c.id = p_chat and 'chat' = any((select features from activities where id = c.activity_id))
+  union select ac.student_id from chats c join activities a on a.id = c.activity_id join activity_curators ac on ac.activity_id = a.id
+    where c.id = p_chat and 'chat' = any(a.features)
   union select e.student_id from chats c join activities a on a.id = c.activity_id join enrollments e on e.activity_id = a.id
     where c.id = p_chat and not e.waitlisted and 'chat' = any(a.features)
   union select p.id from chats c join profiles p on p.school_id = c.school_id where c.id = p_chat and c.kind = 'channel'
