@@ -98,10 +98,8 @@ export const submitActivity = (p: Record<string, unknown>, id?: string) => rpc<s
 export const decideActivity = (id: string, approve: boolean, comment?: string) => rpc('decide_activity', { p_id: id, p_approve: approve, p_comment: comment ?? null })
 export const cancelActivity = (id: string, reason: string) => rpc('cancel_activity', { p_id: id, p_reason: reason })
 export const joinActivity = (id: string) => rpc<boolean>('join_activity', { p_id: id })
-export const leaveActivity = async (id: string) => {
-  const { data } = await supabase.auth.getUser()
-  return ok(supabase.from('enrollments').delete().eq('activity_id', id).eq('student_id', data.user!.id))
-}
+// leave_activity also moves the first waitlisted student in and notifies them
+export const leaveActivity = (id: string) => rpc('leave_activity', { p_id: id })
 export const markAttendance = (id: string, date: string, rows: { student_id: string; status: Mark }[]) =>
   rpc<number>('mark_attendance', { p_id: id, p_date: date, p_rows: rows })
 export const requestAbsence = (activity: string, date: string, category: string, reason: string) =>
