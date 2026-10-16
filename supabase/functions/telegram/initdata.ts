@@ -17,8 +17,13 @@ export async function checkInitData(initData: string, botToken: string, nowSec =
   const dcs = [...p.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => `${k}=${v}`).join('\n')
   const secret = await hmac(enc.encode('WebAppData'), botToken)
   if (hex(await hmac(secret, dcs)) !== hash) return null
-  if (nowSec - Number(p.get('auth_date')) > 86400) return null
-  try { return JSON.parse(p.get('user') ?? 'null') } catch { return null }
+  const authDate = Number(p.get('auth_date'))
+  if (!Number.isSafeInteger(authDate) || authDate <= 0 || authDate > nowSec + 300 || nowSec - authDate > 86400) return null
+  try {
+    const user = JSON.parse(p.get('user') ?? 'null') as TgUser
+    if (!user || !Number.isSafeInteger(user.id) || user.id <= 0) return null
+    return user
+  } catch { return null }
 }
 
 /** Builds signed initData — only for the self-check below. */
