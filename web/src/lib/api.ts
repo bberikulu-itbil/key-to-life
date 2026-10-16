@@ -183,8 +183,19 @@ export const ensureCalendars = () => rpc('ensure_calendars', {})
 export const listCalendars = () => ok(supabase.from('calendars').select('id, kind, name, color, class_id, owner_id').order('kind')) as Promise<Calendar[]>
 export const listEvents = (from: string, to: string) =>
   ok(supabase.from('calendar_events').select('id, calendar_id, title, starts_at, ends_at, all_day, location, notes').lt('starts_at', to).gt('ends_at', from).order('starts_at')) as Promise<CalEvent[]>
-export const addEvents = (rows: { calendar_id: string; title: string; starts_at: string; ends_at: string; all_day?: boolean; location?: string | null; notes?: string | null; import_uid?: string }[]) =>
-  ok(supabase.from('calendar_events').upsert(rows, { onConflict: 'calendar_id,import_uid', ignoreDuplicates: true }).select('id')) as Promise<{ id: string }[]>
+export const addEvents = async (rows: { calendar_id: string; title: string; starts_at: string; ends_at: string; all_day?: boolean; location?: string | null; notes?: string | null; import_uid?: string }[]) => {
+  const manual = rows.filter((r) => !r.import_uid)
+  const imported = rows.filter((r) => !!r.import_uid)
+  const [inserted, deduplicated] = await Promise.all([
+    manual.length
+      ? ok(supabase.from('calendar_events').insert(manual).select('id')) as Promise<{ id: string }[]>
+      : Promise.resolve([] as { id: string }[]),
+    imported.length
+      ? ok(supabase.from('calendar_events').upsert(imported, { onConflict: 'calendar_id,import_uid', ignoreDuplicates: true }).select('id')) as Promise<{ id: string }[]>
+      : Promise.resolve([] as { id: string }[]),
+  ])
+  return [...inserted, ...deduplicated]
+}
 export const removeEvent = (id: string) => ok(supabase.from('calendar_events').delete().eq('id', id))
 export const listHidden = async () => ((await ok(supabase.from('calendar_hidden').select('cal_key'))) as { cal_key: string }[]).map((r) => r.cal_key)
 export const setHidden = (key: string, hidden: boolean) =>
