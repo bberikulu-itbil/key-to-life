@@ -7,6 +7,7 @@ import { when } from './Leaves'
 import { MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessions, today } from '../lib/time'
 import Tasks from '../components/Tasks'
 import Avatar from '../components/Avatar'
+import ActivityFeed from '../components/ActivityFeed'
 import { useMe } from '../App'
 import { needsMyDecision } from './Activities'
 import { statusTone } from '../components/ActivityCard'
@@ -24,7 +25,7 @@ export default function ActivityDetail({ id }: { id: string }) {
   const [cancelling, setCancelling] = useState(false)
   const [note, setNote] = useState('')
   const [absence, setAbsence] = useState(false)
-  const [tab, setTab] = useState<'about' | Feature>('about')
+  const [tab, setTab] = useState<'about' | 'feed' | Feature>('about')
   const [settings, setSettings] = useState(false)
 
   if (loading && !a) return <><PageHead title="" back /><Skeleton rows={4} /></>
@@ -45,7 +46,7 @@ export default function ActivityDetail({ id }: { id: string }) {
   const manager = a.supervisor_id === me.id || me.role === 'deputy' || me.role === 'admin'
   const insider = (!!mine && !mine.waitlisted) || isOwner || a.curator_id === me.id
   const tabs = a.status === 'approved'
-    ? [['about', 'Шолу'] as const, ...TABS.filter(([f]) => a.features.includes(f) && (f !== 'tasks' || insider))]
+    ? [['about', 'Шолу'] as const, ['feed', 'Лента'] as const, ...TABS.filter(([f]) => a.features.includes(f) && (f !== 'tasks' || insider))]
     : []
   const chatOn = a.status === 'approved' && a.features.includes('chat') && insider
   const stats = canKeepJournal && a.status === 'approved' && a.features.includes('attendance')
@@ -80,6 +81,7 @@ export default function ActivityDetail({ id }: { id: string }) {
           ))}
         </div>
       )}
+      {shown === 'feed' && <ActivityFeed a={a} me={me} />}
       {shown === 'tasks' && <Tasks me={me} activity={a} canGive={manager || a.curator_id === me.id} />}
       {shown === 'syllabus' && <Syllabus a={a} me={me} />}
       {shown === 'schedule' && <ActivityCalendar a={a} canEdit={manager} journal={canKeepJournal && a.features.includes('attendance')} onChange={reload} />}

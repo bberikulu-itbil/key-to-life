@@ -273,8 +273,9 @@ export type PostKind = 'news' | 'announcement' | 'lost' | 'found' | 'proposal'
 export type PostStatus = 'open' | 'resolved' | 'considering' | 'accepted' | 'rejected'
 export type Post = { id: string; author_id: string; kind: PostKind; title: string; body: string; photo: string | null; place: string | null
   status: PostStatus; answer: string | null; pinned: boolean; created_at: string
+  activity_id: string | null; visibility: 'public' | 'members'; activity: { title: string } | null
   author: { full_name: string; role: Role; class: { name: string } | null }; answerer: { full_name: string } | null; votes: { user_id: string; value: number }[] }
-const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, author:profiles!author_id(full_name, role, class:classes!class_id(name)), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value)'
+const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, activity_id, visibility, activity:activities(title), author:profiles!author_id(full_name, role, class:classes!class_id(name)), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value)'
 export const listPosts = () =>
   ok(supabase.from('posts').select(POST).order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(200)) as unknown as Promise<Post[]>
 export const createPost = (kind: PostKind, title: string, body: string, photo?: string | null, place?: string | null) =>
@@ -357,3 +358,8 @@ export const addSession = (row: { activity_id: string; on_date: string; start_ti
 export const removeSession = (id: string) => ok(supabase.from('activity_sessions').delete().eq('id', id))
 export const activityAttendance = (activityId: string) =>
   ok(supabase.from('attendance').select('student_id, session_date, status').eq('activity_id', activityId)) as Promise<{ student_id: string; session_date: string; status: Mark }[]>
+
+export const listActivityPosts = (activityId: string) =>
+  ok(supabase.from('posts').select(POST).eq('activity_id', activityId).order('created_at', { ascending: false }).limit(100)) as unknown as Promise<Post[]>
+export const createActivityPost = (activityId: string, title: string, body: string, photo: string | null, visibility: 'public' | 'members') =>
+  rpc<string>('create_activity_post', { p_activity: activityId, p_title: title, p_body: body, p_photo: photo, p_visibility: visibility })

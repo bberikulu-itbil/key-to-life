@@ -24,7 +24,8 @@ export default function Feed({ query }: { query: string }) {
   const acts = useLoad(listActivities, [])
   const [open, setOpen] = useState<Open>(null)
   const reload = () => { posts.reload(); setOpen(null) }
-  const all = posts.data ?? []
+  // members-only activity posts live on the activity page, not in the school feed
+  const all = (posts.data ?? []).filter((p) => p.visibility === 'public')
   const of = (k: PostKind[]) => all.filter((p) => k.includes(p.kind))
 
   const upcoming = useMemo(() => {
@@ -150,7 +151,7 @@ function NewsList({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void })
         {first.photo ? <img src={photoUrl(first.photo)} alt="" loading="lazy" className="w-full aspect-[16/9] object-cover bg-surface-2" />
           : <span className="block aspect-[16/9] bg-accent-soft text-accent grid place-items-center"><Icon n="file" size={40} /></span>}
         <span className="block p-4">
-          <span className="block text-xs text-muted">{chatTime(first.created_at)} · {first.author.full_name}</span>
+          <span className="block text-xs text-muted">{chatTime(first.created_at)} · {first.activity?.title ?? first.author.full_name}</span>
           <span className="block text-lg font-bold leading-snug mt-1 text-balance">{first.title}</span>
           {first.body && <span className="block text-sm text-muted line-clamp-2 mt-1">{first.body}</span>}
         </span>
@@ -159,7 +160,7 @@ function NewsList({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void })
         <div className={`grid gap-0 bg-surface rounded-lg shadow-card border border-[var(--card-line,transparent)] divide-y divide-line`}>
           {rest.map((p) => (
             <button key={p.id} type="button" onClick={() => onOpen(p)} className="flex gap-3 p-3 text-left">
-              <span className="flex-1 min-w-0"><span className="block font-semibold leading-snug line-clamp-2">{p.title}</span><span className="block text-xs text-muted mt-1">{chatTime(p.created_at)} · {p.author.full_name}</span></span>
+              <span className="flex-1 min-w-0"><span className="block font-semibold leading-snug line-clamp-2">{p.title}</span><span className="block text-xs text-muted mt-1">{chatTime(p.created_at)} · {p.activity?.title ?? p.author.full_name}</span></span>
               {p.photo && <img src={photoUrl(p.photo)} alt="" loading="lazy" className="size-16 rounded-md object-cover shrink-0 bg-surface-2" />}
             </button>
           ))}
