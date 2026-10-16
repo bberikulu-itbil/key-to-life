@@ -4,18 +4,18 @@ import { hm, isoDow, today } from '../lib/time'
 import { useMe } from '../App'
 import { Button, Card, Empty, Field, Icon, PageHead, Sheet, Skeleton, inputCls, toast, useLoad } from '../components/ui'
 
-const DAYS = ['Дүйсенбі', 'Сейсенбі', 'Сәрсенбі', 'Бейсенбі', 'Жұма', 'Сенбі']
+const DAYS = ['Дүйсенбі', 'Сейсенбі', 'Сәрсенбі', 'Бейсенбі', 'Жұма', 'Сенбі', 'Жексенбі']
 
-export default function Timetable() {
+export default function Timetable({ classId: initial }: { classId?: string }) {
   const { me } = useMe()
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const classes = useLoad(listClasses, [])
-  const ownClasses = (classes.data ?? []).filter((c) => deputy || c.teacher_id === me.id)
+  const ownClasses = (classes.data ?? []).filter((c) => deputy || c.teacher_id === me.id || c.tutor_id === me.id)
   // students see their class; class teachers and deputies pick a class they run; other teachers see their own lessons
-  const [view, setView] = useState<string>(me.role === 'student' ? me.class?.id ?? '' : 'mine')
+  const [view, setView] = useState<string>(me.role === 'student' ? me.class?.id ?? '' : initial || 'mine')
   const classId = view === 'mine' ? undefined : view
   const lessons = useLoad(() => (view === 'mine' ? listLessons({ teacher: me.id }) : view ? listLessons({ classId: view }) : Promise.resolve([])), [view])
-  const [wd, setWd] = useState(Math.min(isoDow(today()), 6))
+  const [wd, setWd] = useState(isoDow(today()))
   const [adding, setAdding] = useState(false)
   const canEdit = !!classId && (deputy || ownClasses.some((c) => c.id === classId))
   const day = (lessons.data ?? []).filter((l) => l.weekday === wd)
@@ -33,7 +33,7 @@ export default function Timetable() {
           </select>
         )}</Field>
       )}
-      <div role="tablist" aria-label="Апта күні" className="grid grid-cols-6 gap-1 bg-surface-2 rounded-md p-1">
+      <div role="tablist" aria-label="Апта күні" className="grid grid-cols-7 gap-1 bg-surface-2 rounded-md p-1">
         {DAYS.map((d, i) => <button key={d} type="button" role="tab" aria-selected={wd === i + 1} aria-label={d} onClick={() => setWd(i + 1)}
           className={`h-10 rounded-sm text-sm font-semibold ${wd === i + 1 ? 'bg-surface shadow-card' : 'text-muted'}`}>{d.slice(0, 2)}</button>)}
       </div>
@@ -46,7 +46,7 @@ export default function Timetable() {
               <span className="size-8 rounded-full bg-accent-soft text-accent grid place-items-center text-sm font-bold shrink-0">{i + 1}</span>
               <span className="flex-1 min-w-0">
                 <span className="block font-semibold">{l.subject}{view === 'mine' && <span className="text-muted font-normal"> · {l.class.name}</span>}</span>
-                <span className="block text-sm text-muted tabular-nums">{hm(l.start_time)}–{hm(l.end_time)}{l.room ? ` · ${l.room}-каб.` : ''}{l.teacher ? ` · ${l.teacher.full_name}` : ''}</span>
+                <span className="block text-sm text-muted tabular-nums">{hm(l.start_time)}–{hm(l.end_time)}{l.room ? ` · ${l.room}-каб.` : ''}{l.teacher || l.teacher_name ? ` · ${l.teacher?.full_name ?? l.teacher_name}` : ''}</span>
               </span>
               {canEdit && <button type="button" onClick={() => del(l.id)} aria-label={`${l.subject} — өшіру`} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button>}
             </div>

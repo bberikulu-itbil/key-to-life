@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { attendanceRate, errText, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
+import { attendanceRate, errText, listClasses, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
 import { openTelegram } from '../lib/telegram'
 import { useMe, canAddUsers, isApprover } from '../App'
 import { Button, Card, Icon, PageHead, toast, useLoad } from '../components/ui'
@@ -25,6 +25,7 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
   const { me } = useMe()
   const staff = me.role !== 'student'
   const rate = useLoad(() => (staff ? Promise.resolve(null) : attendanceRate(me.id)), [me.id])
+  const myClass = useLoad(async () => (staff ? (await listClasses()).find((c) => c.teacher_id === me.id || c.tutor_id === me.id) ?? null : null), [me.id])
 
   return (
     <div className="grid gap-3 pb-4">
@@ -40,6 +41,13 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
       </Card>
 
       <TelegramCard staff={staff} />
+      {myClass.data && (
+        <a href={`#/class/${myClass.data.id}`} className="flex items-center gap-3 rounded-lg p-4 bg-surface shadow-card border border-[var(--card-line,transparent)]">
+          <span className="size-11 rounded-md bg-accent text-on-accent grid place-items-center font-bold">{myClass.data.name}</span>
+          <span className="flex-1"><span className="block font-semibold">Менің сыныбым</span><span className="block text-sm text-muted">Оқушылар, бүгінгі сабақтар, кім сыртта</span></span>
+          <Icon n="chev" className="text-muted" />
+        </a>
+      )}
 
       <Section title="Менікі" links={[
         ['#/bookings', 'grid', 'Менің броньдарым'],

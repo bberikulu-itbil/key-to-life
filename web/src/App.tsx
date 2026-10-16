@@ -21,6 +21,7 @@ import Verify from './screens/Verify'
 import Duty from './screens/Duty'
 import Calendars from './screens/Calendars'
 import Timetable from './screens/Timetable'
+import MyClass from './screens/MyClass'
 import MyActivities from './screens/MyActivities'
 import AddUser from './screens/AddUser'
 
@@ -75,7 +76,8 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'v') screen = <Verify code={id || undefined} />
   else if (seg === 'duty') screen = <Duty />
   else if (seg === 'calendars') screen = <Calendars />
-  else if (seg === 'timetable') screen = <Timetable />
+  else if (seg === 'timetable') screen = <Timetable classId={id} />
+  else if (seg === 'class') screen = <MyClass classId={id} />
   else if (seg === 'my') screen = <MyActivities kind={id} />
   else if (seg === 'chats' && id === 'system') screen = <Notifications />
   else if (seg === 'chats' && id === 'reports') screen = <Reports />

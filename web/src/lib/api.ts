@@ -65,7 +65,7 @@ export const listStaff = () =>
   ok(supabase.from('profiles').select('id, full_name, title, role').neq('role', 'student').order('full_name')) as Promise<{ id: string; full_name: string; title: string | null; role: Role }[]>
 
 export const listClasses = () =>
-  ok(supabase.from('classes').select('id, name, grade, teacher_id').order('grade')) as Promise<{ id: string; name: string; grade: number; teacher_id: string | null }[]>
+  ok(supabase.from('classes').select('id, name, grade, teacher_id, tutor_id').order('grade').order('name')) as Promise<{ id: string; name: string; grade: number; teacher_id: string | null; tutor_id: string | null }[]>
 
 export const getAttendance = (activityId: string, date: string) =>
   ok(supabase.from('attendance').select('student_id, status').eq('activity_id', activityId).eq('session_date', date)) as Promise<{ student_id: string; status: Mark }[]>
@@ -169,7 +169,7 @@ export const setCurator = (activity: string, student: string | null) => rpc('set
 export type CalKind = 'personal' | 'class' | 'school' | 'olympiad'
 export type Calendar = { id: string; kind: CalKind; name: string; color: string; class_id: string | null; owner_id: string | null }
 export type CalEvent = { id: string; calendar_id: string; title: string; starts_at: string; ends_at: string; all_day: boolean; location: string | null; notes: string | null }
-export type Lesson = { id: string; class_id: string; weekday: number; start_time: string; end_time: string; subject: string; teacher_id: string | null; room: string | null
+export type Lesson = { id: string; class_id: string; weekday: number; start_time: string; end_time: string; subject: string; teacher_id: string | null; teacher_name: string | null; room: string | null
   teacher: { full_name: string } | null; class: { name: string } }
 
 export const ensureCalendars = () => rpc('ensure_calendars', {})
@@ -185,7 +185,7 @@ export const setHidden = (key: string, hidden: boolean) =>
 export const canEditCalendar = (id: string) => rpc<boolean>('can_edit_calendar', { p_cal: id })
 
 /* ---------- timetable & syllabus ---------- */
-const LESSON = 'id, class_id, weekday, start_time, end_time, subject, teacher_id, room, teacher:profiles!teacher_id(full_name), class:classes(name)'
+const LESSON = 'id, class_id, weekday, start_time, end_time, subject, teacher_id, teacher_name, room, teacher:profiles!teacher_id(full_name), class:classes(name)'
 export const listLessons = (f: { classId?: string; teacher?: string }) => {
   let q = supabase.from('timetable').select(LESSON).order('weekday').order('start_time')
   if (f.classId) q = q.eq('class_id', f.classId)
@@ -311,3 +311,11 @@ export const tgLinkUrl = () => tgCall<{ url: string }>({ action: 'link_url' })
 export const tgStatus = async () =>
   ((await ok(supabase.from('telegram_links').select('tg_id, tg_username').not('tg_id', 'is', null).maybeSingle())) as { tg_id: number; tg_username: string | null } | null)
 export const tgUnlink = () => rpc('telegram_unlink', {})
+
+/* ---------- my class ---------- */
+export type Student = { id: string; full_name: string; olympiad: string | null; club: string | null; parliament: boolean }
+export const classStudents = (classId: string) =>
+  ok(supabase.from('profiles').select('id, full_name, olympiad, club, parliament').eq('class_id', classId).eq('role', 'student').order('full_name')) as Promise<Student[]>
+export const classAttendance = (ids: string[]) =>
+  ok(supabase.from('attendance').select('student_id, status').in('student_id', ids)) as Promise<{ student_id: string; status: Mark }[]>
+export const setTutor = (classId: string, tutor: string | null) => rpc('set_tutor', { p_class: classId, p_tutor: tutor })
