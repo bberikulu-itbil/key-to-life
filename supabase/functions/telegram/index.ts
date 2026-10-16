@@ -153,6 +153,11 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
 
   if (req.method === "GET" && url.searchParams.get("setup")) {
+    const user = await userFromJwt(req);
+    if (!user) return json({ error: "Кіріңіз" }, 401);
+    const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    if (profile?.role !== "admin") return json({ error: "Құқығыңыз жоқ" }, 403);
+
     const webhook = await tg("setWebhook", { url: SELF_URL, secret_token: await secret(), allowed_updates: ["message", "callback_query"], drop_pending_updates: true });
     const menu = await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Lyceum Life", web_app: { url: APP_URL } } });
     const cmds = await tg("setMyCommands", { commands: [{ command: "start", description: "Бастау" }] });

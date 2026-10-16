@@ -2,6 +2,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,12 +26,14 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npx tsx src/lib/time.test.ts && TZ=Asia/Almaty npx tsx src/lib/ics.test.ts && npx tsx ../supabase/functions/telegram/initdata.test.ts
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/dist
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
