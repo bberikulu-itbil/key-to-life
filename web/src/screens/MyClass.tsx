@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { classAttendance, classStudents, ensureChats, errText, listClasses, listLeaves, listLessons, listStaff, myChats, openDirect, setTutor, uploadStudentPhoto, type Student } from '../lib/api'
+import { classAttendance, classStudents, ensureChats, errText, listClasses, listLeaves, listLessons, listStaff, myChats, openDirect, uploadStudentPhoto, type Student } from '../lib/api'
 import Avatar from '../components/Avatar'
 import { hm, isoDow, rate, today } from '../lib/time'
 import { useMe } from '../App'
-import { Badge, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import { Badge, Card, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 
 export default function MyClass({ classId }: { classId?: string }) {
   const { me } = useMe()
