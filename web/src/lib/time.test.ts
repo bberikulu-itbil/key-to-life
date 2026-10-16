@@ -1,0 +1,34 @@
+// Run: npx tsx src/lib/time.test.ts
+import assert from 'node:assert/strict'
+import { addDays, isSession, isoDow, rate, sessions, weekOf } from './time'
+
+const weekly = { schedule: 'weekly' as const, on_date: null, weekdays: [1, 3], date_from: '2026-10-01', date_to: '2026-10-31' }
+const once = { schedule: 'once' as const, on_date: '2026-10-25', weekdays: null, date_from: null, date_to: null }
+
+assert.equal(isoDow('2026-10-12'), 1)                 // Monday
+assert.equal(isoDow('2026-10-18'), 7)                 // Sunday
+assert.equal(addDays('2026-10-31', 1), '2026-11-01')
+assert.ok(isSession(weekly, '2026-10-14'))            // Wednesday in range
+assert.ok(!isSession(weekly, '2026-10-15'))           // Thursday
+assert.ok(!isSession(weekly, '2026-11-02'))           // Monday after range
+assert.ok(isSession(once, '2026-10-25') && !isSession(once, '2026-10-26'))
+assert.deepEqual(sessions(weekly, '2026-10-12', '2026-10-19'), ['2026-10-19', '2026-10-14', '2026-10-12'])
+assert.deepEqual(weekOf('2026-10-16'), ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18'])
+assert.equal(rate(['present', 'late', 'absent', 'excused']), 67)
+assert.equal(rate(['excused']), null)
+assert.equal(rate([]), null)
+console.log('time.ts ok')
+
+import { daySlots, pickRange } from './time'
+const res = { open_from: '08:00:00', open_to: '10:00:00', slot_minutes: 30 }
+const sl = daySlots(res, [{ start_time: '08:30:00', end_time: '09:00:00', status: 'approved' }, { start_time: '09:30:00', end_time: '10:00:00', status: 'pending' }], false, '00:00')
+assert.deepEqual(sl.map((s) => s.state), ['free', 'busy', 'free', 'pending'])
+assert.deepEqual(sl.map((s) => s.start), ['08:00', '08:30', '09:00', '09:30'])
+assert.equal(daySlots(res, [], true, '08:45')[0].state, 'past')
+assert.deepEqual(pickRange(sl, null, 2), [2, 2])
+assert.deepEqual(pickRange(sl, [0, 0], 2), [2, 2])          // range would cross a busy slot → restart
+assert.deepEqual(pickRange(sl, [2, 2], 3), [2, 2])               // pending slot is not selectable
+const free = daySlots(res, [], false, '00:00')
+assert.deepEqual(pickRange(free, [0, 0], 2), [0, 2])
+assert.equal(pickRange(free, [1, 1], 1), null)               // tap again to clear
+console.log('slots ok')

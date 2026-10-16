@@ -1,0 +1,212 @@
+import { createClient } from '@supabase/supabase-js'
+
+export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY)
+
+export type Role = 'student' | 'teacher' | 'class_teacher' | 'deputy' | 'admin'
+export type ActivityType = 'olympiad_prep' | 'club' | 'course' | 'event' | 'competition' | 'tournament' | 'challenge'
+export type ActivityStatus = 'pending_class_teacher' | 'pending_deputy' | 'approved' | 'rejected' | 'cancelled'
+export type Mark = 'present' | 'late' | 'excused' | 'absent'
+
+export type Me = { id: string; full_name: string; role: Role; title: string | null; school_id: string
+  class: { id: string; name: string; grade: number; teacher_id: string | null } | null; school: { name: string } }
+
+export type Activity = {
+  id: string; type: ActivityType; title: string; description: string; place: string; status: ActivityStatus
+  audience_grades: number[]; capacity: number | null; schedule: 'once' | 'weekly'
+  on_date: string | null; weekdays: number[] | null; date_from: string | null; date_to: string | null
+  start_time: string; end_time: string; author_id: string; supervisor_id: string; curator_id: string | null; created_at: string
+  author: { full_name: string; class: { name: string; teacher_id: string | null } | null }
+  supervisor: { full_name: string }
+  enrollments: { student_id: string; waitlisted: boolean }[]
+}
+
+export type ActivityFull = Omit<Activity, 'enrollments'> & {
+  approvals: { id: number; step: ActivityStatus; decision: string; comment: string | null; created_at: string; actor: { full_name: string } }[]
+  enrollments: { student_id: string; waitlisted: boolean; created_at: string; student: { full_name: string; class: { name: string } | null } }[]
+}
+
+// Postgres errors raised by our RPCs are already in Kazakh; map the few the database itself produces.
+export function errText(e: unknown): string {
+  const m = (e as { message?: string })?.message ?? String(e)
+  if (m.includes('Invalid login credentials')) return 'ЖСН немесе құпия сөз қате'
+  if (m.includes('check constraint')) return 'Өрістерді тексеріңіз: кейбір мәндер тым қысқа немесе қате'
+  if (m.includes('Failed to fetch')) return 'Интернет байланысын тексеріңіз'
+  return m
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ok<T = any>(p: PromiseLike<{ data: any; error: unknown }>): Promise<T> {
+  const { data, error } = await p
+  if (error) throw new Error(errText(error))
+  return data
+}
+
+export const emailFor = (iin: string) => `${iin}@users.lyceum-life.app`
+
+export const signIn = (iin: string, password: string) =>
+  ok(supabase.auth.signInWithPassword({ email: emailFor(iin.trim()), password }))
+export const signOut = () => supabase.auth.signOut()
+
+export const getMe = (id: string) =>
+  ok(supabase.from('profiles').select('id, full_name, role, title, school_id, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
+    .eq('id', id).single()) as unknown as Promise<Me>
+
+const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
+
+export const listActivities = () =>
+  ok(supabase.from('activities').select(ACT).order('created_at', { ascending: false })) as unknown as Promise<Activity[]>
+
+export const getActivity = (id: string) =>
+  ok(supabase.from('activities').select(ACT.replace('enrollments(student_id, waitlisted)',
+    'enrollments(student_id, waitlisted, created_at, student:profiles!student_id(full_name, class:classes!class_id(name))), approvals(id, step, decision, comment, created_at, actor:profiles!actor_id(full_name))'))
+    .eq('id', id).single()) as unknown as Promise<ActivityFull>
+
+export const listStaff = () =>
+  ok(supabase.from('profiles').select('id, full_name, title, role').neq('role', 'student').order('full_name')) as Promise<{ id: string; full_name: string; title: string | null; role: Role }[]>
+
+export const listClasses = () =>
+  ok(supabase.from('classes').select('id, name, grade, teacher_id').order('grade')) as Promise<{ id: string; name: string; grade: number; teacher_id: string | null }[]>
+
+export const getAttendance = (activityId: string, date: string) =>
+  ok(supabase.from('attendance').select('student_id, status').eq('activity_id', activityId).eq('session_date', date)) as Promise<{ student_id: string; status: Mark }[]>
+
+export const myAttendance = (me: string) =>
+  ok(supabase.from('attendance').select('activity_id, session_date, status, activity:activities(title)').eq('student_id', me)
+    .order('session_date', { ascending: false })) as unknown as Promise<{ activity_id: string; session_date: string; status: Mark; activity: { title: string } }[]>
+
+export type AbsenceRequest = { id: string; student_id: string; activity_id: string; session_date: string; category: string; reason: string
+  status: 'pending' | 'approved' | 'rejected'; decision_note: string | null; student: { full_name: string } }
+export const listRequests = (activityId?: string) => {
+  let q = supabase.from('absence_requests').select('id, student_id, activity_id, session_date, category, reason, status, decision_note, student:profiles!student_id(full_name)').order('created_at', { ascending: false })
+  if (activityId) q = q.eq('activity_id', activityId)
+  return ok(q) as unknown as Promise<AbsenceRequest[]>
+}
+
+export type Notice = { id: number; title: string; body: string | null; link: string | null; read_at: string | null; created_at: string }
+export const listNotifications = () =>
+  ok(supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(100)) as Promise<Notice[]>
+export const unreadCount = async () =>
+  (await supabase.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null)).count ?? 0
+
+const rpc = <T,>(fn: string, args: Record<string, unknown>) => ok(supabase.rpc(fn, args)) as Promise<T>
+export const submitActivity = (p: Record<string, unknown>, id?: string) => rpc<string>('submit_activity', { p, p_id: id ?? null })
+export const decideActivity = (id: string, approve: boolean, comment?: string) => rpc('decide_activity', { p_id: id, p_approve: approve, p_comment: comment ?? null })
+export const cancelActivity = (id: string, reason: string) => rpc('cancel_activity', { p_id: id, p_reason: reason })
+export const joinActivity = (id: string) => rpc<boolean>('join_activity', { p_id: id })
+export const leaveActivity = (id: string) => rpc('leave_activity', { p_id: id })
+export const markAttendance = (id: string, date: string, rows: { student_id: string; status: Mark }[]) =>
+  rpc<number>('mark_attendance', { p_id: id, p_date: date, p_rows: rows })
+export const requestAbsence = (activity: string, date: string, category: string, reason: string) =>
+  rpc('request_absence', { p_activity: activity, p_date: date, p_category: category, p_reason: reason })
+export const decideAbsence = (id: string, approve: boolean, note?: string) => rpc('decide_absence', { p_id: id, p_approve: approve, p_note: note ?? null })
+export const markRead = () => rpc('mark_notifications_read', {})
+export const attendanceRate = (student: string) => rpc<number | null>('attendance_rate', { p_student: student })
+
+export async function addUser(body: { full_name: string; iin: string; role: Role; class_id?: string; title?: string }) {
+  const { data, error } = await supabase.functions.invoke('admin-users', { body: { action: 'create', ...body } })
+  if (error) {
+    const msg = await (error as { context?: Response }).context?.json?.().catch(() => null)
+    throw new Error(msg?.error ?? errText(error))
+  }
+  return data as { full_name: string; iin: string; password: string }
+}
+
+/* ---------- booking ---------- */
+export type Resource = { id: string; group_id: string; name: string; capacity: number | null; manager_id: string; slot_minutes: number
+  open_from: string; open_to: string; active: boolean; manager: { full_name: string } }
+export type Group = { id: string; name: string; sort: number }
+export type BookingStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+export type Booking = { id: string; code: string; resource_id: string; user_id: string; on_date: string; start_time: string; end_time: string
+  purpose: string; status: BookingStatus; note: string | null; created_at: string
+  user: { full_name: string }; resource: { name: string; manager_id: string; group: { name: string } } }
+
+export const listGroups = () => ok(supabase.from('resource_groups').select('id, name, sort').order('sort').order('name')) as Promise<Group[]>
+export const listResources = () =>
+  ok(supabase.from('resources').select('id, group_id, name, capacity, manager_id, slot_minutes, open_from, open_to, active, manager:profiles!manager_id(full_name)').order('name')) as unknown as Promise<Resource[]>
+const BOOK = 'id, code, resource_id, user_id, on_date, start_time, end_time, purpose, status, note, created_at, user:profiles!user_id(full_name), resource:resources(name, manager_id, group:resource_groups(name))'
+export const bookingsFor = (resource: string, date: string) =>
+  ok(supabase.from('bookings').select(BOOK).eq('resource_id', resource).eq('on_date', date).in('status', ['pending', 'approved'])) as unknown as Promise<Booking[]>
+export const listBookings = (filter: { user?: string; from?: string }) => {
+  let q = supabase.from('bookings').select(BOOK).order('on_date', { ascending: false }).order('start_time').limit(200)
+  if (filter.user) q = q.eq('user_id', filter.user)
+  if (filter.from) q = q.gte('on_date', filter.from)
+  return ok(q) as unknown as Promise<Booking[]>
+}
+export const createBooking = (resource: string, date: string, start: string, end: string, purpose: string) =>
+  rpc<string>('create_booking', { p_resource: resource, p_date: date, p_start: start, p_end: end, p_purpose: purpose })
+export const decideBooking = (id: string, approve: boolean, note?: string) => rpc('decide_booking', { p_id: id, p_approve: approve, p_note: note ?? null })
+export const cancelBooking = (id: string) => rpc('cancel_booking', { p_id: id })
+export const updateResource = (id: string, slot: number, from: string, to: string, active: boolean) =>
+  rpc('update_resource', { p_id: id, p_slot: slot, p_from: from, p_to: to, p_active: active })
+export const createResource = (group: string, name: string, manager: string, capacity: number | null) =>
+  rpc<string>('create_resource', { p_group: group, p_name: name, p_manager: manager, p_capacity: capacity })
+
+/* ---------- leave ---------- */
+export type LeaveStatus = 'pending_class_teacher' | 'pending_deputy' | 'pending_teacher' | 'approved' | 'rejected' | 'cancelled'
+export type Leave = { id: string; code: string; student_id: string; kind: 'outside' | 'lesson'; starts_at: string; ends_at: string; category: string
+  reason: string; teacher_id: string | null; class_teacher_id: string | null; status: LeaveStatus; ct_opinion: boolean | null; ct_note: string | null
+  escalated: boolean; assigned_deputy: string | null; deadline_at: string | null; decision_note: string | null; created_at: string
+  student: { full_name: string; class: { name: string } | null }; teacher: { full_name: string } | null; decider: { full_name: string } | null }
+const LEAVE = '*, student:profiles!student_id(full_name, class:classes!class_id(name)), teacher:profiles!teacher_id(full_name), decider:profiles!decided_by(full_name)'
+export const listLeaves = (filter: { student?: string; since?: string; until?: string; pending?: boolean }) => {
+  let q = supabase.from('leave_requests').select(LEAVE).order('created_at', { ascending: false }).limit(200)
+  if (filter.student) q = q.eq('student_id', filter.student)
+  if (filter.since) q = q.gte('ends_at', filter.since)
+  if (filter.until) q = q.lte('starts_at', filter.until)
+  if (filter.pending) q = q.like('status', 'pending%')
+  return ok(q) as unknown as Promise<Leave[]>
+}
+export const createLeave = (kind: 'outside' | 'lesson', starts: string, ends: string, category: string, reason: string, teacher?: string) =>
+  rpc<string>('create_leave', { p_kind: kind, p_starts: starts, p_ends: ends, p_category: category, p_reason: reason, p_teacher: teacher ?? null })
+export const decideLeave = (id: string, approve: boolean, note?: string) => rpc<LeaveStatus>('decide_leave', { p_id: id, p_approve: approve, p_note: note ?? null })
+export const cancelLeave = (id: string) => rpc('cancel_leave', { p_id: id })
+export const verifyCode = (code: string) => rpc<Record<string, string | boolean> | null>('verify_code', { p_code: code })
+export const listDuty = () => ok(supabase.from('duty_roster').select('weekday, deputy_id')) as Promise<{ weekday: number; deputy_id: string | null }[]>
+export const setDuty = (weekday: number, deputy: string | null) => rpc('set_duty', { p_weekday: weekday, p_deputy: deputy })
+export const setCurator = (activity: string, student: string | null) => rpc('set_curator', { p_activity: activity, p_student: student })
+
+/* ---------- calendars ---------- */
+export type CalKind = 'personal' | 'class' | 'school' | 'olympiad'
+export type Calendar = { id: string; kind: CalKind; name: string; color: string; class_id: string | null; owner_id: string | null }
+export type CalEvent = { id: string; calendar_id: string; title: string; starts_at: string; ends_at: string; all_day: boolean; location: string | null; notes: string | null }
+export type Lesson = { id: string; class_id: string; weekday: number; start_time: string; end_time: string; subject: string; teacher_id: string | null; room: string | null
+  teacher: { full_name: string } | null; class: { name: string } }
+
+export const ensureCalendars = () => rpc('ensure_calendars', {})
+export const listCalendars = () => ok(supabase.from('calendars').select('id, kind, name, color, class_id, owner_id').order('kind')) as Promise<Calendar[]>
+export const listEvents = (from: string, to: string) =>
+  ok(supabase.from('calendar_events').select('id, calendar_id, title, starts_at, ends_at, all_day, location, notes').lt('starts_at', to).gt('ends_at', from).order('starts_at')) as Promise<CalEvent[]>
+export const addEvents = (rows: { calendar_id: string; title: string; starts_at: string; ends_at: string; all_day?: boolean; location?: string | null; notes?: string | null; import_uid?: string }[]) =>
+  ok(supabase.from('calendar_events').upsert(rows, { onConflict: 'calendar_id,import_uid', ignoreDuplicates: true }).select('id')) as Promise<{ id: string }[]>
+export const removeEvent = (id: string) => ok(supabase.from('calendar_events').delete().eq('id', id))
+export const listHidden = async () => ((await ok(supabase.from('calendar_hidden').select('cal_key'))) as { cal_key: string }[]).map((r) => r.cal_key)
+export const setHidden = (key: string, hidden: boolean) =>
+  hidden ? ok(supabase.from('calendar_hidden').upsert({ cal_key: key })) : ok(supabase.from('calendar_hidden').delete().eq('cal_key', key))
+export const canEditCalendar = (id: string) => rpc<boolean>('can_edit_calendar', { p_cal: id })
+
+/* ---------- timetable & syllabus ---------- */
+const LESSON = 'id, class_id, weekday, start_time, end_time, subject, teacher_id, room, teacher:profiles!teacher_id(full_name), class:classes(name)'
+export const listLessons = (f: { classId?: string; teacher?: string }) => {
+  let q = supabase.from('timetable').select(LESSON).order('weekday').order('start_time')
+  if (f.classId) q = q.eq('class_id', f.classId)
+  if (f.teacher) q = q.eq('teacher_id', f.teacher)
+  return ok(q) as unknown as Promise<Lesson[]>
+}
+export const addLesson = (row: { class_id: string; weekday: number; start_time: string; end_time: string; subject: string; teacher_id: string | null; room: string | null }) =>
+  ok(supabase.from('timetable').insert(row))
+export const removeLesson = (id: string) => ok(supabase.from('timetable').delete().eq('id', id))
+
+export type Topic = { id: string; activity_id: string; sort: number; title: string; body: string | null; problems: string | null }
+export const listTopics = (activityIds: string[]) =>
+  ok(supabase.from('activity_topics').select('*').in('activity_id', activityIds).order('sort')) as Promise<Topic[]>
+export const addTopic = (row: Omit<Topic, 'id'>) => ok(supabase.from('activity_topics').insert(row))
+export const removeTopic = (id: string) => ok(supabase.from('activity_topics').delete().eq('id', id))
+export const myProgress = async (me: string) => ((await ok(supabase.from('topic_progress').select('topic_id').eq('student_id', me))) as { topic_id: string }[]).map((r) => r.topic_id)
+export const setProgress = (topic: string, done: boolean) =>
+  done ? ok(supabase.from('topic_progress').upsert({ topic_id: topic })) : ok(supabase.from('topic_progress').delete().eq('topic_id', topic))
+
+export type TeacherDuty = { id: string; weekday: number; user_id: string; post: string; user: { full_name: string } }
+export const listTeacherDuty = () =>
+  ok(supabase.from('teacher_duty').select('id, weekday, user_id, post, user:profiles!user_id(full_name)').order('weekday').order('post')) as unknown as Promise<TeacherDuty[]>
+export const addTeacherDuty = (weekday: number, user_id: string, post: string) => ok(supabase.from('teacher_duty').insert({ weekday, user_id, post }))
+export const removeTeacherDuty = (id: string) => ok(supabase.from('teacher_duty').delete().eq('id', id))
