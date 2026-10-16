@@ -150,3 +150,15 @@ export const PageHead = ({ title, back, right }: { title: string; back?: boolean
     {right}
   </div>
 )
+
+/** iOS-style on/off switch; the whole row is the touch target. */
+export function Switch({ label, hint, on, onChange, disabled }: { label: string; hint?: string; on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} disabled={disabled} onClick={() => onChange(!on)} className="w-full flex items-center gap-3 min-h-14 py-2 text-left disabled:opacity-50">
+      <span className="flex-1 min-w-0"><span className="block font-semibold">{label}</span>{hint && <span className="block text-sm text-muted">{hint}</span>}</span>
+      <span aria-hidden className={`relative shrink-0 w-12 h-7 rounded-full transition-colors duration-200 ${on ? 'bg-accent' : 'bg-line'}`}>
+        <span className={`absolute top-0.5 size-6 rounded-full bg-white shadow-card transition-transform duration-200 motion-reduce:transition-none ${on ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+      </span>
+    </button>
+  )
+}

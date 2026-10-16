@@ -87,10 +87,11 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
         <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label="Жариялау" className="size-11 rounded-full bg-accent text-on-accent grid place-items-center"><Icon n="plus" /></button>
       </header>
 
-      <nav aria-label="Жылдам әрекеттер" className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 [scrollbar-width:none]">
+      {/* all five fit at 320px: hidden off-screen shortcuts were never found */}
+      <nav aria-label="Жылдам әрекеттер" className="grid grid-cols-5 gap-1.5">
         {QUICK.map(([icon, label, path]) => (
-          <a key={path} href={`#${path}`} className="shrink-0 w-[76px] grid justify-items-center gap-1.5 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] py-3 px-1 text-xs font-semibold text-center">
-            <span className="size-10 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n={icon} /></span>{label}
+          <a key={path} href={`#${path}`} className="min-w-0 grid justify-items-center content-start gap-1.5 rounded-lg py-2 px-0.5 text-[11px] leading-tight font-semibold text-center active:bg-surface-2">
+            <span className="size-12 rounded-2xl bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={22} /></span><span className="break-words">{label}</span>
           </a>
         ))}
       </nav>

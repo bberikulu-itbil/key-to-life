@@ -9,7 +9,7 @@ export type ActivityStatus = 'pending_class_teacher' | 'pending_deputy' | 'appro
 export type Feature = 'chat' | 'syllabus' | 'schedule' | 'tasks' | 'attendance'
 export type Mark = 'present' | 'late' | 'excused' | 'absent'
 
-export type Me = { id: string; full_name: string; role: Role; title: string | null; school_id: string; parliament: boolean
+export type Me = { id: string; full_name: string; role: Role; title: string | null; school_id: string; parliament: boolean; photo: string | null
   class: { id: string; name: string; grade: number; teacher_id: string | null } | null; school: { name: string } }
 
 export type Activity = {
@@ -53,7 +53,7 @@ export const signIn = (iin: string, password: string) =>
 export const signOut = () => supabase.auth.signOut()
 
 export const getMe = (id: string) =>
-  ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
+  ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, photo, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
 const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, extra:activity_sessions(id, on_date, start_time, end_time, note), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'

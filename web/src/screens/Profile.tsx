@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { attendanceRate, errText, listClasses, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
+import { attendanceRate, errText, listActivities, listClasses, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
 import { openTelegram } from '../lib/telegram'
 import { useMe, canAddUsers, isApprover } from '../App'
 import { Button, Card, Icon, PageHead, toast, useLoad } from '../components/ui'
+import Avatar from '../components/Avatar'
 
 const ROLE: Record<string, string> = { student: 'Оқушы', teacher: 'Мұғалім', class_teacher: 'Сынып жетекшісі', deputy: 'Тәрбие ісі жөніндегі орынбасар', admin: 'Әкімші' }
 
@@ -24,53 +25,69 @@ const Section = ({ title, links }: { title: string; links: [string, string, stri
 export default function Profile({ onAddUser }: { onAddUser: () => void }) {
   const { me } = useMe()
   const staff = me.role !== 'student'
-  const rate = useLoad(() => (staff ? Promise.resolve(null) : attendanceRate(me.id)), [me.id])
+  const stats = useLoad(async () => {
+    const [rate, acts] = await Promise.all([staff ? Promise.resolve(null) : attendanceRate(me.id), listActivities()])
+    const mine = acts.filter((a) => a.status === 'approved' && (staff ? a.supervisor_id === me.id : a.enrollments.some((e) => e.student_id === me.id && !e.waitlisted)))
+    return { rate, acts: mine.length }
+  }, [me.id])
   const myClass = useLoad(async () => (staff ? (await listClasses()).find((c) => c.teacher_id === me.id || c.tutor_id === me.id) ?? null : null), [me.id])
+  const [leaving, setLeaving] = useState(false)
 
   return (
-    <div className="grid gap-3 pb-4">
+    <div className="grid gap-3 pb-6">
       <PageHead title="Профиль" />
-      <Card className="flex items-center gap-3">
-        <div className="size-14 rounded-full bg-accent-soft text-accent grid place-items-center text-lg font-bold" aria-hidden>{me.full_name.split(' ').map((w) => w[0]).slice(0, 2).join('')}</div>
-        <div className="min-w-0 flex-1">
-          <p className="text-lg font-semibold break-words">{me.full_name}</p>
-          <p className="text-sm text-muted">{me.title || ROLE[me.role]}{me.class ? ` · ${me.class.name}` : ''}</p>
-          <p className="text-sm text-muted">{me.school.name}</p>
+      <Card className="grid gap-4">
+        <div className="flex items-center gap-3">
+          <Avatar name={me.full_name} photo={me.photo} size={64} />
+          <div className="min-w-0 flex-1">
+            <p className="text-lg font-bold leading-snug break-words">{me.full_name}</p>
+            <p className="text-sm text-muted">{me.title || ROLE[me.role]}{me.class ? ` · ${me.class.name}` : ''}</p>
+            <p className="text-sm text-muted truncate">{me.school.name}{me.parliament ? ' · парламент мүшесі' : ''}</p>
+          </div>
         </div>
-        {!staff && <div className="text-right"><p className="text-xl font-bold tabular-nums">{rate.data == null ? '—' : `${rate.data}%`}</p><p className="text-xs text-muted">қатысу</p></div>}
+        <div className="grid grid-cols-2 gap-2">
+          {!staff && <Stat value={stats.data?.rate == null ? '—' : `${stats.data.rate}%`} label="Қатысу" />}
+          <Stat value={stats.data ? String(stats.data.acts) : '—'} label={staff ? 'Мен жетекші' : 'Іс-шара'} href="#/activities/mine" />
+          {staff && myClass.data && <Stat value={myClass.data.name} label="Менің сыныбым" href={`#/class/${myClass.data.id}`} />}
+        </div>
       </Card>
 
-      {myClass.data && (
-        <a href={`#/class/${myClass.data.id}`} className="flex items-center gap-3 rounded-lg p-4 bg-surface shadow-card border border-[var(--card-line,transparent)]">
-          <span className="size-11 rounded-md bg-accent text-on-accent grid place-items-center font-bold">{myClass.data.name}</span>
-          <span className="flex-1"><span className="block font-semibold">Менің сыныбым</span><span className="block text-sm text-muted">Оқушылар, бүгінгі сабақтар, кім сыртта</span></span>
-          <Icon n="chev" className="text-muted" />
-        </a>
+      <Section title="Менікі" links={[
+        ['#/activities/mine', 'star', 'Менің іс-шараларым', staff ? 'Жетекшілік ететін және ұсынған' : 'Жазылған, ұсынған, жауапты'],
+        ['#/leaves', 'clock', staff ? 'Рұқсаттар' : 'Менің рұқсаттарым', staff ? 'Шешім күтетіндер және бүгін берілгендер' : undefined],
+        ['#/bookings', 'grid', 'Менің броньдарым'],
+        ['#/calendars', 'file', 'Күнтізбелер', 'Жеке, сынып, мектеп · импорт/экспорт'],
+        ['#/timetable', 'list', 'Сабақ кестесі'],
+      ]} />
+      {staff && <Section title="Мұғалімге" links={[
+        ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'users', 'Менің сыныбым', 'Оқушылар, суреттер, кім сыртта'] as [string, string, string, string]] : []),
+        ...(isApprover(me) ? [['#/activities/review', 'check', 'Растау күтуде', 'Оқушылардың іс-шара ұсыныстары'] as [string, string, string, string]] : []),
+        ['#/duty', 'users', 'Кезекшіліктер', 'Мұғалімдер мен орынбасарлар'],
+        ['#/v/', 'check', 'QR тексеру', 'Рұқсат немесе бронь кодын тексеру'],
+        ...(isApprover(me) ? [['#/chats/reports', 'flag', 'Чат шағымдары'] as [string, string, string]] : []),
+      ]} />}
+      {canAddUsers(me) && (
+        <button type="button" onClick={onAddUser} className="flex items-center gap-3 min-h-14 px-4 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] text-left">
+          <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="userplus" size={18} /></span>
+          <span className="flex-1">Пайдаланушы қосу</span><Icon n="chev" className="text-muted" />
+        </button>
       )}
 
-      <Section title="Менікі" links={[
-        ['#/bookings', 'grid', 'Менің броньдарым'],
-        ['#/leaves', 'clock', staff ? 'Рұқсаттар' : 'Менің рұқсаттарым', staff ? 'Шешім күтетіндер және бүгін берілгендер' : undefined],
-        ['#/calendars', 'file', 'Менің күнтізбелерім', 'Жеке, сынып, мектеп, олимпиада · импорт/экспорт'],
-        ['#/duty', 'users', 'Кезекшіліктер', 'Мұғалімдер мен орынбасарлар'],
-      ]} />
-      <Section title="Оқу" links={[
-        ['#/activities/mine', 'star', 'Менің іс-шараларым', 'Жазылған, ұсынған, жауапты'],
-        ['#/timetable', 'clock', 'Сабақ кестесі'],
-      ]} />
-      {staff && <Section title="Құралдар" links={[
-        ...(isApprover(me) ? [['#/activities/review', 'file', 'Растау күтуде', 'Оқушылардың іс-шара ұсыныстары'] as [string, string, string, string]] : []),
-        ...(isApprover(me) ? [['#/chats/reports', 'flag', 'Чат шағымдары'] as [string, string, string]] : []),
-        ['#/v/', 'check', 'QR тексеру', 'Рұқсат немесе бронь кодын тексеру'],
-      ]} />}
-
-      <div className="grid gap-2 mt-2">
-        {canAddUsers(me) && <Button kind="secondary" onClick={onAddUser}>Пайдаланушы қосу</Button>}
-        <TelegramCard staff={staff} />
-        <Button kind="ghost" onClick={() => signOut()}>Шығу</Button>
-      </div>
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">Аккаунт</h2>
+      <TelegramCard staff={staff} />
+      {leaving ? (
+        <Card className="grid gap-3">
+          <p className="font-semibold">Аккаунттан шығасыз ба?</p>
+          <div className="grid grid-cols-2 gap-2"><Button kind="danger" onClick={() => signOut()}>Шығу</Button><Button kind="secondary" onClick={() => setLeaving(false)}>Жоқ</Button></div>
+        </Card>
+      ) : <Button kind="ghost" onClick={() => setLeaving(true)}>Шығу</Button>}
     </div>
   )
+}
+
+const Stat = ({ value, label, href }: { value: string; label: string; href?: string }) => {
+  const body = <><span className="block text-xl font-bold tabular-nums">{value}</span><span className="block text-xs text-muted">{label}</span></>
+  return href ? <a href={href} className="rounded-md bg-surface-2 px-3 py-2.5">{body}</a> : <div className="rounded-md bg-surface-2 px-3 py-2.5">{body}</div>
 }
 
 function TelegramCard({ staff }: { staff: boolean }) {

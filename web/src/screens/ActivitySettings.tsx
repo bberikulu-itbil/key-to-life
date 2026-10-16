@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { acceptWaitlisted, addParticipant, cancelActivity, errText, getActivity, listPeople, removeActivity, removeParticipant, setActivityFlags, setCurators, type ActivityFull } from '../lib/api'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import { Modules } from './ActivityDetail'
-import { Badge, Button, Card, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import { Badge, Button, Card, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, Switch, go, inputCls, toast, useLoad } from '../components/ui'
 
 const H = ({ children }: { children: string }) => <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-3">{children}</h2>
 
@@ -11,86 +11,109 @@ export default function ActivitySettings({ id }: { id: string }) {
   const { me } = useMe()
   const { data: a, error, loading, reload } = useLoad(() => getActivity(id), [id])
   const [sheet, setSheet] = useState<null | 'modules' | 'add' | 'cancel' | 'remove'>(null)
-  const [curators, setCuratorsState] = useState<string[]>([])
-  const [savingCurators, setSavingCurators] = useState(false)
-  useEffect(() => setCuratorsState(a?.curators?.map((x) => x.student_id) ?? (a?.curator_id ? [a.curator_id] : [])), [a?.curators, a?.curator_id])
+  const [confirmOut, setConfirmOut] = useState<string | null>(null)
+  const [q, setQ] = useState('')
   if (loading && !a) return <><PageHead title="Баптаулар" back /><Skeleton /></>
   if (error || !a) return <><PageHead title="Баптаулар" back /><ErrorBox text={error ?? 'Табылмады'} retry={reload} /></>
   const manager = a.supervisor_id === me.id || me.role === 'deputy' || me.role === 'admin'
   if (!manager) return <><PageHead title="Баптаулар" back /><Card><p>Іс-шараны жетекші немесе орынбасар баптайды.</p></Card></>
 
   const act = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); toast(done); reload() } catch (e) { toast(errText(e)) } }
-  const saveCurators = async () => { setSavingCurators(true); try { await setCurators(a.id, curators); toast(curators.length ? 'Жауапты оқушылар сақталды' : 'Жауапты оқушылар алынды'); reload() } catch (e) { toast(errText(e)) } finally { setSavingCurators(false) } }
+  const curatorIds = a.curators?.map((x) => x.student_id) ?? (a.curator_id ? [a.curator_id] : [])
+  // one tap marks/unmarks a responsible student, saved at once
+  const toggleCurator = (sid: string) => {
+    const on = curatorIds.includes(sid)
+    act(() => setCurators(a.id, on ? curatorIds.filter((x) => x !== sid) : [...curatorIds, sid]), on ? 'Жауаптылықтан алынды' : 'Жауапты оқушы болды')
+  }
   const joined = a.enrollments.filter((e) => !e.waitlisted)
   const waiting = a.enrollments.filter((e) => e.waitlisted)
+  const match = (n: string, c?: string | null) => (n + (c ?? '')).toLowerCase().includes(q.trim().toLowerCase())
 
   const csv = () => {
-    const rows = [['№', 'Аты-жөні', 'Сынып', 'Күйі'], ...a.enrollments.map((e, i) => [String(i + 1), e.student.full_name, e.student.class?.name ?? '', e.waitlisted ? 'күту тізімі' : 'қатысушы'])]
-    const blob = new Blob(['﻿' + rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' })
+    const rows = [['№', 'Аты-жөні', 'Сынып', 'Күйі'], ...a.enrollments.map((e, i) => [String(i + 1), e.student.full_name, e.student.class?.name ?? '', e.waitlisted ? 'күту тізімі' : curatorIds.includes(e.student_id) ? 'жауапты' : 'қатысушы'])]
+    const blob = new Blob(['\ufeff' + rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob); link.download = `${a.title}.csv`; link.click()
+  }
+
+  const row = (e: ActivityFull['enrollments'][number]) => {
+    const cur = curatorIds.includes(e.student_id)
+    return (
+      <div key={e.student_id} className="flex items-center gap-3 pl-4 pr-1 min-h-14">
+        <Avatar name={e.student.full_name} photo={e.student.photo} size={36} />
+        <span className="flex-1 min-w-0"><span className="block truncate">{e.student.full_name}</span>
+          <span className="block text-xs text-muted">{e.student.class?.name ?? ''}{cur ? ' · жауапты' : ''}</span></span>
+        {confirmOut === e.student_id ? (
+          <span className="flex items-center gap-1">
+            <Button kind="danger" onClick={() => { setConfirmOut(null); act(() => removeParticipant(a.id, e.student_id), 'Шығарылды') }}>Шығару</Button>
+            <Button kind="ghost" onClick={() => setConfirmOut(null)}>Жоқ</Button>
+          </span>
+        ) : e.waitlisted ? (
+          <>
+            <Button kind="secondary" onClick={() => act(() => acceptWaitlisted(a.id, e.student_id), 'Қабылданды')}>Қабылдау</Button>
+            <button type="button" onClick={() => setConfirmOut(e.student_id)} aria-label={`${e.student.full_name} — тізімнен алу`} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={() => toggleCurator(e.student_id)} aria-pressed={cur} aria-label={`${e.student.full_name} — жауапты оқушы`}
+              className={`size-11 grid place-items-center rounded-md ${cur ? 'text-accent' : 'text-muted'}`}><Icon n="star" size={20} /></button>
+            <button type="button" onClick={() => setConfirmOut(e.student_id)} aria-label={`${e.student.full_name} — шығару`} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button>
+          </>
+        )}
+      </div>
+    )
   }
 
   return (
     <div className="grid gap-2 pb-8">
       <PageHead title="Баптаулар" back />
-      <p className="text-sm text-muted -mt-2 truncate">{a.title}</p>
 
-      <H>Негізгі</H>
+      <Card className="grid gap-2">
+        <p className="font-bold text-lg leading-snug break-words">{a.title}</p>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={a.status === 'approved' ? 'ok' : 'muted'}>{a.status === 'approved' ? 'Белсенді' : 'Тоқтатылған'}</Badge>
+          <Badge tone={a.enrollment_open ? 'accent' : 'warn'}>{a.enrollment_open ? 'Тіркелу ашық' : 'Тіркелу жабық'}</Badge>
+          {a.archived_at && <Badge tone="muted">Архивте</Badge>}
+        </div>
+        <p className="text-sm text-muted tabular-nums">{joined.length}{a.capacity ? `/${a.capacity}` : ''} қатысушы · {curatorIds.length} жауапты{waiting.length ? ` · ${waiting.length} күтуде` : ''}</p>
+      </Card>
+
+      <H>Іс-шара</H>
       <Card className="p-0 divide-y divide-line">
-        <Item icon="file" title="Атауы, сипаттамасы, орны, уақыты" hint="Жетекшіні де осы жерде ауыстырасыз" onClick={() => go(`/a/${a.id}/edit`)} />
-        <Item icon="grid" title="Бөлімдер" hint="Чат, тапсырмалар, силабус, күнтізбе, келу есебі" onClick={() => setSheet('modules')} />
+        <Item icon="file" title="Атауы, уақыты, орны" hint="Сипаттама, жетекші, сыныптар, орын саны" onClick={() => go(`/a/${a.id}/edit`)} />
+        <Item icon="grid" title="Бөлімдер" hint={`${a.features.length} бөлім қосулы`} onClick={() => setSheet('modules')} />
+        <div className="px-4"><Switch label="Тіркелу ашық" hint="Өшірсеңіз, оқушылар өздері жазыла алмайды, тек сіз қосасыз" on={a.enrollment_open}
+          onChange={(v) => act(() => setActivityFlags(a.id, v, null), v ? 'Тіркелу ашылды' : 'Тіркелу жабылды')} /></div>
       </Card>
 
-      <H>Тіркелу</H>
-      <Card className="grid gap-3">
-        <Toggle label="Тіркелу ашық" hint="Жабық болса, оқушылар өздері жазыла алмайды, тек сіз қосасыз" on={a.enrollment_open}
-          onChange={(v) => act(() => setActivityFlags(a.id, v, null), v ? 'Тіркелу ашылды' : 'Тіркелу жабылды')} />
-        {joined.length > 0 && (
-          <div className="grid gap-2">
-            <div>
-              <p className="text-sm font-semibold">Жауапты оқушылар</p>
-              <p className="text-sm text-muted">Бірнеше оқушыны таңдауға болады. Олар рұқсат сұрауларын көріп, іс-шара лентасына жаза алады.</p>
-            </div>
-            <div className="grid divide-y divide-line rounded-md border border-line">
-              {joined.map((e) => (
-                <label key={e.student_id} className="flex items-center gap-3 min-h-14 px-3">
-                  <input type="checkbox" checked={curators.includes(e.student_id)} onChange={() => setCuratorsState(curators.includes(e.student_id) ? curators.filter((x) => x !== e.student_id) : [...curators, e.student_id])} className="size-5 accent-[var(--accent)]" />
-                  <Avatar name={e.student.full_name} photo={e.student.photo} size={32} />
-                  <span className="flex-1 min-w-0"><span className="block truncate">{e.student.full_name}</span><span className="block text-xs text-muted">{e.student.class?.name ?? ''}</span></span>
-                </label>
-              ))}
-            </div>
-            <Button kind="secondary" loading={savingCurators} onClick={saveCurators}>Сақтау</Button>
-          </div>
-        )}
-      </Card>
-
-      <div className="flex items-baseline justify-between">
-        <H>{`Қатысушылар · ${joined.length}${a.capacity ? `/${a.capacity}` : ''}`}</H>
+      <div className="flex items-center justify-between mt-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Қатысушылар</h2>
         <div className="flex gap-1">
-          {a.enrollments.length > 0 && <Button kind="ghost" onClick={csv}>Жүктеу</Button>}
-          <Button kind="ghost" onClick={() => setSheet('add')}>Қосу</Button>
+          {a.enrollments.length > 0 && <Button kind="ghost" onClick={csv}>CSV</Button>}
+          <Button kind="secondary" onClick={() => setSheet('add')}><Icon n="userplus" size={18} />Қосу</Button>
         </div>
       </div>
+      <p className="text-sm text-muted -mt-1">Жұлдызша — жауапты оқушы: рұқсат сұрауларын көреді, лентаға жазады, тапсырма береді.</p>
+      {a.enrollments.length > 8 && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Қатысушыны іздеу" aria-label="Қатысушыны іздеу" className={inputCls} />}
       {!a.enrollments.length ? <Card><p className="text-sm text-muted">Әзірге ешкім жоқ. «Қосу» арқылы оқушыларды өзіңіз тіркей аласыз.</p></Card> : (
-        <Card className="p-0 divide-y divide-line">
-          {[...joined, ...waiting].map((e) => (
-            <div key={e.student_id} className="flex items-center gap-3 px-4 py-2">
-              <Avatar name={e.student.full_name} photo={e.student.photo} size={36} />
-              <span className="flex-1 min-w-0"><span className="block truncate">{e.student.full_name}</span><span className="block text-xs text-muted">{e.student.class?.name ?? ''}</span></span>
-              {e.waitlisted && <Button kind="secondary" onClick={() => act(() => acceptWaitlisted(a.id, e.student_id), 'Қабылданды')}>Қабылдау</Button>}
-              <button type="button" onClick={() => act(() => removeParticipant(a.id, e.student_id), 'Шығарылды')} aria-label={`${e.student.full_name} — шығару`} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button>
-            </div>
-          ))}
-        </Card>
+        <>
+          <Card className="p-0 divide-y divide-line">{joined.filter((e) => match(e.student.full_name, e.student.class?.name)).map(row)}</Card>
+          {waiting.length > 0 && <>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">Күту тізімі · {waiting.length}</h3>
+            <Card className="p-0 divide-y divide-line">{waiting.filter((e) => match(e.student.full_name, e.student.class?.name)).map(row)}</Card>
+          </>}
+        </>
       )}
 
       <H>Басқа</H>
       <Card className="p-0 divide-y divide-line">
         <Item icon="plus" title="Көшірмесін жасау" hint="Келесі тоқсанға немесе басқа топқа" onClick={() => go(`/a/copy/${a.id}`)} />
-        <Item icon="inbox" title={a.archived_at ? 'Архивтен шығару' : 'Архивтеу'} hint={a.archived_at ? 'Қайта лентада көрінеді' : 'Лентадан жасырылады, деректері мен журналы сақталады'}
+        <Item icon="inbox" title={a.archived_at ? 'Архивтен шығару' : 'Архивтеу'} hint={a.archived_at ? 'Қайта лентада көрінеді' : 'Лентадан жасырылады, журнал мен деректер сақталады'}
           onClick={() => act(() => setActivityFlags(a.id, null, !a.archived_at), a.archived_at ? 'Архивтен шығарылды' : 'Архивке жіберілді')} />
+      </Card>
+
+      <H>Қауіпті әрекеттер</H>
+      <Card className="p-0 divide-y divide-line border-danger-soft">
         {a.status === 'approved' && <Item icon="clock" title="Тоқтату" hint="Қатысушыларға себебімен хабар барады" danger onClick={() => setSheet('cancel')} />}
         <Item icon="x" title="Жою" hint="Іс-шара барлығынан жасырылады" danger onClick={() => setSheet('remove')} />
       </Card>
@@ -106,18 +129,11 @@ export default function ActivitySettings({ id }: { id: string }) {
 }
 
 const Item = ({ icon, title, hint, onClick, danger }: { icon: string; title: string; hint?: string; onClick: () => void; danger?: boolean }) => (
-  <button type="button" onClick={onClick} className={`w-full flex items-center gap-3 min-h-14 px-4 py-2 text-left ${danger ? 'text-danger' : ''}`}>
-    <span className={`size-9 rounded-sm grid place-items-center ${danger ? 'bg-danger-soft' : 'bg-accent-soft text-accent'}`}><Icon n={icon} size={18} /></span>
+  <button type="button" onClick={onClick} className={`w-full flex items-center gap-3 min-h-14 px-4 py-2 text-left active:bg-surface-2 ${danger ? 'text-danger' : ''}`}>
+    <span className={`size-9 rounded-sm grid place-items-center shrink-0 ${danger ? 'bg-danger-soft' : 'bg-accent-soft text-accent'}`}><Icon n={icon} size={18} /></span>
     <span className="flex-1 min-w-0"><span className="block font-medium">{title}</span>{hint && <span className="block text-sm text-muted">{hint}</span>}</span>
     <Icon n="chev" className="text-muted" />
   </button>
-)
-
-const Toggle = ({ label, hint, on, onChange }: { label: string; hint: string; on: boolean; onChange: (v: boolean) => void }) => (
-  <label className="flex items-center gap-3 min-h-12">
-    <span className="flex-1"><span className="block font-semibold">{label}</span><span className="block text-sm text-muted">{hint}</span></span>
-    <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} className="size-5 accent-[var(--accent)]" />
-  </label>
 )
 
 function AddPeople({ a, onAdded }: { a: ActivityFull; onAdded: () => void }) {
