@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
-import { classAttendance, classStudents, ensureChats, errText, listClasses, listLeaves, listLessons, listStaff, myChats, openDirect, setTutor, type Student } from '../lib/api'
+import { classAttendance, classStudents, ensureChats, errText, listClasses, listLeaves, listLessons, listStaff, myChats, openDirect, setTutor, uploadStudentPhoto, type Student } from '../lib/api'
+import Avatar from '../components/Avatar'
 import { hm, isoDow, rate, today } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
-
-const initials = (n: string) => n.split(' ').map((w) => w[0]).slice(0, 2).join('')
 
 export default function MyClass({ classId }: { classId?: string }) {
   const { me } = useMe()
@@ -24,6 +23,11 @@ export default function MyClass({ classId }: { classId?: string }) {
   }, [cid])
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Student | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const upload = async (s: Student, f: File) => {
+    setUploading(true)
+    try { const photo = await uploadStudentPhoto(s.id, f); setOpen({ ...s, photo }); toast('Сурет сақталды'); data.reload() } catch (e) { toast(errText(e)) } finally { setUploading(false) }
+  }
 
   const d = data.data
   const ids = new Set((d?.students ?? []).map((s) => s.id))
@@ -128,7 +132,7 @@ export default function MyClass({ classId }: { classId?: string }) {
               return (
                 <button key={s.id} type="button" onClick={() => setOpen(s)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left">
                   <span className="w-5 text-xs text-muted tabular-nums">{i + 1}</span>
-                  <span className="size-9 rounded-full bg-accent-soft text-accent grid place-items-center text-xs font-semibold shrink-0" aria-hidden>{initials(s.full_name)}</span>
+                  <Avatar name={s.full_name} photo={s.photo} size={44} />
                   <span className="flex-1 min-w-0">
                     <span className="block font-medium truncate">{s.full_name}</span>
                     <span className="block text-xs text-muted truncate">{[s.olympiad && `${s.olympiad} олимпиадасы`, s.club].filter(Boolean).join(' · ') || '—'}</span>
@@ -146,6 +150,15 @@ export default function MyClass({ classId }: { classId?: string }) {
       {open && (
         <Sheet title={open.full_name} onClose={() => setOpen(null)}>
           <div className="grid gap-3">
+            <div className="grid justify-items-center gap-2">
+              <Avatar name={open.full_name} photo={open.photo} size={128} />
+              {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && (
+                <label className={`h-11 px-4 rounded-md bg-accent-soft text-accent font-semibold inline-flex items-center gap-2 cursor-pointer ${uploading ? 'opacity-50' : ''}`}>
+                  <Icon n="user" size={18} />{uploading ? 'Жүктелуде…' : open.photo ? 'Суретті ауыстыру' : 'Сурет қосу'}
+                  <input type="file" accept="image/*" className="sr-only" disabled={uploading} onChange={(e) => e.target.files?.[0] && upload(open, e.target.files[0])} />
+                </label>
+              )}
+            </div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
               <dt className="text-muted">Олимпиада</dt><dd>{open.olympiad ?? '—'}</dd>
               <dt className="text-muted">Үйірме</dt><dd>{open.club ?? '—'}</dd>

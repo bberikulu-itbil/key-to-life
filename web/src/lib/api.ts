@@ -24,7 +24,7 @@ export type Activity = {
 
 export type ActivityFull = Omit<Activity, 'enrollments'> & {
   approvals: { id: number; step: ActivityStatus; decision: string; comment: string | null; created_at: string; actor: { full_name: string } }[]
-  enrollments: { student_id: string; waitlisted: boolean; created_at: string; student: { full_name: string; class: { name: string } | null } }[]
+  enrollments: { student_id: string; waitlisted: boolean; created_at: string; student: { full_name: string; photo: string | null; class: { name: string } | null } }[]
 }
 
 // Postgres errors raised by our RPCs are already in Kazakh; map the few the database itself produces.
@@ -60,7 +60,7 @@ export const listActivities = () =>
 
 export const getActivity = (id: string) =>
   ok(supabase.from('activities').select(ACT.replace('enrollments(student_id, waitlisted)',
-    'enrollments(student_id, waitlisted, created_at, student:profiles!student_id(full_name, class:classes!class_id(name))), approvals(id, step, decision, comment, created_at, actor:profiles!actor_id(full_name))'))
+    'enrollments(student_id, waitlisted, created_at, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), approvals(id, step, decision, comment, created_at, actor:profiles!actor_id(full_name))'))
     .eq('id', id).single()) as unknown as Promise<ActivityFull>
 
 export const listStaff = () =>
@@ -315,9 +315,9 @@ export const tgStatus = async () =>
 export const tgUnlink = () => rpc('telegram_unlink', {})
 
 /* ---------- my class ---------- */
-export type Student = { id: string; full_name: string; olympiad: string | null; club: string | null; parliament: boolean }
+export type Student = { id: string; full_name: string; olympiad: string | null; club: string | null; parliament: boolean; photo: string | null }
 export const classStudents = (classId: string) =>
-  ok(supabase.from('profiles').select('id, full_name, olympiad, club, parliament').eq('class_id', classId).eq('role', 'student').order('full_name')) as Promise<Student[]>
+  ok(supabase.from('profiles').select('id, full_name, olympiad, club, parliament, photo').eq('class_id', classId).eq('role', 'student').order('full_name')) as Promise<Student[]>
 export const classAttendance = (ids: string[]) =>
   ok(supabase.from('attendance').select('student_id, status').in('student_id', ids)) as Promise<{ student_id: string; status: Mark }[]>
 export const setTutor = (classId: string, tutor: string | null) => rpc('set_tutor', { p_class: classId, p_tutor: tutor })
@@ -327,4 +327,26 @@ export const setActivityFeatures = (id: string, features: Feature[]) => rpc('set
 export async function activityChatId(activityId: string) {
   await rpc('ensure_chats', {})
   return ((await ok(supabase.from('chats').select('id').eq('activity_id', activityId).maybeSingle())) as { id: string } | null)?.id ?? null
+}
+
+/* ---------- student photos (private bucket, signed URLs) ---------- */
+const signed = new Map<string, Promise<string | null>>()
+// shortcut: one signed-URL request per photo, cached for the session; batch with createSignedUrls if roll calls grow past ~50
+export const avatarUrl = (path: string) => {
+  if (!signed.has(path)) signed.set(path, supabase.storage.from('avatars').createSignedUrl(path, 60 * 60 * 6).then((r) => r.data?.signedUrl ?? null))
+  return signed.get(path)!
+}
+/** Center-crops to a 512px square JPEG and stores it as the student's photo. */
+export async function uploadStudentPhoto(studentId: string, file: File) {
+  const img = await createImageBitmap(file)
+  const side = Math.min(img.width, img.height)
+  const c = document.createElement('canvas')
+  c.width = c.height = Math.min(512, side)
+  c.getContext('2d')!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, c.width, c.height)
+  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Суретті өңдеу мүмкін болмады'))), 'image/jpeg', 0.85))
+  const path = `${studentId}/${crypto.randomUUID()}.jpg`
+  const { error } = await supabase.storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg' })
+  if (error) throw new Error(errText(error))
+  await rpc('set_student_photo', { p_student: studentId, p_path: path })
+  return path
 }

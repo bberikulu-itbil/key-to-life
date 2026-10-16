@@ -6,6 +6,7 @@ import {
 import { when } from './Leaves'
 import { MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, fmtDate, hm, isoDow, lastDay, rate, scheduleLabel, sessions, today } from '../lib/time'
 import Tasks from '../components/Tasks'
+import Avatar from '../components/Avatar'
 import { useMe } from '../App'
 import { needsMyDecision } from './Activities'
 import { statusTone } from '../components/ActivityCard'
@@ -137,7 +138,8 @@ export default function ActivityDetail({ id }: { id: string }) {
                 <Card className="p-0 divide-y divide-line">
                   {a.enrollments.map((e) => (
                     <div key={e.student_id} className="flex items-center justify-between gap-2 px-4 py-3">
-                      <span className="min-w-0 truncate">{e.student.full_name} <span className="text-sm text-muted">{e.student.class?.name}</span></span>
+                      <Avatar name={e.student.full_name} photo={e.student.photo} size={36} />
+                      <span className="min-w-0 truncate flex-1">{e.student.full_name} <span className="text-sm text-muted">{e.student.class?.name}</span></span>
                       {e.student_id === a.curator_id && <Badge tone="accent">Жауапты оқушы</Badge>}{e.waitlisted && <Badge tone="muted">Күту тізімі</Badge>}
                     </div>
                   ))}
@@ -243,7 +245,8 @@ function Journal({ a }: { a: ActivityFull }) {
             <div className="grid divide-y divide-line">
               {students.map((s) => (
                 <div key={s.student_id} className="grid gap-2 py-3">
-                  <span className="font-medium">{s.student.full_name} <span className="text-sm text-muted">{s.student.class?.name}</span></span>
+                  <span className="flex items-center gap-3"><Avatar name={s.student.full_name} photo={s.student.photo} size={48} />
+                    <span className="font-medium min-w-0">{s.student.full_name} <span className="text-sm text-muted">{s.student.class?.name}</span></span></span>
                   {notes[s.student_id] && <span className={`text-sm ${notes[s.student_id].sick ? 'text-danger' : 'text-warning'}`}>{notes[s.student_id].sick ? 'Ауырып қалған · ' : ''}{notes[s.student_id].text}</span>}
                   <div role="radiogroup" aria-label={s.student.full_name} className="grid grid-cols-4 gap-1 bg-surface-2 rounded-md p-1">
                     {MARKS.map((m) => (
