@@ -16,11 +16,11 @@ const json = (body: unknown, status = 200) =>
 
 export const emailFor = (iin: string) => `${iin}@users.lyceum-life.app`;
 
-const WORDS = ["алма","бота","дала","егіс","жұлдыз","көл","күн","қала","мұз","нұр","өзен","сая","тау","тұлпар","ұшқын","шың",
-  "арна","бүркіт","жел","жиде","қайың","қыран","марал","орман","сақ","тамыр","теңіз","үкі","шабыт","ізгі","нар","бұлақ"];
+// short, easy to type on a phone: three consonant+vowel syllables and two digits, e.g. cozati13 (~30M combinations)
+const CONS = "bdfgklmnprstvz", VOW = "aeiou";
 const rnd = (n: number) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
 export const makePassword = () =>
-  `${WORDS[rnd(WORDS.length)]}-${WORDS[rnd(WORDS.length)]}-${WORDS[rnd(WORDS.length)]}-${10 + rnd(90)}`;
+  Array.from({ length: 3 }, () => CONS[rnd(CONS.length)] + VOW[rnd(VOW.length)]).join("") + String(10 + rnd(90));
 
 type Role = "student" | "teacher" | "class_teacher" | "deputy" | "admin";
 
