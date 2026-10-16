@@ -288,8 +288,9 @@ export type PostStatus = 'open' | 'resolved' | 'considering' | 'accepted' | 'rej
 export type Post = { id: string; author_id: string; kind: PostKind; title: string; body: string; photo: string | null; place: string | null
   status: PostStatus; answer: string | null; pinned: boolean; created_at: string
   activity_id: string | null; visibility: 'public' | 'members'; activity: { title: string } | null
+  addressee: 'parliament' | 'admin' | 'teacher' | null; addressee_id: string | null; to: { full_name: string } | null
   author: { full_name: string; role: Role; class: { name: string } | null }; answerer: { full_name: string } | null; votes: { user_id: string; value: number }[] }
-const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, activity_id, visibility, activity:activities(title), author:profiles!author_id(full_name, role, class:classes!class_id(name)), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value)'
+const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, activity_id, visibility, activity:activities(title), addressee, addressee_id, to:profiles!addressee_id(full_name), author:profiles!author_id(full_name, role, class:classes!class_id(name)), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value)'
 export const listPosts = () =>
   ok(supabase.from('posts').select(POST).order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(200)) as unknown as Promise<Post[]>
 export const createPost = (kind: PostKind, title: string, body: string, photo?: string | null, place?: string | null) =>
@@ -385,3 +386,19 @@ export const removeActivity = (id: string) => rpc('remove_activity', { p_id: id 
 export const addParticipant = (activity: string, student: string) => ok(supabase.from('enrollments').insert({ activity_id: activity, student_id: student, waitlisted: false }))
 export const removeParticipant = (activity: string, student: string) => ok(supabase.from('enrollments').delete().eq('activity_id', activity).eq('student_id', student))
 export const acceptWaitlisted = (activity: string, student: string) => ok(supabase.from('enrollments').update({ waitlisted: false }).eq('activity_id', activity).eq('student_id', student))
+
+export const createProposal = (to: 'parliament' | 'admin' | 'teacher', teacher: string | null, title: string, body: string) =>
+  rpc<string>('create_proposal', { p_to: to, p_teacher: teacher, p_title: title, p_body: body })
+
+/* ---------- surveys ---------- */
+export type Question = { q: string; type: 'single' | 'multi' | 'text'; options?: string[] }
+export type Survey = { id: string; author_id: string; title: string; description: string | null; questions: Question[]; audience: 'all' | 'students' | 'staff' | 'class' | 'activity'
+  class_id: string | null; activity_id: string | null; anonymous: boolean; closes_at: string | null; closed: boolean; created_at: string
+  author: { full_name: string }; class: { name: string } | null; activity: { title: string } | null; mine: { answers: unknown[] }[] }
+const SURVEY = 'id, author_id, title, description, questions, audience, class_id, activity_id, anonymous, closes_at, closed, created_at, author:profiles!author_id(full_name), class:classes(name), activity:activities(title), mine:survey_responses(answers)'
+export const listSurveys = () => ok(supabase.from('surveys').select(SURVEY).order('created_at', { ascending: false }).limit(100)) as unknown as Promise<Survey[]>
+export const getSurvey = (id: string) => ok(supabase.from('surveys').select(SURVEY).eq('id', id).single()) as unknown as Promise<Survey>
+export const createSurvey = (p: Record<string, unknown>) => rpc<string>('create_survey', { p })
+export const answerSurvey = (id: string, answers: unknown[]) => rpc('answer_survey', { p_id: id, p_answers: answers })
+export const closeSurvey = (id: string, closed: boolean) => rpc('close_survey', { p_id: id, p_closed: closed })
+export const surveyResults = (id: string) => rpc<{ respondent: string | null; class_name: string | null; answers: unknown[]; answered_at: string }[]>('survey_results', { p_id: id })

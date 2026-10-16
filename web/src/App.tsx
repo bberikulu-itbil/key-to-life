@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { getMe, myChats, supabase, tgLink, unreadCount, type Me } from './lib/api'
 import { inTelegram, syncBackButton, tg } from './lib/telegram'
 import Feed from './screens/Feed'
+import Surveys, { SurveyNew, SurveyView } from './screens/Surveys'
 import { Icon, Sheet, Toaster, go, usePath } from './components/ui'
 import Login from './screens/Login'
 import Plan from './screens/Plan'
@@ -88,11 +89,17 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'c' && id) screen = <ChatRoom key={id} id={id} />
   else if (seg === 'notifications') screen = <Notifications />
   else if (seg === 'plan') screen = <Plan />
+  else if (seg === 'lost') screen = <Feed key="lost" query="" page="lost" />
+  else if (seg === 'events') screen = <Feed key="events" query="" page="events" />
+  else if (seg === 'proposals') screen = <Feed key="proposals" query="" page="proposals" />
+  else if (seg === 'surveys' && id === 'new') screen = <SurveyNew />
+  else if (seg === 'surveys' && id) screen = <SurveyView key={id} id={id} />
+  else if (seg === 'surveys') screen = <Surveys />
   else if (seg === 'profile') screen = <Profile onAddUser={() => setSheet('adduser')} />
   else screen = <Feed query={path.split('?')[1] ?? ''} />
 
   const tabs = [['/', 'home', 'Home'], ['/plan', 'clock', 'Жоспар'], ['+', 'plus', 'Әрекет'], ['/chats', 'chat', 'Чаттар'], ['/profile', 'user', 'Профиль']] as const
-  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || seg === 'a' || seg === 'activities' : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
+  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>
