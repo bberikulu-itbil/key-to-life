@@ -46,7 +46,7 @@ export function sessions(a: Sched, from: string, to: string) {
   return out
 }
 
-export const lastDay = (a: Sched) => [a.schedule === 'once' ? a.on_date! : a.date_to!, ...(a.extra ?? []).map((x) => x.on_date)].sort().at(-1)!
+export const lastDay = (a: Sched) => [a.schedule === 'once' ? a.on_date! : a.date_to!, ...(a.extra ?? []).map((x) => x.on_date)].sort().reverse()[0]
 
 export function scheduleLabel(a: Activity) {
   const time = `${hm(a.start_time)}–${hm(a.end_time)}`

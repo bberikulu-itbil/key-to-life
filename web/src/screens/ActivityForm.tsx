@@ -171,7 +171,7 @@ export default function ActivityForm({ id }: { id?: string }) {
               )
             })}
             {errors.extra && <p className="text-sm text-danger">{errors.extra}</p>}
-            <Button kind="ghost" onClick={() => set('extra', [...f.extra, { date: addDays(f.extra.at(-1)?.date ?? f.on_date, 1), start: f.start_time, end: f.end_time }])}>Тағы күн мен уақыт қосу</Button>
+            <Button kind="ghost" onClick={() => set('extra', [...f.extra, { date: addDays(f.extra[f.extra.length - 1]?.date ?? f.on_date, 1), start: f.start_time, end: f.end_time }])}>Тағы күн мен уақыт қосу</Button>
           </div>
         )}
       </Card>
