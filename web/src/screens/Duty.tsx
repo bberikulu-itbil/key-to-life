@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addTeacherDuty, errText, listDuty, listStaff, listTeacherDuty, removeTeacherDuty, setDuty } from '../lib/api'
+import { addTeacherDuty, errText, listClasses, listDuty, listStaff, listTeacherDuty, removeTeacherDuty, setDuty, setDutyClass } from '../lib/api'
 import { isoDow, today } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Button, Card, Field, Icon, PageHead, Sheet, Skeleton, inputCls, toast, useLoad } from '../components/ui'
@@ -11,12 +11,15 @@ export default function Duty() {
   const deputyDuty = useLoad(listDuty, [])
   const posts = useLoad(listTeacherDuty, [])
   const staff = useLoad(listStaff, [])
+  const classes = useLoad(listClasses, [])
   const [wd, setWd] = useState(isoDow(today()))
   const [adding, setAdding] = useState(false)
   const canEdit = me.role === 'deputy' || me.role === 'admin'
   const deputies = (staff.data ?? []).filter((s) => s.role === 'deputy' || s.role === 'admin')
   const name = (id?: string | null) => staff.data?.find((s) => s.id === id)?.full_name
   const depId = deputyDuty.data?.find((x) => x.weekday === wd)?.deputy_id ?? ''
+  const classId = deputyDuty.data?.find((x) => x.weekday === wd)?.class_id ?? ''
+  const saveClass = async (v: string) => { try { await setDutyClass(wd, v || null); toast('Сақталды'); deputyDuty.reload() } catch (e) { toast(errText(e)) } }
   const dayPosts = (posts.data ?? []).filter((p) => p.weekday === wd)
   const mine = (posts.data ?? []).filter((p) => p.user_id === me.id)
   const myDeputyDays = (deputyDuty.data ?? []).filter((x) => x.deputy_id === me.id).map((x) => x.weekday)
@@ -47,6 +50,14 @@ export default function Duty() {
                   <option value="">Белгіленбеген (барлық орынбасарға)</option>{deputies.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}</select>}
               </Field>
             ) : <p className="font-semibold">{name(depId) ?? 'Белгіленбеген'}</p>}
+          </Card>
+
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">Кезекші сынып · {DAYS[wd - 1]}</h2>
+          <Card>
+            {canEdit ? (
+              <Field label="Сынып">{(id) => <select id={id} value={classId} onChange={(e) => saveClass(e.target.value)} className={inputCls}>
+                <option value="">Белгіленбеген</option>{(classes.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}</Field>
+            ) : <p className="font-semibold">{classes.data?.find((c) => c.id === classId)?.name ?? 'Белгіленбеген'}</p>}
           </Card>
 
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">Кезекші мұғалімдер · {DAYS[wd - 1]}</h2>

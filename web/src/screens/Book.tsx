@@ -6,7 +6,7 @@ import { Button, Card, Chips, Empty, ErrorBox, Field, PageHead, Sheet, Skeleton,
 
 const LEGEND = [['bg-surface border border-input', 'Бос'], ['bg-warning-soft', 'Растау күтуде'], ['bg-surface-2 text-muted line-through', 'Бос емес']] as const
 
-export default function Book() {
+export default function Book({ resource }: { resource?: string }) {
   const groups = useLoad(listGroups, [])
   const resources = useLoad(listResources, [])
   const [group, setGroup] = useState('')
@@ -19,6 +19,8 @@ export default function Book() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState<{ code: string; pending: boolean } | null>(null)
+  // opened from search: preselect that room
+  useEffect(() => { const x = resources.data?.find((y) => y.id === resource); if (x) { setGroup(x.group_id); setResId(x.id) } }, [resources.data, resource])
 
   const g = group || groups.data?.[0]?.id || ''
   const inGroup = (resources.data ?? []).filter((r) => r.group_id === g && r.active)

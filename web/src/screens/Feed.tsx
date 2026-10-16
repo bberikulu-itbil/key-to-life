@@ -5,6 +5,7 @@ import { TYPE_LABEL, WD_SHORT, chatTime, fmtDate, isoDow, nextSession, parse, se
 import { useMe } from '../App'
 import Stories, { storyCandidates } from '../components/Stories'
 import Activities from './Activities'
+import { DutyCard, MenuCard, SearchBar, TodayCard } from '../components/HomeWidgets'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
 
 type Tab = 'all' | 'news' | 'announcement'
@@ -87,6 +88,7 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
         <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label="Жариялау" className="size-11 rounded-full bg-accent text-on-accent grid place-items-center"><Icon n="plus" /></button>
       </header>
 
+      <SearchBar />
       {/* all five fit at 320px: hidden off-screen shortcuts were never found */}
       <nav aria-label="Жылдам әрекеттер" className="grid grid-cols-5 gap-1.5">
         {QUICK.map(([icon, label, path]) => (
@@ -109,6 +111,9 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
         <>
           {tab === 'all' && (
             <>
+              <TodayCard me={me} />
+              <MenuCard me={me} />
+              <DutyCard />
               {(of(['news', 'announcement']).length > 0) && <Highlights list={of(['news', 'announcement']).slice(0, 6)} onOpen={(p) => setOpen({ kind: 'post', p })} />}
               {acts.data && <Stories me={me} items={storyCandidates(me, acts.data)} onJoined={acts.reload} />}
               {upcoming.length > 0 && section('Алда болатын', 'events', <Upcoming items={upcoming.slice(0, 10)} />)}

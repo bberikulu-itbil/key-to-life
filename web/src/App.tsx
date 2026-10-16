@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { getMe, myChats, supabase, tgLink, unreadCount, type Me } from './lib/api'
 import { inTelegram, syncBackButton, tg } from './lib/telegram'
 import Feed from './screens/Feed'
+import Search from './screens/Search'
 import Surveys, { SurveyNew, SurveyView } from './screens/Surveys'
 import { Icon, Sheet, Toaster, go, usePath } from './components/ui'
 import Login from './screens/Login'
@@ -73,7 +74,8 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'a' && path.endsWith('/edit')) screen = <ActivityForm id={id} />
   else if (seg === 'a' && id) screen = <ActivityDetail id={id} />
   else if (seg === 'activities' && (id === 'mine' || id === 'review')) screen = <Activities tab={id} />
-  else if (seg === 'book') screen = <Book />
+  else if (seg === 'book') screen = <Book key={path} resource={id || undefined} />
+  else if (seg === 'search') screen = <Search />
   else if (seg === 'bookings') screen = <Bookings tab={(id as 'mine' | 'review' | 'places') || 'mine'} />
   else if (seg === 'leave') screen = <LeaveForm />
   else if (seg === 'leaves') screen = <Leaves />
@@ -99,7 +101,7 @@ function Shell({ me }: { me: Me }) {
   else screen = <Feed query={path.split('?')[1] ?? ''} />
 
   const tabs = [['/', 'home', 'Home'], ['/plan', 'clock', 'Жоспар'], ['+', 'plus', 'Әрекет'], ['/chats', 'chat', 'Чаттар'], ['/profile', 'user', 'Профиль']] as const
-  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
+  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>

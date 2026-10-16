@@ -167,7 +167,8 @@ export const createLeave = (kind: 'outside' | 'lesson', starts: string, ends: st
 export const decideLeave = (id: string, approve: boolean, note?: string) => rpc<LeaveStatus>('decide_leave', { p_id: id, p_approve: approve, p_note: note ?? null })
 export const cancelLeave = (id: string) => rpc('cancel_leave', { p_id: id })
 export const verifyCode = (code: string) => rpc<Record<string, string | boolean> | null>('verify_code', { p_code: code })
-export const listDuty = () => ok(supabase.from('duty_roster').select('weekday, deputy_id')) as Promise<{ weekday: number; deputy_id: string | null }[]>
+export const listDuty = () => ok(supabase.from('duty_roster').select('weekday, deputy_id, class_id')) as Promise<{ weekday: number; deputy_id: string | null; class_id: string | null }[]>
+export const setDutyClass = (weekday: number, classId: string | null) => rpc('set_duty_class', { p_weekday: weekday, p_class: classId })
 export const setDuty = (weekday: number, deputy: string | null) => rpc('set_duty', { p_weekday: weekday, p_deputy: deputy })
 export const setCurators = (activity: string, students: string[]) => rpc('set_curators', { p_activity: activity, p_students: students })
 export const setCurator = (activity: string, student: string | null) => setCurators(activity, student ? [student] : [])
@@ -402,3 +403,10 @@ export const createSurvey = (p: Record<string, unknown>) => rpc<string>('create_
 export const answerSurvey = (id: string, answers: unknown[]) => rpc('answer_survey', { p_id: id, p_answers: answers })
 export const closeSurvey = (id: string, closed: boolean) => rpc('close_survey', { p_id: id, p_closed: closed })
 export const surveyResults = (id: string) => rpc<{ respondent: string | null; class_name: string | null; answers: unknown[]; answered_at: string }[]>('survey_results', { p_id: id })
+
+/* ---------- canteen menu ---------- */
+export type Meal = 'breakfast' | 'lunch' | 'snack' | 'dinner'
+export const listMenu = (date: string) => ok(supabase.from('menus').select('meal, items').eq('on_date', date)) as Promise<{ meal: Meal; items: string }[]>
+export const saveMenu = (date: string, meal: Meal, items: string) =>
+  items.trim() ? ok(supabase.from('menus').upsert({ on_date: date, meal, items: items.trim(), updated_at: new Date().toISOString() }))
+    : ok(supabase.from('menus').delete().eq('on_date', date).eq('meal', meal))
