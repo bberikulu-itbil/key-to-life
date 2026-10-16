@@ -5,6 +5,7 @@ export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.m
 export type Role = 'student' | 'teacher' | 'class_teacher' | 'deputy' | 'admin'
 export type ActivityType = 'olympiad_prep' | 'club' | 'course' | 'event' | 'competition' | 'tournament' | 'challenge'
 export type ActivityStatus = 'pending_class_teacher' | 'pending_deputy' | 'approved' | 'rejected' | 'cancelled'
+export type Feature = 'chat' | 'syllabus' | 'schedule' | 'tasks' | 'attendance'
 export type Mark = 'present' | 'late' | 'excused' | 'absent'
 
 export type Me = { id: string; full_name: string; role: Role; title: string | null; school_id: string; parliament: boolean
@@ -15,6 +16,7 @@ export type Activity = {
   audience_grades: number[]; capacity: number | null; schedule: 'once' | 'weekly'
   on_date: string | null; weekdays: number[] | null; date_from: string | null; date_to: string | null
   start_time: string; end_time: string; author_id: string; supervisor_id: string; curator_id: string | null; created_at: string
+  features: Feature[]
   author: { full_name: string; class: { name: string; teacher_id: string | null } | null }
   supervisor: { full_name: string }
   enrollments: { student_id: string; waitlisted: boolean }[]
@@ -51,7 +53,7 @@ export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
-const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
+const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
 
 export const listActivities = () =>
   ok(supabase.from('activities').select(ACT).order('created_at', { ascending: false })) as unknown as Promise<Activity[]>
@@ -255,11 +257,11 @@ export function onMessages(chat: string, cb: () => void) {
 
 /* ---------- tasks ---------- */
 export type Task = { id: string; author_id: string; title: string; notes: string | null; due_on: string | null; class_id: string | null; activity_id: string | null
-  created_at: string; author: { full_name: string }; class: { name: string } | null; activity: { title: string } | null; done: { user_id: string }[] }
+  assignee_id: string | null; created_at: string; author: { full_name: string }; assignee: { full_name: string } | null; class: { name: string } | null; activity: { title: string } | null; done: { user_id: string }[] }
 export const listTasks = () =>
-  ok(supabase.from('tasks').select('id, author_id, title, notes, due_on, class_id, activity_id, created_at, author:profiles!author_id(full_name), class:classes(name), activity:activities(title), done:task_done(user_id)')
+  ok(supabase.from('tasks').select('id, author_id, title, notes, due_on, class_id, activity_id, assignee_id, created_at, author:profiles!author_id(full_name), assignee:profiles!assignee_id(full_name), class:classes(name), activity:activities(title), done:task_done(user_id)')
     .order('due_on', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false })) as unknown as Promise<Task[]>
-export const addTask = (row: { title: string; notes: string | null; due_on: string | null; class_id: string | null; activity_id: string | null }) => ok(supabase.from('tasks').insert(row))
+export const addTask = (row: { title: string; notes: string | null; due_on: string | null; class_id: string | null; activity_id: string | null; assignee_id?: string | null }) => ok(supabase.from('tasks').insert(row))
 export const removeTask = (id: string) => ok(supabase.from('tasks').delete().eq('id', id))
 export const setTaskDone = (id: string, done: boolean) =>
   done ? ok(supabase.from('task_done').upsert({ task_id: id })) : ok(supabase.from('task_done').delete().eq('task_id', id))
@@ -319,3 +321,10 @@ export const classStudents = (classId: string) =>
 export const classAttendance = (ids: string[]) =>
   ok(supabase.from('attendance').select('student_id, status').in('student_id', ids)) as Promise<{ student_id: string; status: Mark }[]>
 export const setTutor = (classId: string, tutor: string | null) => rpc('set_tutor', { p_class: classId, p_tutor: tutor })
+
+/* ---------- activity modules ---------- */
+export const setActivityFeatures = (id: string, features: Feature[]) => rpc('set_activity_features', { p_id: id, p_features: features })
+export async function activityChatId(activityId: string) {
+  await rpc('ensure_chats', {})
+  return ((await ok(supabase.from('chats').select('id').eq('activity_id', activityId).maybeSingle())) as { id: string } | null)?.id ?? null
+}

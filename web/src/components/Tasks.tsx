@@ -1,20 +1,20 @@
 import { useState } from 'react'
-import { addTask, errText, listActivities, listClasses, listTasks, removeTask, setTaskDone, type Me, type Task } from '../lib/api'
+import { addTask, errText, listActivities, listClasses, listTasks, removeTask, setTaskDone, type ActivityFull, type Me, type Task } from '../lib/api'
 import { fmtDate, today } from '../lib/time'
 import { Button, Card, Field, Icon, Sheet, Skeleton, inputCls, toast, useLoad } from './ui'
 
 const source = (t: Task, me: Me) =>
-  t.class ? `${t.class.name} сыныбына · ${t.author.full_name}` : t.activity ? `${t.activity.title} · ${t.author.full_name}` : t.author_id === me.id ? 'Жеке' : t.author.full_name
+  t.assignee ? (t.author_id === me.id ? `Жеке · ${t.assignee.full_name}` : `${t.author.full_name} · сізге жеке`) : t.class ? `${t.class.name} сыныбына · ${t.author.full_name}` : t.activity ? `${t.activity.title} · ${t.author.full_name}` : t.author_id === me.id ? 'Жеке' : t.author.full_name
 
-export default function Tasks({ me }: { me: Me }) {
+export default function Tasks({ me, activity, canGive }: { me: Me; activity?: ActivityFull; canGive?: boolean }) {
   const tasks = useLoad(listTasks, [])
   const [adding, setAdding] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const t = today()
-  const all = tasks.data ?? []
+  const all = (tasks.data ?? []).filter((x) => !activity || x.activity_id === activity.id)
   const isDone = (x: Task) => x.done.some((d) => d.user_id === me.id)
   // tasks I gave to a class/activity are tracked by count, not ticked by me
-  const given = (x: Task) => x.author_id === me.id && (x.class_id || x.activity_id)
+  const given = (x: Task) => x.author_id === me.id && !!(x.class_id || x.activity_id || x.assignee_id)
   const open = all.filter((x) => given(x) || !isDone(x))
   const done = all.filter((x) => !given(x) && isDone(x))
 
@@ -32,7 +32,7 @@ export default function Tasks({ me }: { me: Me }) {
           {x.notes && <p className="text-sm text-muted break-words whitespace-pre-line">{x.notes}</p>}
           <p className="text-xs text-muted mt-0.5">
             {x.due_on && <span className={late ? 'text-danger font-semibold' : ''}>{late ? 'Мерзімі өтті · ' : ''}{x.due_on === t ? 'Бүгін' : fmtDate(x.due_on)} · </span>}
-            {source(x, me)}{given(x) ? ` · ${x.done.length} орындады` : ''}
+            {source(x, me)}{given(x) ? (x.assignee_id ? (x.done.length ? ' · орындады' : ' · орындалмаған') : ` · ${x.done.length} орындады`) : ''}
           </p>
         </div>
         {x.author_id === me.id && <button type="button" onClick={() => del(x)} aria-label={`${x.title} — өшіру`} className="size-11 -my-2 grid place-items-center text-muted"><Icon n="x" size={18} /></button>}
@@ -44,7 +44,7 @@ export default function Tasks({ me }: { me: Me }) {
     <section className="grid gap-2">
       <div className="flex items-baseline justify-between mt-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Тапсырмалар{open.length ? ` · ${open.length}` : ''}</h2>
-        <button type="button" onClick={() => setAdding(true)} className="text-sm text-accent font-semibold">Қосу</button>
+        {(!activity || canGive) && <button type="button" onClick={() => setAdding(true)} className="text-sm text-accent font-semibold min-h-11 px-1">{activity ? 'Тапсырма беру' : 'Қосу'}</button>}
       </div>
       {tasks.loading && !tasks.data ? <Skeleton rows={1} /> : !open.length ? (
         <Card><p className="text-sm text-muted">{done.length ? 'Барлығы орындалды.' : me.role === 'student' ? 'Тапсырма жоқ. Өзіңізге жоспар жазыңыз немесе мұғалім берген тапсырмалар осында шығады.' : 'Сыныпқа немесе іс-шара қатысушыларына тапсырма беріңіз.'}</p></Card>
@@ -57,26 +57,28 @@ export default function Tasks({ me }: { me: Me }) {
           {showDone && <Card className="p-0 divide-y divide-line">{done.map(row)}</Card>}
         </>
       )}
-      {adding && <Sheet title="Жаңа тапсырма" onClose={() => setAdding(false)}><AddTask me={me} onDone={() => { setAdding(false); tasks.reload() }} /></Sheet>}
+      {adding && <Sheet title="Жаңа тапсырма" onClose={() => setAdding(false)}><AddTask me={me} activity={activity} onDone={() => { setAdding(false); tasks.reload() }} /></Sheet>}
     </section>
   )
 }
 
-function AddTask({ me, onDone }: { me: Me; onDone: () => void }) {
+function AddTask({ me, activity, onDone }: { me: Me; activity?: ActivityFull; onDone: () => void }) {
   const staff = me.role !== 'student'
   // shortcut: lists every class to staff; the database refuses classes they do not teach (can_assign)
   const targets = useLoad(async () => {
+    if (activity) return { classes: [], acts: [] }
     const [classes, acts] = await Promise.all([staff ? listClasses() : Promise.resolve([]), listActivities()])
     return { classes, acts: acts.filter((a) => a.status === 'approved' && (a.supervisor_id === me.id || a.curator_id === me.id || me.role === 'deputy' || me.role === 'admin')) }
   }, [me.id])
-  const [f, setF] = useState({ title: '', notes: '', due: '', target: 'me' })
+  const [f, setF] = useState({ title: '', notes: '', due: '', target: activity ? `a:${activity.id}` : 'me' })
   const [busy, setBusy] = useState(false)
   const save = async () => {
     if (f.title.trim().length < 2) return toast('Тапсырманы жазыңыз')
     const [kind, id] = f.target.split(':')
     setBusy(true)
     try {
-      await addTask({ title: f.title.trim(), notes: f.notes.trim() || null, due_on: f.due || null, class_id: kind === 'c' ? id : null, activity_id: kind === 'a' ? id : null })
+      await addTask({ title: f.title.trim(), notes: f.notes.trim() || null, due_on: f.due || null, class_id: kind === 'c' ? id : null,
+        activity_id: kind === 'a' ? id : kind === 'p' ? activity?.id ?? null : null, assignee_id: kind === 'p' ? id : null })
       toast(kind === 'me' ? 'Қосылды' : 'Тапсырма берілді, оқушыларға хабар кетті'); onDone()
     } catch (e) { toast(errText(e).includes('row-level') ? 'Бұл сыныпқа тапсырма бере алмайсыз' : errText(e)) } finally { setBusy(false) }
   }
@@ -87,7 +89,14 @@ function AddTask({ me, onDone }: { me: Me; onDone: () => void }) {
       <Field label="Тапсырма">{(id) => <input id={id} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls} placeholder="Мысалы: 5 есеп шығару" />}</Field>
       <Field label="Түсіндірме">{(id) => <textarea id={id} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} className={`${inputCls} h-20 py-2`} />}</Field>
       <Field label="Мерзімі">{(id) => <input id={id} type="date" value={f.due} min={today()} onChange={(e) => setF({ ...f, due: e.target.value })} className={inputCls} />}</Field>
-      {(classes.length > 0 || acts.length > 0) && (
+      {activity ? (
+        <Field label="Кімге" hint="Жеке тапсырманы тек сол оқушы көреді">
+          {(id, d) => <select id={id} aria-describedby={d} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} className={inputCls}>
+            <option value={`a:${activity.id}`}>Барлық қатысушыларға</option>
+            <optgroup label="Бір оқушыға">{activity.enrollments.filter((e) => !e.waitlisted).map((e) => <option key={e.student_id} value={`p:${e.student_id}`}>{e.student.full_name}</option>)}</optgroup>
+          </select>}
+        </Field>
+      ) : (classes.length > 0 || acts.length > 0) && (
         <Field label="Кімге" hint="Сыныпқа немесе іс-шараға берілсе, әр оқушыға хабар барады">
           {(id, d) => <select id={id} aria-describedby={d} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} className={inputCls}>
             <option value="me">Өзіме</option>
