@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   decideAbsence, decideActivity, getActivity, getAttendance, joinActivity, leaveActivity, listRequests, markAttendance,
-  errText, listLeaves, setCurator, activityChatId, myAttendance, setActivityFeatures, activityAttendance, addSession, removeSession, type ActivityFull, type Feature, type Mark,
+  errText, listLeaves, activityChatId, myAttendance, setActivityFeatures, activityAttendance, addSession, removeSession, type ActivityFull, type Feature, type Mark,
 } from '../lib/api'
 import { when } from './Leaves'
 import { MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessions, today } from '../lib/time'
@@ -42,7 +42,8 @@ export default function ActivityDetail({ id }: { id: string }) {
   const decide = needsMyDecision(me, a)
   const isStaff = me.role !== 'student'
   const manager = a.supervisor_id === me.id || me.role === 'deputy' || me.role === 'admin'
-  const insider = (!!mine && !mine.waitlisted) || isOwner || a.curator_id === me.id
+  const curatorIds = [...new Set([...(a.curators ?? []).map((x) => x.student_id), ...(a.curator_id ? [a.curator_id] : [])])]
+  const insider = (!!mine && !mine.waitlisted) || isOwner || curatorIds.includes(me.id)
   const tabs = a.status === 'approved'
     ? [['about', 'Шолу'] as const, ['feed', 'Лента'] as const, ...TABS.filter(([f]) => a.features.includes(f) && (f !== 'tasks' || insider))]
     : []
@@ -54,7 +55,7 @@ export default function ActivityDetail({ id }: { id: string }) {
     <div className="grid gap-3 pb-6">
       <PageHead title="" back right={<div className="flex gap-1">
         {chatOn && <ChatButton a={a} />}
-        {manager && a.status === 'approved' && <button type="button" onClick={() => go(`/a/${a.id}/settings`)} aria-label="Баптаулар" className="size-11 grid place-items-center rounded-md text-muted"><Icon n="more" size={24} /></button>}
+        {manager && a.status === 'approved' && <button type="button" onClick={() => go(`/a/${a.id}/settings`)} aria-label="Баптаулар" className="size-11 grid place-items-center rounded-md text-muted"><Icon n="settings" size={23} /></button>}
       </div>} />
       <div className="flex gap-2 flex-wrap -mt-2">
         <Badge tone="accent">{TYPE_LABEL[a.type]}</Badge>
@@ -82,13 +83,13 @@ export default function ActivityDetail({ id }: { id: string }) {
         </div>
       )}
       {shown === 'feed' && <ActivityFeed a={a} me={me} />}
-      {shown === 'tasks' && <Tasks me={me} activity={a} canGive={manager || a.curator_id === me.id} />}
+      {shown === 'tasks' && <Tasks me={me} activity={a} canGive={manager || curatorIds.includes(me.id)} />}
       {shown === 'syllabus' && <Syllabus a={a} me={me} />}
       {shown === 'schedule' && <ActivityCalendar a={a} canEdit={manager} journal={canKeepJournal && a.features.includes('attendance')} onChange={reload} />}
       {shown === 'about' && (
         <>
           <p className="whitespace-pre-line break-words">{a.description}</p>
-          {stats && <><Requests activityId={a.id} /><Analytics a={a} /></>}
+          {stats && <><Requests activityId={a.id} /><Journal a={a} /><Analytics a={a} /></>}
           {!canKeepJournal && mine && !mine.waitlisted && a.status === 'approved' && a.features.includes('attendance') && <MyMarks a={a} onAsk={() => setAbsence(true)} />}
 
           {/* student actions */}
@@ -135,19 +136,13 @@ export default function ActivityDetail({ id }: { id: string }) {
           {(isStaff || a.author_id === me.id) && (
             <section className="grid gap-2">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">Қатысушылар · {joined.length}</h2>
-              {(a.supervisor_id === me.id || me.role === 'deputy' || me.role === 'admin') && a.status === 'approved' && joined.length > 0 && (
-                <Field label="Жауапты оқушы" hint="Іс-шарадан рұқсат сұрауларын мұғаліммен бірге алады">
-                  {(fid, d) => <select id={fid} aria-describedby={d} value={a.curator_id ?? ''} onChange={(e) => run('cur', () => setCurator(a.id, e.target.value || null), 'Жауапты оқушы сақталды')} className={inputCls}>
-                    <option value="">Тағайындалмаған</option>{joined.map((e) => <option key={e.student_id} value={e.student_id}>{e.student.full_name}</option>)}</select>}
-                </Field>
-              )}
               {a.enrollments.length === 0 ? <p className="text-sm text-muted">Әзірге ешкім жазылмаған.</p> : stats ? null : (
                 <Card className="p-0 divide-y divide-line">
                   {a.enrollments.map((e) => (
                     <div key={e.student_id} className="flex items-center justify-between gap-2 px-4 py-3">
                       <Avatar name={e.student.full_name} photo={e.student.photo} size={36} />
                       <span className="min-w-0 truncate flex-1">{e.student.full_name} <span className="text-sm text-muted">{e.student.class?.name}</span></span>
-                      {e.student_id === a.curator_id && <Badge tone="accent">Жауапты оқушы</Badge>}{e.waitlisted && <Badge tone="muted">Күту тізімі</Badge>}
+                      {e.waitlisted && <Badge tone="muted">Күту тізімі</Badge>}
                     </div>
                   ))}
                 </Card>
@@ -197,7 +192,8 @@ function Journal({ a, fixed }: { a: ActivityFull; fixed?: string }) {
   const start = [a.schedule === 'once' ? a.on_date! : a.date_from!, ...a.extra.map((x) => x.on_date)].sort()[0]
   const end = [lastDay(a), today()].sort()[0]
   const dates = useMemo(() => sessions(a, start, end), [a, start, end])
-  const [date, setDate] = useState(fixed ?? dates[0] ?? '')
+  const initialDate = dates.includes(today()) ? today() : dates.filter((d) => d <= today()).slice(-1)[0] ?? dates[0] ?? ''
+  const [date, setDate] = useState(fixed ?? initialDate)
   const [marks, setMarks] = useState<Record<string, Mark>>({})
   const [saved, setSaved] = useState<Record<string, Mark>>({})
   const [busy, setBusy] = useState(false)

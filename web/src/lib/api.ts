@@ -17,6 +17,7 @@ export type Activity = {
   audience_grades: number[]; capacity: number | null; schedule: 'once' | 'weekly'
   on_date: string | null; weekdays: number[] | null; date_from: string | null; date_to: string | null
   start_time: string; end_time: string; author_id: string; supervisor_id: string; curator_id: string | null; created_at: string
+  curators: { student_id: string; student: { full_name: string; photo: string | null; class: { name: string } | null } }[]
   features: Feature[]; enrollment_open: boolean; archived_at: string | null
   slots: TimeSlot[] | null; extra: Extra[]
   author: { full_name: string; class: { name: string; teacher_id: string | null } | null }
@@ -55,7 +56,7 @@ export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
-const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, extra:activity_sessions(id, on_date, start_time, end_time, note), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
+const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, extra:activity_sessions(id, on_date, start_time, end_time, note), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
 
 export const listActivities = () =>
   ok(supabase.from('activities').select(ACT).order('created_at', { ascending: false })) as unknown as Promise<Activity[]>
@@ -170,7 +171,8 @@ export const cancelLeave = (id: string) => rpc('cancel_leave', { p_id: id })
 export const verifyCode = (code: string) => rpc<Record<string, string | boolean> | null>('verify_code', { p_code: code })
 export const listDuty = () => ok(supabase.from('duty_roster').select('weekday, deputy_id')) as Promise<{ weekday: number; deputy_id: string | null }[]>
 export const setDuty = (weekday: number, deputy: string | null) => rpc('set_duty', { p_weekday: weekday, p_deputy: deputy })
-export const setCurator = (activity: string, student: string | null) => rpc('set_curator', { p_activity: activity, p_student: student })
+export const setCurators = (activity: string, students: string[]) => rpc('set_curators', { p_activity: activity, p_students: students })
+export const setCurator = (activity: string, student: string | null) => setCurators(activity, student ? [student] : [])
 
 /* ---------- calendars ---------- */
 export type CalKind = 'personal' | 'class' | 'school' | 'olympiad'
