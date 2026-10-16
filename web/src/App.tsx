@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { getMe, myChats, supabase, unreadCount, type Me } from './lib/api'
+import { getMe, myChats, supabase, tgLink, unreadCount, type Me } from './lib/api'
+import { inTelegram, syncBackButton, tg } from './lib/telegram'
+import Feed from './screens/Feed'
 import { Icon, Sheet, Toaster, go, usePath } from './components/ui'
 import Login from './screens/Login'
 import Plan from './screens/Plan'
@@ -56,6 +58,9 @@ function Shell({ me }: { me: Me }) {
   // notifications + unread chat messages; shortcut: polled on navigation, add realtime for the badge if it feels stale
   const refreshBadge = () => { Promise.all([unreadCount(), myChats().catch(() => [])]).then(([n, c]) => setBadge(n + c.reduce((s, x) => s + x.unread, 0))) }
   useEffect(refreshBadge, [path])
+  useEffect(() => syncBackButton(['/', '/plan', '/chats', '/profile'].includes(path) || path.startsWith('/?')), [path])
+  // signed in with ЖСН inside Telegram → remember this Telegram account
+  useEffect(() => { if (inTelegram && tg) tgLink(tg.initData).catch(() => {}) }, [me.id])
 
   const [, seg, id] = path.split('/')
   let screen
@@ -79,10 +84,10 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'notifications') screen = <Notifications />
   else if (seg === 'plan') screen = <Plan />
   else if (seg === 'profile') screen = <Profile onAddUser={() => setSheet('adduser')} />
-  else screen = <Activities tab="all" feed />
+  else screen = <Feed query={path.split('?')[1] ?? ''} />
 
   const tabs = [['/', 'home', 'Лента'], ['/plan', 'clock', 'Жоспар'], ['+', 'plus', 'Әрекет'], ['/chats', 'chat', 'Чаттар'], ['/profile', 'user', 'Профиль']] as const
-  const active = (p: string) => (p === '/' ? path === '/' || seg === 'a' || seg === 'activities' : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
+  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || seg === 'a' || seg === 'activities' : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>

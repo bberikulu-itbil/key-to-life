@@ -39,3 +39,9 @@ assert.equal(chatTime(new Date(2026, 9, 16, 9, 5).toISOString(), now), '09:05')
 assert.equal(chatTime(new Date(2026, 9, 15, 23, 0).toISOString(), now), 'кеше')
 assert.equal(chatTime(new Date(2026, 9, 1, 12, 0).toISOString(), now), '1 қазан')
 console.log('chatTime ok')
+
+import { nextSession } from './time'
+assert.equal(nextSession(weekly, '2026-10-15'), '2026-10-19')
+assert.equal(nextSession(once, '2026-10-20'), '2026-10-25')
+assert.equal(nextSession(once, '2026-10-26'), null)
+console.log('nextSession ok')

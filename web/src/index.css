@@ -2,3 +2,6 @@
 @import "./tokens.css";
 
 html, body, #root { min-height: 100%; }
+
+/* inside Telegram the native BackButton replaces ours */
+.tg .tg-hide { display: none; }

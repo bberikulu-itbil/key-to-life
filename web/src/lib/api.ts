@@ -7,7 +7,7 @@ export type ActivityType = 'olympiad_prep' | 'club' | 'course' | 'event' | 'comp
 export type ActivityStatus = 'pending_class_teacher' | 'pending_deputy' | 'approved' | 'rejected' | 'cancelled'
 export type Mark = 'present' | 'late' | 'excused' | 'absent'
 
-export type Me = { id: string; full_name: string; role: Role; title: string | null; school_id: string
+export type Me = { id: string; full_name: string; role: Role; title: string | null; school_id: string; parliament: boolean
   class: { id: string; name: string; grade: number; teacher_id: string | null } | null; school: { name: string } }
 
 export type Activity = {
@@ -48,7 +48,7 @@ export const signIn = (iin: string, password: string) =>
 export const signOut = () => supabase.auth.signOut()
 
 export const getMe = (id: string) =>
-  ok(supabase.from('profiles').select('id, full_name, role, title, school_id, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
+  ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
 const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
@@ -246,7 +246,7 @@ export const listReports = () =>
     .order('created_at', { ascending: false }).limit(100)) as unknown as Promise<Report[]>
 export const resolveReport = (id: number, remove: boolean) => rpc('resolve_report', { p_id: id, p_remove: remove })
 export const listPeople = () =>
-  ok(supabase.from('profiles').select('id, full_name, role, class:classes!class_id(name)').order('full_name')) as unknown as Promise<{ id: string; full_name: string; role: Role; class: { name: string } | null }[]>
+  ok(supabase.from('profiles').select('id, full_name, role, parliament, class:classes!class_id(name)').order('full_name')) as unknown as Promise<{ id: string; full_name: string; role: Role; parliament: boolean; class: { name: string } | null }[]>
 /** Live updates for one chat; returns the unsubscribe function. */
 export function onMessages(chat: string, cb: () => void) {
   const ch = supabase.channel(`chat-${chat}`).on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `chat_id=eq.${chat}` }, cb).subscribe()
@@ -263,3 +263,51 @@ export const addTask = (row: { title: string; notes: string | null; due_on: stri
 export const removeTask = (id: string) => ok(supabase.from('tasks').delete().eq('id', id))
 export const setTaskDone = (id: string, done: boolean) =>
   done ? ok(supabase.from('task_done').upsert({ task_id: id })) : ok(supabase.from('task_done').delete().eq('task_id', id))
+
+/* ---------- feed posts ---------- */
+export type PostKind = 'news' | 'announcement' | 'lost' | 'found' | 'proposal'
+export type PostStatus = 'open' | 'resolved' | 'considering' | 'accepted' | 'rejected'
+export type Post = { id: string; author_id: string; kind: PostKind; title: string; body: string; photo: string | null; place: string | null
+  status: PostStatus; answer: string | null; pinned: boolean; created_at: string
+  author: { full_name: string; role: Role; class: { name: string } | null }; answerer: { full_name: string } | null; votes: { user_id: string; value: number }[] }
+const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, author:profiles!author_id(full_name, role, class:classes!class_id(name)), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value)'
+export const listPosts = () =>
+  ok(supabase.from('posts').select(POST).order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(200)) as unknown as Promise<Post[]>
+export const createPost = (kind: PostKind, title: string, body: string, photo?: string | null, place?: string | null) =>
+  rpc<string>('create_post', { p_kind: kind, p_title: title, p_body: body, p_photo: photo ?? null, p_place: place ?? null })
+export const setPostStatus = (id: string, status: PostStatus, answer?: string) => rpc('set_post_status', { p_id: id, p_status: status, p_answer: answer ?? null })
+export const votePost = (id: string, on: boolean) => rpc('vote_post', { p_id: id, p_on: on })
+export const pinPost = (id: string, on: boolean) => rpc('pin_post', { p_id: id, p_on: on })
+export const hidePost = (id: string) => rpc('hide_post', { p_id: id })
+export const setParliament = (user: string, on: boolean) => rpc('set_parliament', { p_user: user, p_on: on })
+export const photoUrl = (path: string) => supabase.storage.from('posts').getPublicUrl(path).data.publicUrl
+
+/** Shrinks a photo to 1280px JPEG and stores it under the user's own folder. */
+export async function uploadPhoto(userId: string, file: File) {
+  const img = await createImageBitmap(file)
+  const k = Math.min(1, 1280 / Math.max(img.width, img.height))
+  const c = document.createElement('canvas')
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k)
+  c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
+  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Фотоны өңдеу мүмкін болмады'))), 'image/jpeg', 0.82))
+  const path = `${userId}/${crypto.randomUUID()}.jpg`
+  const { error } = await supabase.storage.from('posts').upload(path, blob, { contentType: 'image/jpeg' })
+  if (error) throw new Error(errText(error))
+  return path
+}
+
+/* ---------- telegram ---------- */
+async function tgCall<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('telegram', { body })
+  if (error) {
+    const msg = await (error as { context?: Response }).context?.json?.().catch(() => null)
+    throw new Error(msg?.error ?? errText(error))
+  }
+  return data as T
+}
+export const tgLogin = (initData: string) => tgCall<{ token_hash?: string }>({ action: 'login', initData })
+export const tgLink = (initData: string) => tgCall<{ ok: boolean }>({ action: 'link', initData })
+export const tgLinkUrl = () => tgCall<{ url: string }>({ action: 'link_url' })
+export const tgStatus = async () =>
+  ((await ok(supabase.from('telegram_links').select('tg_id, tg_username').not('tg_id', 'is', null).maybeSingle())) as { tg_id: number; tg_username: string | null } | null)
+export const tgUnlink = () => rpc('telegram_unlink', {})

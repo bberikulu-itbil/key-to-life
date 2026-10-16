@@ -1,6 +1,8 @@
-import { attendanceRate, signOut } from '../lib/api'
+import { useState } from 'react'
+import { attendanceRate, errText, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
+import { openTelegram } from '../lib/telegram'
 import { useMe, canAddUsers, isApprover } from '../App'
-import { Button, Card, Icon, PageHead, useLoad } from '../components/ui'
+import { Button, Card, Icon, PageHead, toast, useLoad } from '../components/ui'
 
 const ROLE: Record<string, string> = { student: 'Оқушы', teacher: 'Мұғалім', class_teacher: 'Сынып жетекшісі', deputy: 'Тәрбие ісі жөніндегі орынбасар', admin: 'Әкімші' }
 
@@ -37,6 +39,8 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
         {!staff && <div className="text-right"><p className="text-xl font-bold tabular-nums">{rate.data == null ? '—' : `${rate.data}%`}</p><p className="text-xs text-muted">қатысу</p></div>}
       </Card>
 
+      <TelegramCard staff={staff} />
+
       <Section title="Менікі" links={[
         ['#/bookings', 'grid', 'Менің броньдарым'],
         ['#/leaves', 'clock', staff ? 'Рұқсаттар' : 'Менің рұқсаттарым', staff ? 'Шешім күтетіндер және бүгін берілгендер' : undefined],
@@ -58,5 +62,33 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
         <Button kind="ghost" onClick={() => signOut()}>Шығу</Button>
       </div>
     </div>
+  )
+}
+
+function TelegramCard({ staff }: { staff: boolean }) {
+  const st = useLoad(tgStatus, [])
+  const [busy, setBusy] = useState(false)
+  const link = async () => {
+    setBusy(true)
+    try { openTelegram((await tgLinkUrl()).url); toast('Telegram-да «Start» басыңыз, содан соң осы бетке оралыңыз') } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  const unlink = async () => { try { await tgUnlink(); st.reload() } catch (e) { toast(errText(e)) } }
+  if (st.loading) return null
+  return st.data ? (
+    <Card className="flex items-center gap-3">
+      <span className="size-10 rounded-full bg-success-soft text-success grid place-items-center"><Icon n="send" /></span>
+      <span className="flex-1 min-w-0"><span className="block font-semibold">Telegram байланысқан</span>
+        <span className="block text-sm text-muted truncate">{st.data.tg_username ? `@${st.data.tg_username} · ` : ''}хабарламалар ботқа келеді</span></span>
+      <Button kind="ghost" onClick={unlink}>Ажырату</Button>
+    </Card>
+  ) : (
+    <Card className="grid gap-3 bg-accent-soft">
+      <div className="flex gap-3 items-start">
+        <span className="size-10 rounded-full bg-accent text-on-accent grid place-items-center shrink-0"><Icon n="send" /></span>
+        <div><p className="font-semibold">Telegram-ды байланыстырыңыз</p>
+          <p className="text-sm">{staff ? 'Рұқсат сұраулары ботқа бірден келеді, «Рұқсат беру» батырмасымен сол жерде шешесіз.' : 'Рұқсат жауабы мен хабарламалар Telegram-ға бірден келеді.'}</p></div>
+      </div>
+      <div className="flex gap-2"><Button loading={busy} onClick={link}>Байланыстыру</Button><Button kind="ghost" onClick={st.reload}>Тексеру</Button></div>
+    </Card>
   )
 }

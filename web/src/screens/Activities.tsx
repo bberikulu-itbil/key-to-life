@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { listActivities, type Activity, type ActivityType, type Me } from '../lib/api'
-import { TYPE_LABEL, lastDay, today } from '../lib/time'
+import { TYPE_LABEL, lastDay, nextSession, today } from '../lib/time'
 import { useMe, isApprover } from '../App'
 import ActivityCard from '../components/ActivityCard'
 import Stories, { storyCandidates } from '../components/Stories'
@@ -14,7 +14,7 @@ export const needsMyDecision = (me: Me, a: Activity) =>
     ? a.status === 'pending_deputy' || a.status === 'pending_class_teacher'
     : a.status === 'pending_class_teacher' && a.author.class?.teacher_id === me.id
 
-export default function Activities({ tab, feed }: { tab: Tab; feed?: boolean }) {
+export default function Activities({ tab, feed, embedded }: { tab: Tab; feed?: boolean; embedded?: boolean }) {
   const { me } = useMe()
   const { data, error, loading, reload } = useLoad(listActivities, [])
   const [type, setType] = useState<'all' | ActivityType>('all')
@@ -27,6 +27,7 @@ export default function Activities({ tab, feed }: { tab: Tab; feed?: boolean }) 
       tab === 'review' ? all.filter((a) => needsMyDecision(me, a))
       : tab === 'mine' ? all.filter((a) => a.author_id === me.id || a.supervisor_id === me.id || a.enrollments.some((e) => e.student_id === me.id))
       : all.filter((a) => a.status === 'approved' && lastDay(a) >= t)
+          .map((a) => [a, nextSession(a, t, 120) ?? '9999'] as const).sort((x, y) => x[1].localeCompare(y[1])).map(([a]) => a)
     if (type !== 'all') l = l.filter((a) => a.type === type)
     if (q.trim()) l = l.filter((a) => (a.title + a.place + a.supervisor.full_name).toLowerCase().includes(q.trim().toLowerCase()))
     return l
@@ -37,14 +38,14 @@ export default function Activities({ tab, feed }: { tab: Tab; feed?: boolean }) 
 
   return (
     <div className="grid gap-3 pb-4">
-      <PageHead title={feed ? 'Лента' : tab === 'review' ? 'Растау күтуде' : 'Менің іс-шараларым'} back={!feed} right={<Button kind="secondary" onClick={() => go('/a/new')}>Ұсыну</Button>} />
+      {!embedded && <PageHead title={feed ? 'Лента' : tab === 'review' ? 'Растау күтуде' : 'Менің іс-шараларым'} back={!feed} right={<Button kind="secondary" onClick={() => go('/a/new')}>Ұсыну</Button>} />}
       {!feed && <div role="tablist" aria-label="Тізім" className="grid grid-flow-col auto-cols-fr bg-surface-2 rounded-md p-1 gap-1">
         {tabs.map(([k, label]) => (
           <a key={k} role="tab" aria-selected={tab === k} href={`#/activities/${k}`}
             className={`h-10 rounded-sm grid place-items-center text-sm font-semibold ${tab === k ? 'bg-surface shadow-card' : 'text-muted'}`}>{label}</a>
         ))}
       </div>}
-      {tab === 'all' && data && <Stories me={me} items={storyCandidates(me, data)} onJoined={reload} />}
+      {tab === 'all' && !embedded && data && <Stories me={me} items={storyCandidates(me, data)} onJoined={reload} />}
       {tab !== 'review' && (
         <>
           <label className="relative">

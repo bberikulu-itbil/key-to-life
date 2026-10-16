@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react'
-import { errText, signIn } from '../lib/api'
+import { useEffect, useState, type FormEvent } from 'react'
+import { errText, signIn, supabase, tgLogin } from '../lib/api'
+import { inTelegram, tg } from '../lib/telegram'
 import { Button, Field, inputCls } from '../components/ui'
 
 export default function Login() {
@@ -7,6 +8,17 @@ export default function Login() {
   const [pw, setPw] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [auto, setAuto] = useState(inTelegram)
+
+  // inside Telegram: a linked account signs in by itself
+  useEffect(() => {
+    if (!inTelegram || !tg) return
+    tgLogin(tg.initData)
+      .then(async (r) => { if (r.token_hash) { const { error } = await supabase.auth.verifyOtp({ token_hash: r.token_hash, type: 'magiclink' }); if (error) throw error } else setAuto(false) })
+      .catch(() => setAuto(false))
+  }, [])
+
+  if (auto) return <div className="min-h-dvh grid place-items-center text-muted">Telegram арқылы кіру…</div>
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -30,6 +42,7 @@ export default function Login() {
         <Field label="Құпия сөз" hint="Құпия сөзді сынып жетекшісі немесе орынбасар береді">
           {(id, d) => <input id={id} aria-describedby={d} type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} className={inputCls} />}
         </Field>
+        {inTelegram && <p className="text-sm rounded-md bg-accent-soft text-accent p-3">Бір рет ЖСН-мен кіріңіз. Telegram аккаунтыңыз байланысады да, келесі жолы өзі кіреді.</p>}
         {err && /^\d{12}$/.test(iin) && <p role="alert" className="text-sm text-danger">{err}</p>}
         <Button type="submit" block loading={busy}>Кіру</Button>
       </form>

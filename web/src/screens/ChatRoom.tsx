@@ -36,7 +36,7 @@ export default function ChatRoom({ id }: { id: string }) {
   return (
     <div className="grid gap-2 pb-2">
       <div className="sticky top-0 z-10 -mx-4 px-4 bg-bg flex items-center gap-1 min-h-14 border-b border-line">
-        <button type="button" onClick={() => go('/chats')} aria-label="Чаттарға оралу" className="size-11 -ml-3 grid place-items-center"><Icon n="back" /></button>
+        <button type="button" onClick={() => go('/chats')} aria-label="Чаттарға оралу" className="tg-hide size-11 -ml-3 grid place-items-center"><Icon n="back" /></button>
         <button type="button" onClick={() => setSheet({ kind: 'info' })} className="flex-1 min-w-0 text-left">
           <span className="block font-bold truncate">{c.title}</span>
           <span className="block text-xs text-muted">{KIND_LABEL[c.kind]}{group ? ` · ${c.members} адам` : ''}{c.locked && c.kind !== 'channel' ? ' · тек мұғалім жазады' : ''}</span>

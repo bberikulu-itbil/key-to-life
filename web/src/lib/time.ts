@@ -84,3 +84,9 @@ export function chatTime(ts: string, now = new Date()) {
   const day = iso(d), t = iso(now)
   return day === t ? d.toTimeString().slice(0, 5) : day === addDays(t, -1) ? 'кеше' : fmtDate(day)
 }
+
+/** First session on or after `from`, looking `days` ahead; null when there is none. */
+export function nextSession(a: Sched, from: string, days = 60) {
+  const s = sessions(a, from, addDays(from, days))
+  return s.length ? s.reduce((m, d) => (d < m ? d : m)) : null
+}
