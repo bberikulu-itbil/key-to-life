@@ -56,15 +56,37 @@ export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
-const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, extra:activity_sessions(id, on_date, start_time, end_time, note), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
+const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, extra:activity_sessions(id, on_date, start_time, end_time, note), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
 
-export const listActivities = () =>
-  ok(supabase.from('activities').select(ACT).order('created_at', { ascending: false })) as unknown as Promise<Activity[]>
+type Curator = { student_id: string; student: { full_name: string; photo: string | null; class: { name: string } | null } }
+const CURATORS = 'activity_id, student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))'
 
-export const getActivity = (id: string) =>
-  ok(supabase.from('activities').select(ACT.replace('enrollments(student_id, waitlisted)',
+async function withCurators<T extends { id: string; curator_id: string | null }>(rows: T[]) {
+  const base = rows.map((row) => ({ ...row, curators: [] as Curator[] }))
+  if (!rows.length) return base
+  try {
+    const ids = rows.map((row) => row.id)
+    const relation = await ok(supabase.from('activity_curators').select(CURATORS).in('activity_id', ids)) as Curator[] & { activity_id: string }[]
+    const byActivity = new Map<string, Curator[]>()
+    for (const row of relation) {
+      const list = byActivity.get(row.activity_id) ?? []
+      list.push({ student_id: row.student_id, student: row.student })
+      byActivity.set(row.activity_id, list)
+    }
+    return base.map((row) => ({ ...row, curators: byActivity.get(row.id) ?? [] }))
+  } catch {
+    // Keep the activity screen usable until the Supabase migration/schema cache is ready.
+    return base
+  }
+}
+
+export const listActivities = async () =>
+  withCurators(await ok(supabase.from('activities').select(ACT).order('created_at', { ascending: false })) as Omit<Activity, 'curators'>[]) as Promise<Activity[]>
+
+export const getActivity = async (id: string) =>
+  withCurators([await ok(supabase.from('activities').select(ACT.replace('enrollments(student_id, waitlisted)',
     'enrollments(student_id, waitlisted, created_at, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), approvals(id, step, decision, comment, created_at, actor:profiles!actor_id(full_name))'))
-    .eq('id', id).single()) as unknown as Promise<ActivityFull>
+    .eq('id', id).single()) as Omit<ActivityFull, 'curators'>])[0] as ActivityFull
 
 export const listStaff = () =>
   ok(supabase.from('profiles').select('id, full_name, title, role').neq('role', 'student').order('full_name')) as Promise<{ id: string; full_name: string; title: string | null; role: Role }[]>
