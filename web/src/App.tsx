@@ -1,9 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { getMe, supabase, unreadCount, type Me } from './lib/api'
+import { getMe, myChats, supabase, unreadCount, type Me } from './lib/api'
 import { Icon, Sheet, Toaster, go, usePath } from './components/ui'
 import Login from './screens/Login'
-import Home from './screens/Home'
+import Plan from './screens/Plan'
+import Chats, { Reports } from './screens/Chats'
+import ChatRoom from './screens/ChatRoom'
 import Activities from './screens/Activities'
 import ActivityDetail from './screens/ActivityDetail'
 import ActivityForm from './screens/ActivityForm'
@@ -51,7 +53,8 @@ function Shell({ me }: { me: Me }) {
   const path = usePath()
   const [badge, setBadge] = useState(0)
   const [sheet, setSheet] = useState<null | 'menu' | 'adduser'>(null)
-  const refreshBadge = () => { unreadCount().then(setBadge) }
+  // notifications + unread chat messages; shortcut: polled on navigation, add realtime for the badge if it feels stale
+  const refreshBadge = () => { Promise.all([unreadCount(), myChats().catch(() => [])]).then(([n, c]) => setBadge(n + c.reduce((s, x) => s + x.unread, 0))) }
   useEffect(refreshBadge, [path])
 
   const [, seg, id] = path.split('/')
@@ -59,7 +62,7 @@ function Shell({ me }: { me: Me }) {
   if (seg === 'a' && id === 'new') screen = <ActivityForm />
   else if (seg === 'a' && path.endsWith('/edit')) screen = <ActivityForm id={id} />
   else if (seg === 'a' && id) screen = <ActivityDetail id={id} />
-  else if (seg === 'activities') screen = <Activities tab={(id as 'all' | 'mine' | 'review') || 'all'} />
+  else if (seg === 'activities' && (id === 'mine' || id === 'review')) screen = <Activities tab={id} />
   else if (seg === 'book') screen = <Book />
   else if (seg === 'bookings') screen = <Bookings tab={(id as 'mine' | 'review' | 'places') || 'mine'} />
   else if (seg === 'leave') screen = <LeaveForm />
@@ -69,12 +72,17 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'calendars') screen = <Calendars />
   else if (seg === 'timetable') screen = <Timetable />
   else if (seg === 'my') screen = <MyActivities kind={id} />
+  else if (seg === 'chats' && id === 'system') screen = <Notifications />
+  else if (seg === 'chats' && id === 'reports') screen = <Reports />
+  else if (seg === 'chats') screen = <Chats />
+  else if (seg === 'c' && id) screen = <ChatRoom key={id} id={id} />
   else if (seg === 'notifications') screen = <Notifications />
+  else if (seg === 'plan') screen = <Plan />
   else if (seg === 'profile') screen = <Profile onAddUser={() => setSheet('adduser')} />
-  else screen = <Home />
+  else screen = <Activities tab="all" feed />
 
-  const tabs = [['/', 'home', 'Басты'], ['/activities', 'grid', 'Іс-шаралар'], ['+', 'plus', 'Әрекет'], ['/notifications', 'bell', 'Хабарлама'], ['/profile', 'user', 'Профиль']] as const
-  const active = (p: string) => (p === '/' ? path === '/' : path.startsWith(p) || (p === '/activities' && seg === 'a'))
+  const tabs = [['/', 'home', 'Лента'], ['/plan', 'clock', 'Жоспар'], ['+', 'plus', 'Әрекет'], ['/chats', 'chat', 'Чаттар'], ['/profile', 'user', 'Профиль']] as const
+  const active = (p: string) => (p === '/' ? path === '/' || seg === 'a' || seg === 'activities' : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>
@@ -91,7 +99,7 @@ function Shell({ me }: { me: Me }) {
               <a key={p} href={`#${p}`} aria-current={active(p) ? 'page' : undefined}
                 className={`relative grid justify-items-center gap-0.5 text-xs h-14 content-center ${active(p) ? 'text-accent font-semibold' : 'text-muted'}`}>
                 <Icon n={icon} size={24} />{label}
-                {p === '/notifications' && badge > 0 && <span className="absolute top-1.5 left-1/2 ml-1.5 min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center" aria-label={`${badge} оқылмаған`}>{badge > 9 ? '9+' : badge}</span>}
+                {p === '/chats' && badge > 0 && <span className="absolute top-1.5 left-1/2 ml-1.5 min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center" aria-label={`${badge} оқылмаған`}>{badge > 9 ? '9+' : badge}</span>}
               </a>
             ),
           )}
@@ -104,6 +112,7 @@ function Shell({ me }: { me: Me }) {
             <MenuItem icon="clock" title="Рұқсат сұрау" text={me.role === 'student' ? 'Сыртқа шығу, сабақтан немесе іс-шарадан' : 'Келген өтініштер және бүгін рұқсат берілгендер'} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
             <MenuItem icon="grid" title="Броньдау" text="Кабинет, спортзал, шай бөлмесі" onClick={() => { setSheet(null); go('/book') }} />
             <MenuItem icon="file" title="Іс-шара ұсыну" text="Үйірме, курс, жарыс, турнир немесе іс-шара" onClick={() => { setSheet(null); go('/a/new') }} />
+            <MenuItem icon="chat" title="Жаңа хат" text={me.role === 'student' ? 'Мұғалімге немесе сыныптасқа' : 'Оқушыға, әріптеске немесе хабарландыру арнасы'} onClick={() => { setSheet(null); go('/chats') }} />
             {me.role !== 'student' && <MenuItem icon="check" title="QR тексеру" text="Рұқсат немесе бронь кодын тексеру" onClick={() => { setSheet(null); go('/v/') }} />}
             {canAddUsers(me) && <MenuItem icon="userplus" title="Пайдаланушы қосу" text={me.role === 'class_teacher' ? 'Өз сыныбыңызға оқушы тіркеу' : 'Оқушы немесе мұғалім тіркеу'} onClick={() => setSheet('adduser')} />}
           </div>

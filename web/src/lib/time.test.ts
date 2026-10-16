@@ -32,3 +32,10 @@ const free = daySlots(res, [], false, '00:00')
 assert.deepEqual(pickRange(free, [0, 0], 2), [0, 2])
 assert.equal(pickRange(free, [1, 1], 1), null)               // tap again to clear
 console.log('slots ok')
+
+import { chatTime } from './time'
+const now = new Date(2026, 9, 16, 15, 0)
+assert.equal(chatTime(new Date(2026, 9, 16, 9, 5).toISOString(), now), '09:05')
+assert.equal(chatTime(new Date(2026, 9, 15, 23, 0).toISOString(), now), 'кеше')
+assert.equal(chatTime(new Date(2026, 9, 1, 12, 0).toISOString(), now), '1 қазан')
+console.log('chatTime ok')

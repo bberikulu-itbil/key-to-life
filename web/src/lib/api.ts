@@ -210,3 +210,56 @@ export const listTeacherDuty = () =>
   ok(supabase.from('teacher_duty').select('id, weekday, user_id, post, user:profiles!user_id(full_name)').order('weekday').order('post')) as unknown as Promise<TeacherDuty[]>
 export const addTeacherDuty = (weekday: number, user_id: string, post: string) => ok(supabase.from('teacher_duty').insert({ weekday, user_id, post }))
 export const removeTeacherDuty = (id: string) => ok(supabase.from('teacher_duty').delete().eq('id', id))
+
+/* ---------- chats ---------- */
+export type ChatKind = 'activity' | 'class' | 'channel' | 'direct'
+export type ChatRow = { id: string; kind: ChatKind; title: string; locked: boolean; last_body: string | null; last_at: string; last_author: string | null; unread: number }
+export type ChatInfo = { id: string; kind: ChatKind; title: string; locked: boolean; pinned_id: number | null; activity_id: string | null
+  audience: string | null; moderator: boolean; can_post: boolean; members: number }
+export type Message = { id: number; chat_id: string; author_id: string; body: string; poll: { options: string[] } | null; created_at: string
+  removed_at: string | null; author: { full_name: string; role: Role } }
+export type Person = { id: string; full_name: string; role: Role; class_name: string | null }
+
+export const ensureChats = () => rpc('ensure_chats', {})
+export const myChats = () => rpc<ChatRow[]>('my_chats', {})
+export const chatInfo = (id: string) => rpc<ChatInfo | null>('chat_info', { p_chat: id })
+export const chatPeople = (id: string) => rpc<Person[]>('chat_people', { p_chat: id })
+export const listMessages = (chat: string) =>
+  ok(supabase.from('messages').select('id, chat_id, author_id, body, poll, created_at, removed_at, author:profiles!author_id(full_name, role)')
+    .eq('chat_id', chat).order('id', { ascending: false }).limit(200)).then((r) => (r as Message[]).reverse())
+export const listVotes = (ids: number[]) =>
+  ok(supabase.from('poll_votes').select('message_id, user_id, option').in('message_id', ids)) as Promise<{ message_id: number; user_id: string; option: number }[]>
+export const sendMessage = (chat: string, body: string, poll?: { options: string[] }) => rpc<number>('send_message', { p_chat: chat, p_body: body, p_poll: poll ?? null })
+export const readChat = (chat: string) => rpc('read_chat', { p_chat: chat })
+export const messageReaders = (msg: number) => rpc<{ full_name: string; class_name: string | null; read_at: string | null }[]>('message_readers', { p_msg: msg })
+export const openDirect = (user: string) => rpc<string>('open_direct', { p_user: user })
+export const createChannel = (title: string, audience: string, classId?: string) => rpc<string>('create_channel', { p_title: title, p_audience: audience, p_class: classId ?? null })
+export const setChatLocked = (chat: string, locked: boolean) => rpc('set_chat_locked', { p_chat: chat, p_locked: locked })
+export const pinMessage = (chat: string, msg: number | null) => rpc('pin_message', { p_chat: chat, p_msg: msg })
+export const removeMessage = (msg: number) => rpc('remove_message', { p_msg: msg })
+export const votePoll = (msg: number, option: number) => rpc('vote_poll', { p_msg: msg, p_option: option })
+export const reportMessage = (msg: number, reason: string) => rpc('report_message', { p_msg: msg, p_reason: reason })
+export type Report = { id: number; message_id: number | null; body: string; reason: string; created_at: string; resolved_at: string | null; removed: boolean
+  reporter: { full_name: string }; author: { full_name: string; class: { name: string } | null } }
+export const listReports = () =>
+  ok(supabase.from('chat_reports').select('id, message_id, body, reason, created_at, resolved_at, removed, reporter:profiles!reporter_id(full_name), author:profiles!author_id(full_name, class:classes!class_id(name))')
+    .order('created_at', { ascending: false }).limit(100)) as unknown as Promise<Report[]>
+export const resolveReport = (id: number, remove: boolean) => rpc('resolve_report', { p_id: id, p_remove: remove })
+export const listPeople = () =>
+  ok(supabase.from('profiles').select('id, full_name, role, class:classes!class_id(name)').order('full_name')) as unknown as Promise<{ id: string; full_name: string; role: Role; class: { name: string } | null }[]>
+/** Live updates for one chat; returns the unsubscribe function. */
+export function onMessages(chat: string, cb: () => void) {
+  const ch = supabase.channel(`chat-${chat}`).on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `chat_id=eq.${chat}` }, cb).subscribe()
+  return () => { supabase.removeChannel(ch) }
+}
+
+/* ---------- tasks ---------- */
+export type Task = { id: string; author_id: string; title: string; notes: string | null; due_on: string | null; class_id: string | null; activity_id: string | null
+  created_at: string; author: { full_name: string }; class: { name: string } | null; activity: { title: string } | null; done: { user_id: string }[] }
+export const listTasks = () =>
+  ok(supabase.from('tasks').select('id, author_id, title, notes, due_on, class_id, activity_id, created_at, author:profiles!author_id(full_name), class:classes(name), activity:activities(title), done:task_done(user_id)')
+    .order('due_on', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false })) as unknown as Promise<Task[]>
+export const addTask = (row: { title: string; notes: string | null; due_on: string | null; class_id: string | null; activity_id: string | null }) => ok(supabase.from('tasks').insert(row))
+export const removeTask = (id: string) => ok(supabase.from('tasks').delete().eq('id', id))
+export const setTaskDone = (id: string, done: boolean) =>
+  done ? ok(supabase.from('task_done').upsert({ task_id: id })) : ok(supabase.from('task_done').delete().eq('task_id', id))

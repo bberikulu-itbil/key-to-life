@@ -1,5 +1,5 @@
 import { attendanceRate, signOut } from '../lib/api'
-import { useMe, canAddUsers } from '../App'
+import { useMe, canAddUsers, isApprover } from '../App'
 import { Button, Card, Icon, PageHead, useLoad } from '../components/ui'
 
 const ROLE: Record<string, string> = { student: 'Оқушы', teacher: 'Мұғалім', class_teacher: 'Сынып жетекшісі', deputy: 'Тәрбие ісі жөніндегі орынбасар', admin: 'Әкімші' }
@@ -44,12 +44,14 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
         ['#/duty', 'users', 'Кезекшіліктер', 'Мұғалімдер мен орынбасарлар'],
       ]} />
       <Section title="Оқу" links={[
+        ['#/activities/mine', 'star', 'Менің іс-шараларым', 'Жазылған, ұсынған, жауапты'],
         ['#/timetable', 'clock', 'Сабақ кестесі'],
-        ['#/my/olympiad', 'check', 'Олимпиада', 'Силабус және қатысу'],
-        ['#/my/clubs', 'users', 'Үйірме, курс'],
-        ['#/my/competitions', 'grid', 'Жарыстар, челлендждер'],
       ]} />
-      {staff && <Section title="Құралдар" links={[['#/v/', 'check', 'QR тексеру', 'Рұқсат немесе бронь кодын тексеру']]} />}
+      {staff && <Section title="Құралдар" links={[
+        ...(isApprover(me) ? [['#/activities/review', 'file', 'Растау күтуде', 'Оқушылардың іс-шара ұсыныстары'] as [string, string, string, string]] : []),
+        ...(isApprover(me) ? [['#/chats/reports', 'flag', 'Чат шағымдары'] as [string, string, string]] : []),
+        ['#/v/', 'check', 'QR тексеру', 'Рұқсат немесе бронь кодын тексеру'],
+      ]} />}
 
       <div className="grid gap-2 mt-2">
         {canAddUsers(me) && <Button kind="secondary" onClick={onAddUser}>Пайдаланушы қосу</Button>}

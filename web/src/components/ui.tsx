@@ -32,6 +32,9 @@ const P: Record<string, string> = {
   users: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21c0-4 3-6 7-6s7 2 7 6M16 3.5a4 4 0 0 1 0 7.5M22 21c0-3-2-5-5-5.5',
   check: 'M5 12.5 10 17l9-10', file: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6', userplus: 'M10 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21c0-4 3-6 7-6 2 0 3.5.5 4.5 1.3M19 14v6M16 17h6',
   inbox: 'M3 13h5l1.5 3h5L16 13h5M5 5h14l2 8v6H3v-6z', search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
+  chat: 'M4 5h16v11H9l-5 4z', send: 'M4 12 20 4l-6 16-3-7z', megaphone: 'M3 10v4h4l7 4V6L7 10zM17 9a3 3 0 0 1 0 6',
+  lock: 'M6 11h12v10H6zM8 11V8a4 4 0 0 1 8 0v3', flag: 'M5 21V4h11l-2 4 2 4H5', poll: 'M5 20V10M12 20V4M19 20v-7',
+  more: 'M5 12h.01M12 12h.01M19 12h.01', list: 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01', star: 'M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z',
 }
 export const Icon = ({ n, size = 20, className = '' }: { n: keyof typeof P | string; size?: number; className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`shrink-0 ${className}`}><path d={P[n]} /></svg>

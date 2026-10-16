@@ -6,10 +6,11 @@ import { useMe, isApprover } from '../App'
 import { needsMyDecision } from './Activities'
 import { waitsForMe } from './Leaves'
 import { Button, Card, Empty, ErrorBox, Icon, Skeleton, go, useLoad } from '../components/ui'
+import Tasks from '../components/Tasks'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
 
-export default function Home() {
+export default function Plan() {
   const { me } = useMe()
   const t = today()
   const [day, setDay] = useState(t)
@@ -38,8 +39,8 @@ export default function Home() {
       <header className="flex items-center gap-3 min-h-14">
         <div className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center font-bold" aria-hidden>{me.full_name.split(' ').map((w) => w[0]).slice(0, 2).join('')}</div>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold truncate">Сәлем, {me.full_name.split(' ')[1] ?? me.full_name}!</p>
-          <p className="text-sm text-muted truncate">{me.school.name}{me.class ? ` · ${me.class.name}` : ''}</p>
+          <h1 className="text-xl font-bold truncate">Жоспар</h1>
+          <p className="text-sm text-muted truncate">Сәлем, {me.full_name.split(' ')[1] ?? me.full_name}! · {me.class ? me.class.name : me.school.name}</p>
         </div>
         <a href="#/calendars" className="size-11 grid place-items-center rounded-md text-accent" aria-label="Күнтізбелерім"><Icon n="clock" /></a>
       </header>
@@ -99,6 +100,17 @@ export default function Home() {
             </ol>
           </Card>
         )}
+
+      <Tasks me={me} />
+
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">Менің іс-шараларым</h2>
+      <div className="grid grid-cols-3 gap-2">
+        {([['#/my/olympiad', 'star', 'Олимпиада'], ['#/my/clubs', 'users', 'Үйірме, курс'], ['#/my/competitions', 'flag', 'Жарыстар']] as const).map(([href, icon, label]) => (
+          <a key={href} href={href} className="grid justify-items-center gap-1.5 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] py-3 px-1 text-sm font-semibold text-center">
+            <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span>{label}
+          </a>
+        ))}
+      </div>
     </div>
   )
 }

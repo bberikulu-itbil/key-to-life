@@ -76,3 +76,11 @@ export function pickRange(slots: Slot[], sel: [number, number] | null, i: number
   if (i === sel[0]) return null
   return slots.slice(sel[0], i + 1).every((s) => s.state === 'free') ? [sel[0], i] : [i, i]
 }
+
+/* ---------- chats ---------- */
+/** Chat list stamp: time today, «кеше» yesterday, otherwise the date. */
+export function chatTime(ts: string, now = new Date()) {
+  const d = new Date(ts)
+  const day = iso(d), t = iso(now)
+  return day === t ? d.toTimeString().slice(0, 5) : day === addDays(t, -1) ? 'кеше' : fmtDate(day)
+}
