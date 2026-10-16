@@ -40,7 +40,6 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
         {!staff && <div className="text-right"><p className="text-xl font-bold tabular-nums">{rate.data == null ? '—' : `${rate.data}%`}</p><p className="text-xs text-muted">қатысу</p></div>}
       </Card>
 
-      <TelegramCard staff={staff} />
       {myClass.data && (
         <a href={`#/class/${myClass.data.id}`} className="flex items-center gap-3 rounded-lg p-4 bg-surface shadow-card border border-[var(--card-line,transparent)]">
           <span className="size-11 rounded-md bg-accent text-on-accent grid place-items-center font-bold">{myClass.data.name}</span>
@@ -67,6 +66,7 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
 
       <div className="grid gap-2 mt-2">
         {canAddUsers(me) && <Button kind="secondary" onClick={onAddUser}>Пайдаланушы қосу</Button>}
+        <TelegramCard staff={staff} />
         <Button kind="ghost" onClick={() => signOut()}>Шығу</Button>
       </div>
     </div>

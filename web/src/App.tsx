@@ -91,7 +91,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'profile') screen = <Profile onAddUser={() => setSheet('adduser')} />
   else screen = <Feed query={path.split('?')[1] ?? ''} />
 
-  const tabs = [['/', 'home', 'Лента'], ['/plan', 'clock', 'Жоспар'], ['+', 'plus', 'Әрекет'], ['/chats', 'chat', 'Чаттар'], ['/profile', 'user', 'Профиль']] as const
+  const tabs = [['/', 'home', 'Home'], ['/plan', 'clock', 'Жоспар'], ['+', 'plus', 'Әрекет'], ['/chats', 'chat', 'Чаттар'], ['/profile', 'user', 'Профиль']] as const
   const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || seg === 'a' || seg === 'activities' : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (

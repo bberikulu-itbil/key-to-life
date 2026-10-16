@@ -49,13 +49,21 @@ export default function Feed({ query }: { query: string }) {
     <div className="grid gap-3 pb-4">
       <header className="flex items-center gap-2 min-h-14">
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold">Лента</h1>
+          <h1 className="text-2xl font-bold">Home</h1>
           <p className="text-sm text-muted truncate">{me.school.name}</p>
         </div>
         <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label="Жариялау" className="size-11 rounded-full bg-accent text-on-accent grid place-items-center"><Icon n="plus" /></button>
       </header>
 
-      <div role="tablist" aria-label="Лента бөлімдері" className="flex gap-5 overflow-x-auto -mx-4 px-4 border-b border-line [scrollbar-width:none]">
+      <nav aria-label="Жылдам әрекеттер" className="grid grid-cols-3 gap-2">
+        {([['search', 'Lost & Found', () => setTab('lost')], ['grid', 'Cabinets', () => go('/book')], ['star', 'Events', () => setTab('upcoming')]] as const).map(([icon, label, fn]) => (
+          <button key={label} type="button" onClick={fn} className="grid justify-items-center gap-1.5 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] py-3 px-1 text-sm font-semibold">
+            <span className="size-10 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n={icon} /></span>{label}
+          </button>
+        ))}
+      </nav>
+
+      <div role="tablist" aria-label="Home бөлімдері" className="flex gap-5 overflow-x-auto -mx-4 px-4 border-b border-line [scrollbar-width:none]">
         {TABS.map(([k, label]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={`relative h-11 whitespace-nowrap text-[15px] ${tab === k ? 'font-semibold text-fg' : 'text-muted'}`}>

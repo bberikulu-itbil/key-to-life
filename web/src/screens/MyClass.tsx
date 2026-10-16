@@ -52,11 +52,9 @@ export default function MyClass({ classId }: { classId?: string }) {
       if (c) go(`/c/${c.id}`); else toast('Сынып чаты табылмады')
     } catch (e) { toast(errText(e)) }
   }
-  const changeTutor = async (v: string) => { try { await setTutor(cid!, v || null); toast('Сақталды'); classes.reload() } catch (e) { toast(errText(e)) } }
 
   if (classes.loading && !classes.data) return <><PageHead title="Менің сыныбым" back /><Skeleton /></>
   if (!cls) return <><PageHead title="Менің сыныбым" back /><Card><Empty icon="users" title="Сынып бекітілмеген" text="Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады." /></Card></>
-  const canSetTutor = deputy || cls.teacher_id === me.id
 
   return (
     <div className="grid gap-3 pb-6">
@@ -75,10 +73,6 @@ export default function MyClass({ classId }: { classId?: string }) {
           <dt className="text-muted">Сынып жетекшісі</dt><dd className="font-medium">{name(cls.teacher_id) ?? '—'}</dd>
           <dt className="text-muted">Тәрбиеші</dt><dd className="font-medium">{name(cls.tutor_id) ?? '—'}</dd>
         </dl>
-        {canSetTutor && d && (
-          <Field label="Тәрбиешіні өзгерту">{(id) => <select id={id} value={cls.tutor_id ?? ''} onChange={(e) => changeTutor(e.target.value)} className={inputCls}>
-            <option value="">Белгіленбеген</option>{d.staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}</select>}</Field>
-        )}
       </Card>
 
       <div className="grid grid-cols-4 gap-2">
