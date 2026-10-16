@@ -11,11 +11,16 @@ const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
 export default function Calendars() {
   const { me } = useMe()
   const t = today()
+  const classId = new URLSearchParams(location.hash.split('?')[1] ?? '').get('class')
   const [ready, setReady] = useState(false)
   useEffect(() => { ensureCalendars().finally(() => setReady(true)) }, [])
-  const ag = useLoad(() => (ready ? loadAgenda(me, addDays(t, -30), addDays(t, 120)) : new Promise<never>(() => {})), [ready, me.id])
+  const ag = useLoad(() => (ready ? loadAgenda(me, addDays(t, -30), addDays(t, 120)) : new Promise<never>(() => {})), [ready, me.id, classId])
   const [sheet, setSheet] = useState<null | 'add' | 'import'>(null)
-  const cals = (ag.data?.sources ?? []).flatMap((s) => (s.cal ? [s.cal] : []))
+  const allCals = (ag.data?.sources ?? []).flatMap((s) => (s.cal ? [s.cal] : []))
+  const classCal = classId ? allCals.find((c) => c.class_id === classId) : undefined
+  const cals = classCal ? [classCal] : allCals
+  const visibleSources = classCal ? (ag.data?.sources ?? []).filter((s) => s.cal?.id === classCal.id) : (ag.data?.sources ?? [])
+  const visibleItems = classCal ? (ag.data?.items ?? []).filter((i) => i.src === classCal.id) : (ag.data?.items ?? [])
   // ask the database which calendars this person may write to, so the UI never offers what RLS would refuse
   const can = useLoad(async () => (await Promise.all(cals.map((c) => canEditCalendar(c.id)))), [cals.map((c) => c.id).join()])
   const editable = cals.filter((_, i) => can.data?.[i])
@@ -32,16 +37,16 @@ export default function Calendars() {
     toast(`${items.length} жазба экспортталды`)
   }
 
-  const upcoming = (ag.data?.items ?? []).filter((i) => i.end >= new Date() && i.start <= new Date(Date.now() + 30 * 864e5))
+  const upcoming = visibleItems.filter((i) => i.end >= new Date() && i.start <= new Date(Date.now() + 30 * 864e5))
   const days = [...new Set(upcoming.map((i) => iso(i.start)))]
 
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title="Күнтізбелерім" back />
+      <PageHead title={classCal?.name ?? 'Күнтізбелерім'} back />
       {!ag.data ? (ag.error ? <ErrorBox text={ag.error} retry={ag.reload} /> : <Skeleton />) : (
         <>
           <Card className="p-0 divide-y divide-line">
-            {ag.data.sources.map((s) => {
+            {visibleSources.map((s) => {
               const hidden = ag.data!.hidden.includes(s.key)
               return (
                 <div key={s.key} className="flex items-center gap-3 px-4 min-h-14">
@@ -76,7 +81,7 @@ export default function Calendars() {
         </>
       )}
 
-      {sheet === 'add' && <Sheet title="Жоспар қосу" onClose={() => setSheet(null)}><AddEvent cals={editable} onDone={() => { setSheet(null); ag.reload() }} /></Sheet>}
+      {sheet === 'add' && <Sheet title="Жоспар қосу" onClose={() => setSheet(null)}><AddEvent cals={editable} preferredId={classCal?.id} onDone={() => { setSheet(null); ag.reload() }} /></Sheet>}
       {sheet === 'import' && <Sheet title=".ics импорт" onClose={() => setSheet(null)}><Import cals={editable} onDone={() => { setSheet(null); ag.reload() }} /></Sheet>}
     </div>
   )
@@ -101,9 +106,9 @@ function Row({ i, canDelete, onDeleted }: { i: Item; canDelete: boolean; onDelet
   )
 }
 
-function AddEvent({ cals, onDone }: { cals: Calendar[]; onDone: () => void }) {
+function AddEvent({ cals, preferredId, onDone }: { cals: Calendar[]; preferredId?: string; onDone: () => void }) {
   const t = today()
-  const [f, setF] = useState({ cal: cals.find((c) => c.kind === 'personal')?.id ?? cals[0]?.id ?? '', title: '', date: t, from: '16:00', to: '17:00', allDay: false, place: '' })
+  const [f, setF] = useState({ cal: preferredId ?? cals.find((c) => c.kind === 'personal')?.id ?? cals[0]?.id ?? '', title: '', date: t, from: '16:00', to: '17:00', allDay: false, place: '' })
   const [busy, setBusy] = useState(false)
   const save = async () => {
     if (!f.title.trim()) return toast('Атауын жазыңыз')

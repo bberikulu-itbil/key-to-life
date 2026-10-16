@@ -64,7 +64,7 @@ function Shell({ me }: { me: Me }) {
   // signed in with ЖСН inside Telegram → remember this Telegram account
   useEffect(() => { if (inTelegram && tg) tgLink(tg.initData).catch(() => {}) }, [me.id])
 
-  const [, seg, id] = path.split('/')
+  const [, seg, id] = path.split('?')[0].split('/')
   let screen
   if (seg === 'a' && id === 'new') screen = <ActivityForm />
   else if (seg === 'a' && id === 'copy') screen = <ActivityForm key={path} copyOf={path.split('/')[3]} />

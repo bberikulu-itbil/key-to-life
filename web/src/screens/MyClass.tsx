@@ -82,7 +82,7 @@ export default function MyClass({ classId }: { classId?: string }) {
       </Card>
 
       <div className="grid grid-cols-4 gap-2">
-        {([['chat', 'Сынып чаты', openChat], ['clock', 'Кесте', () => go(`/timetable/${cls.id}`)], ['check', 'Тапсырма', () => go('/plan')], ['file', 'Рұқсаттар', () => go('/leaves')]] as const).map(([icon, label, fn]) => (
+        {([['chat', 'Сынып чаты', openChat], ['clock', 'Күнтізбе', () => go(`/calendars?class=${encodeURIComponent(cls.id)}`)], ['check', 'Тапсырма', () => go('/plan')], ['file', 'Рұқсаттар', () => go('/leaves')]] as const).map(([icon, label, fn]) => (
           <button key={label} type="button" onClick={fn} className="grid justify-items-center gap-1.5 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] py-3 px-1 text-xs font-semibold">
             <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span>{label}
           </button>
