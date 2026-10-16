@@ -68,12 +68,12 @@ export default function Feed({ query }: { query: string }) {
         <>
           {tab === 'all' && (
             <>
+              {(of(['news', 'announcement']).length > 0) && <Highlights list={of(['news', 'announcement']).slice(0, 6)} onOpen={(p) => setOpen({ kind: 'post', p })} />}
               {acts.data && <Stories me={me} items={storyCandidates(me, acts.data)} onJoined={acts.reload} />}
-              {of(['announcement']).filter((p) => p.pinned).slice(0, 2).map((p) => <Announcement key={p.id} p={p} onOpen={() => setOpen({ kind: 'post', p })} />)}
               {upcoming.length > 0 && section('Алда болатын', 'upcoming', <Upcoming items={upcoming.slice(0, 10)} />)}
-              {of(['news']).length > 0 && section('Жаңалықтар', 'news', <NewsList list={of(['news']).slice(0, 3)} onOpen={(p) => setOpen({ kind: 'post', p })} />)}
-              {of(['announcement']).filter((p) => !p.pinned).length > 0 && section('Хабарландырулар', 'announcement',
-                <div className="grid gap-2">{of(['announcement']).filter((p) => !p.pinned).slice(0, 3).map((p) => <Announcement key={p.id} p={p} onOpen={() => setOpen({ kind: 'post', p })} />)}</div>)}
+              {section('Мектеп лентасы', 'news', of(['news', 'announcement']).length
+                ? <SocialFeed list={of(['news', 'announcement']).slice(0, 8)} onOpen={(p) => setOpen({ kind: 'post', p })} />
+                : <Card><p className="text-sm text-muted">Жаңалықтар мен хабарландырулар осында көрінеді.</p></Card>)}
               {section('Lost & Found', 'lost', of(['lost', 'found']).filter((p) => p.status === 'open').length
                 ? <LostGrid list={of(['lost', 'found']).filter((p) => p.status === 'open').slice(0, 4)} onOpen={(p) => setOpen({ kind: 'post', p })} />
                 : <Card><p className="text-sm text-muted">Бірдеңе жоғалтсаңыз немесе тауып алсаңыз, осында жариялаңыз.</p></Card>)}
@@ -125,6 +125,59 @@ function Upcoming({ items }: { items: { a: Activity; d: string }[] }) {
             <span className="block text-sm text-muted truncate tabular-nums">{sessionTime(a, d).start} · {a.place}</span>
           </span>
         </a>
+      ))}
+    </div>
+  )
+}
+
+function Highlights({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void }) {
+  return (
+    <section className="grid gap-2" aria-label="Жаңалықтар мен хабарландырулар">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-lg font-bold">Жаңалықтар мен хабарландырулар</h2>
+        <span className="text-xs text-muted">Солға сырғытыңыз</span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 [scrollbar-width:none]">
+        {list.map((p) => (
+          <button key={p.id} type="button" onClick={() => onOpen(p)} className="snap-start shrink-0 w-[280px] min-h-[150px] rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] p-4 text-left grid gap-3">
+            <span className="flex items-start gap-3">
+              <span className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={p.kind === 'announcement' ? 'megaphone' : 'file'} /></span>
+              <span className="min-w-0">
+                <span className="block text-xs text-muted">{p.pinned ? 'Маңызды · ' : ''}{p.kind === 'announcement' ? 'Хабарландыру' : 'Жаңалық'}</span>
+                <span className="block font-semibold leading-snug line-clamp-3">{p.title}</span>
+              </span>
+            </span>
+            {p.body && <span className="text-sm text-muted line-clamp-2">{p.body}</span>}
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function SocialFeed({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void }) {
+  return (
+    <div className="grid gap-3">
+      {list.map((p) => (
+        <article key={p.id} className="rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] overflow-hidden">
+          <button type="button" onClick={() => onOpen(p)} className="w-full text-left">
+            <div className="flex items-center gap-3 p-4 pb-2">
+              <span className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={p.kind === 'announcement' ? 'megaphone' : 'file'} /></span>
+              <span className="min-w-0">
+                <span className="block font-semibold truncate">{p.author.full_name}</span>
+                <span className="block text-xs text-muted">{p.kind === 'announcement' ? 'Хабарландыру' : 'Жаңалық'} · {chatTime(p.created_at)}</span>
+              </span>
+            </div>
+            {p.photo && <img src={photoUrl(p.photo)} alt="" loading="lazy" className="w-full aspect-[16/9] object-cover bg-surface-2" />}
+            <div className="p-4 pt-3">
+              <h3 className="font-bold leading-snug">{p.title}</h3>
+              {p.body && <p className="mt-1 text-sm text-muted whitespace-pre-line line-clamp-4">{p.body}</p>}
+            </div>
+          </button>
+          <div className="flex items-center gap-4 px-4 pb-3 text-xs text-muted">
+            <span className="flex items-center gap-1"><Icon n={p.pinned ? 'star' : 'file'} size={15} />{p.pinned ? 'Маңызды' : 'Лицей жаңалығы'}</span>
+          </div>
+        </article>
       ))}
     </div>
   )

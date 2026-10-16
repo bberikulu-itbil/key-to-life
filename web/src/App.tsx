@@ -118,7 +118,7 @@ function Shell({ me }: { me: Me }) {
 
       {sheet === 'menu' && (
         <Sheet title="Не істейміз?" onClose={() => setSheet(null)}>
-          <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-3">
             <MenuItem icon="clock" title="Рұқсат сұрау" text={me.role === 'student' ? 'Сыртқа шығу, сабақтан немесе іс-шарадан' : 'Келген өтініштер және бүгін рұқсат берілгендер'} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
             <MenuItem icon="grid" title="Броньдау" text="Кабинет, спортзал, шай бөлмесі" onClick={() => { setSheet(null); go('/book') }} />
             <MenuItem icon="file" title="Іс-шара ұсыну" text="Үйірме, курс, жарыс, турнир немесе іс-шара" onClick={() => { setSheet(null); go('/a/new') }} />
@@ -135,9 +135,9 @@ function Shell({ me }: { me: Me }) {
 }
 
 const MenuItem = ({ icon, title, text, onClick }: { icon: string; title: string; text: string; onClick: () => void }) => (
-  <button type="button" onClick={onClick} className="flex items-center gap-3 min-h-16 rounded-md px-3 py-2 text-left hover:bg-surface-2 active:bg-surface-2">
-    <span className="size-10 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n={icon} /></span>
-    <span className="flex-1 min-w-0"><span className="block font-semibold">{title}</span><span className="block text-sm text-muted">{text}</span></span>
-    <Icon n="chev" className="text-muted" />
+  <button type="button" onClick={onClick} className="relative min-h-32 rounded-lg border border-line bg-surface-2 px-3 py-4 grid justify-items-center gap-2 text-center hover:bg-surface active:bg-surface">
+    <span className="size-12 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={24} /></span>
+    <span className="block font-semibold leading-tight">{title}</span>
+    <span className="block text-xs text-muted leading-snug line-clamp-2">{text}</span>
   </button>
 )

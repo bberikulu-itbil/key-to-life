@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { acceptWaitlisted, addParticipant, cancelActivity, errText, getActivity, listPeople, removeActivity, removeParticipant, setActivityFlags, setCurator, type ActivityFull } from '../lib/api'
+import { useEffect, useMemo, useState } from 'react'
+import { acceptWaitlisted, addParticipant, cancelActivity, errText, getActivity, listPeople, removeActivity, removeParticipant, setActivityFlags, setCurators, type ActivityFull } from '../lib/api'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import { Modules } from './ActivityDetail'
@@ -11,12 +11,16 @@ export default function ActivitySettings({ id }: { id: string }) {
   const { me } = useMe()
   const { data: a, error, loading, reload } = useLoad(() => getActivity(id), [id])
   const [sheet, setSheet] = useState<null | 'modules' | 'add' | 'cancel' | 'remove'>(null)
+  const [curators, setCuratorsState] = useState<string[]>([])
+  const [savingCurators, setSavingCurators] = useState(false)
+  useEffect(() => setCuratorsState(a?.curators?.map((x) => x.student_id) ?? (a?.curator_id ? [a.curator_id] : [])), [a?.curators, a?.curator_id])
   if (loading && !a) return <><PageHead title="Баптаулар" back /><Skeleton /></>
   if (error || !a) return <><PageHead title="Баптаулар" back /><ErrorBox text={error ?? 'Табылмады'} retry={reload} /></>
   const manager = a.supervisor_id === me.id || me.role === 'deputy' || me.role === 'admin'
   if (!manager) return <><PageHead title="Баптаулар" back /><Card><p>Іс-шараны жетекші немесе орынбасар баптайды.</p></Card></>
 
   const act = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); toast(done); reload() } catch (e) { toast(errText(e)) } }
+  const saveCurators = async () => { setSavingCurators(true); try { await setCurators(a.id, curators); toast(curators.length ? 'Жауапты оқушылар сақталды' : 'Жауапты оқушылар алынды'); reload() } catch (e) { toast(errText(e)) } finally { setSavingCurators(false) } }
   const joined = a.enrollments.filter((e) => !e.waitlisted)
   const waiting = a.enrollments.filter((e) => e.waitlisted)
 
@@ -43,10 +47,22 @@ export default function ActivitySettings({ id }: { id: string }) {
         <Toggle label="Тіркелу ашық" hint="Жабық болса, оқушылар өздері жазыла алмайды, тек сіз қосасыз" on={a.enrollment_open}
           onChange={(v) => act(() => setActivityFlags(a.id, v, null), v ? 'Тіркелу ашылды' : 'Тіркелу жабылды')} />
         {joined.length > 0 && (
-          <Field label="Жауапты оқушы" hint="Рұқсат сұрауларын жетекшімен бірге алады, лентаға жазады">
-            {(fid, d) => <select id={fid} aria-describedby={d} value={a.curator_id ?? ''} onChange={(e) => act(() => setCurator(a.id, e.target.value || null), 'Сақталды')} className={inputCls}>
-              <option value="">Тағайындалмаған</option>{joined.map((e) => <option key={e.student_id} value={e.student_id}>{e.student.full_name}</option>)}</select>}
-          </Field>
+          <div className="grid gap-2">
+            <div>
+              <p className="text-sm font-semibold">Жауапты оқушылар</p>
+              <p className="text-sm text-muted">Бірнеше оқушыны таңдауға болады. Олар рұқсат сұрауларын көріп, іс-шара лентасына жаза алады.</p>
+            </div>
+            <div className="grid divide-y divide-line rounded-md border border-line">
+              {joined.map((e) => (
+                <label key={e.student_id} className="flex items-center gap-3 min-h-14 px-3">
+                  <input type="checkbox" checked={curators.includes(e.student_id)} onChange={() => setCuratorsState(curators.includes(e.student_id) ? curators.filter((x) => x !== e.student_id) : [...curators, e.student_id])} className="size-5 accent-[var(--accent)]" />
+                  <Avatar name={e.student.full_name} photo={e.student.photo} size={32} />
+                  <span className="flex-1 min-w-0"><span className="block truncate">{e.student.full_name}</span><span className="block text-xs text-muted">{e.student.class?.name ?? ''}</span></span>
+                </label>
+              ))}
+            </div>
+            <Button kind="secondary" loading={savingCurators} onClick={saveCurators}>Сақтау</Button>
+          </div>
         )}
       </Card>
 
