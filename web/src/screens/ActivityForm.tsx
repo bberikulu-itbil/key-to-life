@@ -5,7 +5,8 @@ import { useMe } from '../App'
 import { Button, Card, ErrorBox, Field, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 
 type F = { type: ActivityType; title: string; description: string; supervisor_id: string; place: string; audience: number[]; capacity: string
-  schedule: 'once' | 'weekly'; on_date: string; weekdays: number[]; date_from: string; date_to: string; start_time: string; end_time: string }
+  schedule: 'once' | 'weekly'; on_date: string; weekdays: number[]; date_from: string; date_to: string; start_time: string; end_time: string
+  perDay: boolean; times: Record<number, { start: string; end: string }>; extra: { date: string; start: string; end: string }[] }
 
 const GRADES = [5, 6, 7, 8, 9, 10, 11]
 
@@ -23,6 +24,10 @@ export function validate(f: F, t = today()): Partial<Record<keyof F, string>> {
     else if (f.date_to < t) e.date_to = 'Кезеңнің соңы өтіп кеткен'
   }
   if (!f.start_time || !f.end_time || f.end_time <= f.start_time) e.end_time = 'Аяқталу уақыты басталудан кейін болуы керек'
+  if (f.schedule === 'weekly' && f.perDay && f.weekdays.some((w) => { const x = f.times[w]; return x && x.end <= x.start }))
+    e.times = 'Әр күннің аяқталу уақыты басталудан кейін болуы керек'
+  if (f.schedule === 'once' && f.extra.some((x) => !x.date || x.date < t || x.end <= x.start || x.date === f.on_date))
+    e.extra = 'Қосымша күндерді тексеріңіз: өткен күн, қайталанған күн немесе уақыт қате'
   return e
 }
 
@@ -31,7 +36,7 @@ export default function ActivityForm({ id }: { id?: string }) {
   const staff = useLoad(listStaff, [])
   const t = today()
   const [f, setF] = useState<F>({ type: 'club', title: '', description: '', supervisor_id: me.role !== 'student' ? me.id : '', place: '', audience: [], capacity: '',
-    schedule: 'weekly', on_date: addDays(t, 7), weekdays: [], date_from: t, date_to: addDays(t, 60), start_time: '15:00', end_time: '16:30' })
+    schedule: 'weekly', on_date: addDays(t, 7), weekdays: [], date_from: t, date_to: addDays(t, 60), start_time: '15:00', end_time: '16:30', perDay: false, times: {}, extra: [] })
   const [loaded, setLoaded] = useState(!id)
   const [touched, setTouched] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -42,7 +47,8 @@ export default function ActivityForm({ id }: { id?: string }) {
     getActivity(id).then((a) => {
       setF({ type: a.type, title: a.title, description: a.description, supervisor_id: a.supervisor_id, place: a.place, audience: a.audience_grades,
         capacity: a.capacity ? String(a.capacity) : '', schedule: a.schedule, on_date: a.on_date ?? addDays(t, 7), weekdays: a.weekdays ?? [],
-        date_from: a.date_from ?? t, date_to: a.date_to ?? addDays(t, 60), start_time: a.start_time.slice(0, 5), end_time: a.end_time.slice(0, 5) })
+        date_from: a.date_from ?? t, date_to: a.date_to ?? addDays(t, 60), start_time: a.start_time.slice(0, 5), end_time: a.end_time.slice(0, 5),
+        perDay: !!a.slots?.length, times: Object.fromEntries((a.slots ?? []).map((x) => [x.wd, { start: x.start, end: x.end }])), extra: [] })
       setLoaded(true)
     }, (e) => setErr(errText(e)))
   }, [id])
@@ -56,9 +62,11 @@ export default function ActivityForm({ id }: { id?: string }) {
     if (Object.keys(validate(f, t)).length) return toast('Белгіленген өрістерді түзетіңіз')
     setBusy(true)
     try {
+      const slots = f.schedule === 'weekly' && f.perDay ? f.weekdays.map((wd) => ({ wd, ...(f.times[wd] ?? { start: f.start_time, end: f.end_time }) })) : []
       const p = { type: f.type, title: f.title.trim(), description: f.description.trim(), supervisor_id: f.supervisor_id, place: f.place.trim(),
-        audience_grades: f.audience, capacity: f.capacity || null, schedule: f.schedule, start_time: f.start_time, end_time: f.end_time,
-        ...(f.schedule === 'once' ? { on_date: f.on_date } : { weekdays: f.weekdays, date_from: f.date_from, date_to: f.date_to }) }
+        audience_grades: f.audience, capacity: f.capacity || null, schedule: f.schedule,
+        start_time: slots[0]?.start ?? f.start_time, end_time: slots[0]?.end ?? f.end_time, slots,
+        ...(f.schedule === 'once' ? { on_date: f.on_date, extra: f.extra } : { weekdays: f.weekdays, date_from: f.date_from, date_to: f.date_to }) }
       const newId = await submitActivity(p, id)
       toast(me.role === 'deputy' || me.role === 'admin' ? 'Жарияланды' : me.role === 'student' ? 'Сынып жетекшісіне жіберілді' : 'Орынбасарға жіберілді')
       go(`/a/${newId}`)
@@ -122,10 +130,50 @@ export default function ActivityForm({ id }: { id?: string }) {
             </div>
           </>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Басталатын уақыт">{(fid) => <input id={fid} type="time" value={f.start_time} onChange={(e) => set('start_time', e.target.value)} className={inputCls} />}</Field>
-          <Field label="Аяқталатын уақыт" error={errors.end_time}>{(fid, d) => <input id={fid} aria-describedby={d} type="time" value={f.end_time} onChange={(e) => set('end_time', e.target.value)} className={inputCls} />}</Field>
-        </div>
+        {f.schedule === 'weekly' && f.weekdays.length > 1 && (
+          <label className="flex items-center gap-3 min-h-11">
+            <input type="checkbox" checked={f.perDay} onChange={(e) => set('perDay', e.target.checked)} className="size-5 accent-[var(--accent)]" />
+            <span>Әр күнге бөлек уақыт</span>
+          </label>
+        )}
+        {f.schedule === 'weekly' && f.perDay && f.weekdays.length > 1 ? (
+          <div className="grid gap-2">
+            {f.weekdays.map((wd) => {
+              const x = f.times[wd] ?? { start: f.start_time, end: f.end_time }
+              const put = (k: 'start' | 'end', v: string) => set('times', { ...f.times, [wd]: { ...x, [k]: v } })
+              return (
+                <div key={wd} className="grid grid-cols-[48px_1fr_1fr] gap-2 items-center">
+                  <span className="font-semibold">{WD_SHORT[wd - 1]}</span>
+                  <input type="time" aria-label={`${WD_SHORT[wd - 1]} басталуы`} value={x.start} onChange={(e) => put('start', e.target.value)} className={inputCls} />
+                  <input type="time" aria-label={`${WD_SHORT[wd - 1]} аяқталуы`} value={x.end} onChange={(e) => put('end', e.target.value)} className={inputCls} />
+                </div>
+              )
+            })}
+            {errors.times && <p className="text-sm text-danger">{errors.times}</p>}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Басталатын уақыт">{(fid) => <input id={fid} type="time" value={f.start_time} onChange={(e) => set('start_time', e.target.value)} className={inputCls} />}</Field>
+            <Field label="Аяқталатын уақыт" error={errors.end_time}>{(fid, d) => <input id={fid} aria-describedby={d} type="time" value={f.end_time} onChange={(e) => set('end_time', e.target.value)} className={inputCls} />}</Field>
+          </div>
+        )}
+        {f.schedule === 'once' && !id && (
+          <div className="grid gap-2">
+            {f.extra.map((x, i) => {
+              const put = (k: 'date' | 'start' | 'end', v: string) => set('extra', f.extra.map((y, j) => (j === i ? { ...y, [k]: v } : y)))
+              return (
+                <div key={i} className="grid grid-cols-[1.3fr_1fr_1fr_44px] gap-2 items-center">
+                  <input type="date" aria-label={`${i + 2}-күн`} min={t} value={x.date} onChange={(e) => put('date', e.target.value)} className={inputCls} />
+                  <input type="time" aria-label={`${i + 2}-күн басталуы`} value={x.start} onChange={(e) => put('start', e.target.value)} className={inputCls} />
+                  <input type="time" aria-label={`${i + 2}-күн аяқталуы`} value={x.end} onChange={(e) => put('end', e.target.value)} className={inputCls} />
+                  <button type="button" onClick={() => set('extra', f.extra.filter((_, j) => j !== i))} aria-label={`${i + 2}-күнді алып тастау`} className="size-11 grid place-items-center text-muted">✕</button>
+                </div>
+              )
+            })}
+            {errors.extra && <p className="text-sm text-danger">{errors.extra}</p>}
+            <Button kind="ghost" onClick={() => set('extra', [...f.extra, { date: addDays(f.extra.at(-1)?.date ?? f.on_date, 1), start: f.start_time, end: f.end_time }])}>Тағы күн мен уақыт қосу</Button>
+          </div>
+        )}
       </Card>
 
       <Card className="grid gap-4">

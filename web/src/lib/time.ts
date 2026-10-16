@@ -19,11 +19,24 @@ export const isoDow = (s: string) => ((parse(s).getDay() + 6) % 7) + 1
 export const fmtDate = (s: string) => { const d = parse(s); return `${d.getDate()} ${MONTHS[d.getMonth()]}` }
 export const hm = (t: string) => t.slice(0, 5)
 
-type Sched = Pick<Activity, 'schedule' | 'on_date' | 'weekdays' | 'date_from' | 'date_to'>
+export type TimeSlot = { wd: number; start: string; end: string }
+export type Extra = { id: string; on_date: string; start_time: string; end_time: string; note: string | null }
+type Sched = Pick<Activity, 'schedule' | 'on_date' | 'weekdays' | 'date_from' | 'date_to'> & { slots?: TimeSlot[] | null; extra?: Extra[] }
 
+/** Same rule as is_session() in the database: regular day (per slot when set) in range, or an added extra date. */
 export function isSession(a: Sched, d: string) {
+  if (a.extra?.some((x) => x.on_date === d)) return true
   if (a.schedule === 'once') return d === a.on_date
-  return !!a.date_from && !!a.date_to && d >= a.date_from && d <= a.date_to && (a.weekdays ?? []).includes(isoDow(d))
+  if (!a.date_from || !a.date_to || d < a.date_from || d > a.date_to) return false
+  return a.slots?.length ? a.slots.some((s) => s.wd === isoDow(d)) : (a.weekdays ?? []).includes(isoDow(d))
+}
+
+/** Start and end of the session on day d. */
+export function sessionTime(a: Sched & { start_time: string; end_time: string }, d: string) {
+  const x = a.extra?.find((e) => e.on_date === d)
+  if (x) return { start: hm(x.start_time), end: hm(x.end_time) }
+  const s = a.schedule === 'weekly' ? a.slots?.find((t) => t.wd === isoDow(d)) : undefined
+  return s ? { start: s.start, end: s.end } : { start: hm(a.start_time), end: hm(a.end_time) }
 }
 
 /** Session dates from `from` to `to` inclusive, newest first. */
@@ -33,12 +46,14 @@ export function sessions(a: Sched, from: string, to: string) {
   return out
 }
 
-export const lastDay = (a: Sched) => (a.schedule === 'once' ? a.on_date! : a.date_to!)
+export const lastDay = (a: Sched) => [a.schedule === 'once' ? a.on_date! : a.date_to!, ...(a.extra ?? []).map((x) => x.on_date)].sort().at(-1)!
 
 export function scheduleLabel(a: Activity) {
   const time = `${hm(a.start_time)}–${hm(a.end_time)}`
-  if (a.schedule === 'once') return `${fmtDate(a.on_date!)} · ${time}`
-  return `${(a.weekdays ?? []).map((w) => WD_SHORT[w - 1]).join(', ')} · ${time}`
+  const extra = a.extra?.length ? ` · +${a.extra.length} күн` : ''
+  if (a.schedule === 'once') return `${fmtDate(a.on_date!)} · ${time}${extra}`
+  if (a.slots?.length) return [...a.slots].sort((x, y) => x.wd - y.wd).map((s) => `${WD_SHORT[s.wd - 1]} ${s.start}–${s.end}`).join(', ') + extra
+  return `${(a.weekdays ?? []).map((w) => WD_SHORT[w - 1]).join(', ')} · ${time}${extra}`
 }
 
 export function weekOf(s: string) {

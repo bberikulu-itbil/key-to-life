@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   cancelActivity, decideAbsence, decideActivity, getActivity, getAttendance, joinActivity, leaveActivity, listRequests, markAttendance,
-  errText, listLeaves, setCurator, activityChatId, myAttendance, setActivityFeatures, type ActivityFull, type Feature, type Mark,
+  errText, listLeaves, setCurator, activityChatId, myAttendance, setActivityFeatures, activityAttendance, addSession, removeSession, type ActivityFull, type Feature, type Mark,
 } from '../lib/api'
 import { when } from './Leaves'
-import { MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, fmtDate, hm, isoDow, lastDay, rate, scheduleLabel, sessions, today } from '../lib/time'
+import { MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessions, today } from '../lib/time'
 import Tasks from '../components/Tasks'
 import Avatar from '../components/Avatar'
 import { useMe } from '../App'
@@ -45,13 +45,18 @@ export default function ActivityDetail({ id }: { id: string }) {
   const manager = a.supervisor_id === me.id || me.role === 'deputy' || me.role === 'admin'
   const insider = (!!mine && !mine.waitlisted) || isOwner || a.curator_id === me.id
   const tabs = a.status === 'approved'
-    ? [['about', 'Шолу'] as const, ...FEATURES.filter(([f]) => a.features.includes(f) && (f === 'syllabus' || f === 'schedule' || insider))]
+    ? [['about', 'Шолу'] as const, ...TABS.filter(([f]) => a.features.includes(f) && (f !== 'tasks' || insider))]
     : []
+  const chatOn = a.status === 'approved' && a.features.includes('chat') && insider
+  const stats = canKeepJournal && a.status === 'approved' && a.features.includes('attendance')
   const shown = tabs.some(([k]) => k === tab) ? tab : 'about'
 
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title="" back right={manager && a.status === 'approved' ? <Button kind="ghost" onClick={() => setSettings(true)}>Баптаулар</Button> : undefined} />
+      <PageHead title="" back right={<div className="flex gap-1">
+        {chatOn && <ChatButton a={a} />}
+        {manager && a.status === 'approved' && <button type="button" onClick={() => setSettings(true)} aria-label="Баптаулар" className="size-11 grid place-items-center rounded-md text-muted"><Icon n="more" size={24} /></button>}
+      </div>} />
       <div className="flex gap-2 flex-wrap -mt-2">
         <Badge tone="accent">{TYPE_LABEL[a.type]}</Badge>
         <Badge tone={statusTone(a.status)}>{STATUS_LABEL[a.status]}</Badge>
@@ -75,14 +80,14 @@ export default function ActivityDetail({ id }: { id: string }) {
           ))}
         </div>
       )}
-      {shown === 'chat' && <ActivityChat a={a} />}
-      {shown === 'syllabus' && <Syllabus a={a} me={me} />}
-      {shown === 'schedule' && <Schedule a={a} />}
       {shown === 'tasks' && <Tasks me={me} activity={a} canGive={manager || a.curator_id === me.id} />}
-      {shown === 'attendance' && (canKeepJournal ? <><Requests activityId={a.id} /><Journal a={a} /></> : <MyMarks a={a} onAsk={() => setAbsence(true)} />)}
+      {shown === 'syllabus' && <Syllabus a={a} me={me} />}
+      {shown === 'schedule' && <ActivityCalendar a={a} canEdit={manager} journal={canKeepJournal && a.features.includes('attendance')} onChange={reload} />}
       {shown === 'about' && (
         <>
           <p className="whitespace-pre-line break-words">{a.description}</p>
+          {stats && <><Requests activityId={a.id} /><Analytics a={a} /></>}
+          {!canKeepJournal && mine && !mine.waitlisted && a.status === 'approved' && a.features.includes('attendance') && <MyMarks a={a} onAsk={() => setAbsence(true)} />}
 
           {/* student actions */}
           {me.role === 'student' && a.status === 'approved' && !ended && (
@@ -134,7 +139,7 @@ export default function ActivityDetail({ id }: { id: string }) {
                     <option value="">Тағайындалмаған</option>{joined.map((e) => <option key={e.student_id} value={e.student_id}>{e.student.full_name}</option>)}</select>}
                 </Field>
               )}
-              {a.enrollments.length === 0 ? <p className="text-sm text-muted">Әзірге ешкім жазылмаған.</p> : (
+              {a.enrollments.length === 0 ? <p className="text-sm text-muted">Әзірге ешкім жазылмаған.</p> : stats ? null : (
                 <Card className="p-0 divide-y divide-line">
                   {a.enrollments.map((e) => (
                     <div key={e.student_id} className="flex items-center justify-between gap-2 px-4 py-3">
@@ -197,11 +202,11 @@ function JoinButton({ a, grade, busy, onJoin }: { a: ActivityFull; grade?: numbe
 const MARKS: Mark[] = ['present', 'late', 'excused', 'absent']
 const MARK_ON: Record<Mark, string> = { present: 'bg-success-soft text-success', late: 'bg-late-soft text-late', excused: 'bg-warning-soft text-warning', absent: 'bg-danger-soft text-danger' }
 
-function Journal({ a }: { a: ActivityFull }) {
-  const start = a.schedule === 'once' ? a.on_date! : a.date_from!
+function Journal({ a, fixed }: { a: ActivityFull; fixed?: string }) {
+  const start = [a.schedule === 'once' ? a.on_date! : a.date_from!, ...a.extra.map((x) => x.on_date)].sort()[0]
   const end = [lastDay(a), today()].sort()[0]
   const dates = useMemo(() => sessions(a, start, end), [a, start, end])
-  const [date, setDate] = useState(dates[0] ?? '')
+  const [date, setDate] = useState(fixed ?? dates[0] ?? '')
   const [marks, setMarks] = useState<Record<string, Mark>>({})
   const [saved, setSaved] = useState<Record<string, Mark>>({})
   const [busy, setBusy] = useState(false)
@@ -212,7 +217,8 @@ function Journal({ a }: { a: ActivityFull }) {
     if (!date) return
     getAttendance(a.id, date).then((rows) => { const m = Object.fromEntries(rows.map((r) => [r.student_id, r.status])); setMarks(m); setSaved(m) }, (e) => toast(errText(e)))
     // roll call: show approved leaves overlapping this session and absence requests for this date
-    const s0 = new Date(`${date}T${a.start_time}`), s1 = new Date(`${date}T${a.end_time}`)
+    const tm = sessionTime(a, date)
+    const s0 = new Date(`${date}T${tm.start}`), s1 = new Date(`${date}T${tm.end}`)
     Promise.all([listLeaves({ since: s0.toISOString(), until: s1.toISOString() }), listRequests(a.id)]).then(([leaves, reqs]) => {
       const n: Record<string, { text: string; sick: boolean }> = {}
       for (const l of leaves) if (l.status === 'approved') n[l.student_id] = { text: `Рұқсат: ${l.kind === 'outside' ? 'сыртта' : 'сабақтан'} ${when(l)}`, sick: l.category === 'illness' }
@@ -220,7 +226,7 @@ function Journal({ a }: { a: ActivityFull }) {
         n[r.student_id] = { text: r.status === 'approved' ? 'Рұқсат берілген' : 'Рұқсат сұраған (шешілмеген)', sick: r.category === 'illness' }
       setNotes(n)
     }, () => setNotes({}))
-  }, [a.id, a.start_time, a.end_time, date])
+  }, [a, date])
 
   const dirty = students.some((s) => marks[s.student_id] !== saved[s.student_id])
   const save = async (all?: boolean) => {
@@ -237,11 +243,11 @@ function Journal({ a }: { a: ActivityFull }) {
       {!dates.length ? <Card><p className="text-sm text-muted">Бірінші сабақ әлі болған жоқ. Журнал сабақ күні ашылады.</p></Card>
         : !students.length ? <Card><p className="text-sm text-muted">Қатысушылар жоқ.</p></Card> : (
           <Card className="grid gap-3">
-            <Field label="Сабақ күні">
+            {!fixed && <Field label="Сабақ күні">
               {(fid) => <select id={fid} value={date} onChange={(e) => (!dirty || confirmLeave()) && setDate(e.target.value)} className={inputCls}>
                 {dates.map((d) => <option key={d} value={d}>{fmtDate(d)}{d === today() ? ' (бүгін)' : ''}</option>)}
               </select>}
-            </Field>
+            </Field>}
             <div className="grid divide-y divide-line">
               {students.map((s) => (
                 <div key={s.student_id} className="grid gap-2 py-3">
@@ -296,13 +302,14 @@ function Requests({ activityId }: { activityId: string }) {
 
 export { CATEGORY }
 
-const FEATURES: [Feature, string][] = [['chat', 'Чат'], ['syllabus', 'Силабус'], ['schedule', 'Кесте'], ['tasks', 'Тапсырмалар'], ['attendance', 'Келу']]
+const FEATURES: [Feature, string][] = [['chat', 'Чат'], ['tasks', 'Тапсырмалар'], ['syllabus', 'Силабус'], ['schedule', 'Күнтізбе'], ['attendance', 'Келу есебі']]
+const TABS = FEATURES.filter(([f]) => f === 'tasks' || f === 'syllabus' || f === 'schedule')
 const FEATURE_HINT: Record<Feature, string> = {
   chat: 'Жетекші мен қатысушылардың ортақ чаты',
   syllabus: 'Тақырыптар мен есептер, оқушы меңгергенін белгілейді',
-  schedule: 'Алдағы сабақ күндері',
+  schedule: 'Сабақ күндері, қосымша сабақ қосу, әр сабақтың журналы',
   tasks: 'Барлығына немесе бір оқушыға тапсырма',
-  attendance: 'Қатысу журналы мен рұқсат сұраулары',
+  attendance: 'Шолуда қатысу анализі, журнал мен рұқсат сұраулары',
 }
 
 function Settings({ a, onDone }: { a: ActivityFull; onDone: () => void }) {
@@ -325,45 +332,6 @@ function Settings({ a, onDone }: { a: ActivityFull; onDone: () => void }) {
   )
 }
 
-function ActivityChat({ a }: { a: ActivityFull }) {
-  const [busy, setBusy] = useState(false)
-  const open = async () => {
-    setBusy(true)
-    try { const id = await activityChatId(a.id); if (id) go(`/c/${id}`); else toast('Чат табылмады') } catch (e) { toast(errText(e)) } finally { setBusy(false) }
-  }
-  return (
-    <Card className="grid gap-3">
-      <p className="text-sm">Жетекші, жауапты оқушы және {a.enrollments.filter((e) => !e.waitlisted).length} қатысушы бір чатта. Жаңа қатысушы жазылғанда чатқа өзі қосылады.</p>
-      <Button loading={busy} onClick={open}>Чатқа өту</Button>
-    </Card>
-  )
-}
-
-function Schedule({ a }: { a: ActivityFull }) {
-  const t = today()
-  const start = a.schedule === 'once' ? a.on_date! : a.date_from!
-  const all = sessions(a, start, lastDay(a)).reverse()
-  const next = all.filter((d) => d >= t)
-  const past = all.length - next.length
-  return (
-    <section className="grid gap-2">
-      <p className="text-sm text-muted">{scheduleLabel(a)} · {a.place}{all.length > 1 ? ` · барлығы ${all.length} сабақ, ${past} өтті` : ''}</p>
-      {!next.length ? <Card><p className="text-sm text-muted">Алда сабақ жоқ.</p></Card> : (
-        <Card className="p-0 divide-y divide-line">
-          {next.slice(0, 12).map((d, i) => (
-            <div key={d} className={`flex items-center gap-3 px-4 py-2.5 ${i === 0 ? 'bg-accent-soft' : ''}`}>
-              <span className="w-24 font-medium tabular-nums">{fmtDate(d)}</span>
-              <span className="text-sm text-muted w-8">{WD_SHORT[isoDow(d) - 1]}</span>
-              <span className="flex-1 text-sm tabular-nums">{hm(a.start_time)}–{hm(a.end_time)}</span>
-              {d === t && <Badge tone="accent">Бүгін</Badge>}
-            </div>
-          ))}
-        </Card>
-      )}
-    </section>
-  )
-}
-
 function MyMarks({ a, onAsk }: { a: ActivityFull; onAsk: () => void }) {
   const { me } = useMe()
   const rows = useLoad(async () => (await myAttendance(me.id)).filter((r) => r.activity_id === a.id), [a.id, me.id])
@@ -381,5 +349,141 @@ function MyMarks({ a, onAsk }: { a: ActivityFull; onAsk: () => void }) {
         </Card>
       )}
     </section>
+  )
+}
+
+function ChatButton({ a }: { a: ActivityFull }) {
+  const [busy, setBusy] = useState(false)
+  const open = async () => {
+    setBusy(true)
+    try { const id = await activityChatId(a.id); if (id) go(`/c/${id}`); else toast('Чат табылмады') } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return <Button kind="secondary" loading={busy} onClick={open}><Icon n="chat" size={18} />Чат</Button>
+}
+
+/* ---------- overview: attendance analytics for the leader ---------- */
+function Analytics({ a }: { a: ActivityFull }) {
+  const att = useLoad(() => activityAttendance(a.id), [a.id])
+  const rows = att.data ?? []
+  const held = new Set(rows.map((r) => r.session_date)).size
+  const overall = rate(rows.map((r) => r.status))
+  const people = a.enrollments.filter((e) => !e.waitlisted).map((e) => {
+    const mine = rows.filter((r) => r.student_id === e.student_id)
+    return { e, pct: rate(mine.map((r) => r.status)), absent: mine.filter((r) => r.status === 'absent').length, late: mine.filter((r) => r.status === 'late').length }
+  }).sort((x, y) => (x.pct ?? 101) - (y.pct ?? 101))
+  const last = [...new Set(rows.map((r) => r.session_date))].sort().slice(-8)
+  return (
+    <section className="grid gap-2">
+      <div className="grid grid-cols-3 gap-2">
+        <Card className="py-3"><p className="text-2xl font-bold tabular-nums">{overall === null ? '—' : `${overall}%`}</p><p className="text-xs text-muted">орташа қатысу</p></Card>
+        <Card className="py-3"><p className="text-2xl font-bold tabular-nums">{held}</p><p className="text-xs text-muted">белгіленген сабақ</p></Card>
+        <Card className="py-3"><p className="text-2xl font-bold tabular-nums">{people.filter((p) => p.pct !== null && p.pct < 70).length}</p><p className="text-xs text-muted">70%-дан төмен</p></Card>
+      </div>
+      {last.length > 1 && (
+        <Card className="grid gap-2">
+          <p className="text-sm font-semibold">Соңғы сабақтар</p>
+          <div className="flex items-end gap-1.5 h-20" role="img" aria-label="Соңғы сабақтардағы қатысу пайызы">
+            {last.map((d) => {
+              const p = rate(rows.filter((r) => r.session_date === d).map((r) => r.status)) ?? 0
+              return <div key={d} className="flex-1 grid gap-1 justify-items-center"><span className="text-[10px] tabular-nums text-muted">{p}</span>
+                <span className={`w-full rounded-t-sm ${p < 70 ? 'bg-danger' : 'bg-accent'}`} style={{ height: `${Math.max(4, p * 0.5)}px` }} /></div>
+            })}
+          </div>
+          <div className="flex gap-1.5">{last.map((d) => <span key={d} className="flex-1 text-center text-[10px] text-muted tabular-nums">{d.slice(8)}.{d.slice(5, 7)}</span>)}</div>
+        </Card>
+      )}
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">Қатысушылар · {people.length}</h2>
+      {!people.length ? <Card><p className="text-sm text-muted">Әзірге ешкім жазылмаған.</p></Card> : (
+        <Card className="p-0 divide-y divide-line">
+          {people.map(({ e, pct, absent, late }) => (
+            <div key={e.student_id} className="flex items-center gap-3 px-4 py-2.5">
+              <Avatar name={e.student.full_name} photo={e.student.photo} size={40} />
+              <span className="flex-1 min-w-0"><span className="block truncate font-medium">{e.student.full_name}{e.student_id === a.curator_id ? ' · жауапты' : ''}</span>
+                <span className="block text-xs text-muted">{e.student.class?.name ?? ''}{absent ? ` · ${absent} рет жоқ` : ''}{late ? ` · ${late} рет кешікті` : ''}</span></span>
+              <span className={`text-sm font-semibold tabular-nums ${pct !== null && pct < 70 ? 'text-danger' : ''}`}>{pct === null ? '—' : `${pct}%`}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+    </section>
+  )
+}
+
+/* ---------- calendar: every session, extra sessions, journal per session ---------- */
+function ActivityCalendar({ a, canEdit, journal, onChange }: { a: ActivityFull; canEdit: boolean; journal: boolean; onChange: () => void }) {
+  const t = today()
+  const start = [a.schedule === 'once' ? a.on_date! : a.date_from!, ...a.extra.map((x) => x.on_date)].sort()[0]
+  const all = sessions(a, start, lastDay(a)).reverse()
+  const att = useLoad(() => (journal ? activityAttendance(a.id) : Promise.resolve([])), [a.id, journal])
+  const [open, setOpen] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [showPast, setShowPast] = useState(false)
+  const del = async (id: string) => { try { await removeSession(id); toast('Сабақ алынды'); onChange() } catch (e) { toast(errText(e)) } }
+  const list = showPast ? all : all.filter((d) => d >= t)
+  const past = all.length - all.filter((d) => d >= t).length
+  const months = [...new Set(list.map((d) => d.slice(0, 7)))]
+  return (
+    <section className="grid gap-2">
+      <div className="flex items-center gap-2">
+        <p className="flex-1 text-sm text-muted">{scheduleLabel(a)} · барлығы {all.length} сабақ</p>
+        {canEdit && <Button kind="secondary" onClick={() => setAdding(true)}>Сабақ қосу</Button>}
+      </div>
+      {past > 0 && <button type="button" onClick={() => setShowPast(!showPast)} className="text-sm text-accent font-semibold text-left min-h-11">{showPast ? 'Өткендерді жасыру' : `Өткен ${past} сабақты көрсету`}</button>}
+      {!list.length ? <Card><p className="text-sm text-muted">Алда сабақ жоқ.</p></Card> : months.map((m) => (
+        <div key={m} className="grid gap-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{fmtDate(`${m}-01`).split(' ')[1]}</h3>
+          <Card className="p-0 divide-y divide-line">
+            {list.filter((d) => d.startsWith(m)).map((d) => {
+              const tm = sessionTime(a, d)
+              const x = a.extra.find((e) => e.on_date === d)
+              const marks = (att.data ?? []).filter((r) => r.session_date === d)
+              const body = (
+                <>
+                  <span className={`w-11 h-11 rounded-md grid content-center justify-items-center shrink-0 ${d === t ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>
+                    <span className="font-bold leading-none tabular-nums">{parse(d).getDate()}</span><span className="text-[10px]">{WD_SHORT[isoDow(d) - 1]}</span>
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block tabular-nums">{tm.start}–{tm.end}{x && <span className="ml-2 text-xs text-accent font-semibold">қосымша</span>}</span>
+                    <span className="block text-xs text-muted truncate">{x?.note ?? a.place}{journal && d <= t ? (marks.length ? ` · ${rate(marks.map((r) => r.status)) ?? 0}% келді` : ' · журнал толтырылмаған') : ''}</span>
+                  </span>
+                </>
+              )
+              return (
+                <div key={d} className="flex items-center gap-2 pr-2">
+                  {journal && d <= t
+                    ? <button type="button" onClick={() => setOpen(d)} className="flex-1 flex items-center gap-3 px-4 py-2.5 text-left">{body}<Icon n="chev" className="text-muted" /></button>
+                    : <div className="flex-1 flex items-center gap-3 px-4 py-2.5">{body}</div>}
+                  {canEdit && x && d >= t && <button type="button" onClick={() => del(x.id)} aria-label={`${fmtDate(d)} қосымша сабағын алу`} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button>}
+                </div>
+              )
+            })}
+          </Card>
+        </div>
+      ))}
+      {open && <Sheet title={`Журнал · ${fmtDate(open)}`} onClose={() => { setOpen(null); att.reload() }}><Journal a={a} fixed={open} /></Sheet>}
+      {adding && <Sheet title="Сабақ қосу" onClose={() => setAdding(false)}><AddSession a={a} onDone={() => { setAdding(false); onChange() }} /></Sheet>}
+    </section>
+  )
+}
+
+function AddSession({ a, onDone }: { a: ActivityFull; onDone: () => void }) {
+  const [f, setF] = useState({ date: today(), start: hm(a.start_time), end: hm(a.end_time), note: '' })
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    if (!f.date || f.end <= f.start) return toast('Күн мен уақытты тексеріңіз')
+    setBusy(true)
+    try { await addSession({ activity_id: a.id, on_date: f.date, start_time: f.start, end_time: f.end, note: f.note.trim() || null }); toast('Сабақ қосылды, қатысушылардың күнтізбесінде шығады'); onDone() }
+    catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <div className="grid gap-4">
+      <Field label="Күні">{(id) => <input id={id} type="date" value={f.date} min={today()} onChange={(e) => setF({ ...f, date: e.target.value })} className={inputCls} />}</Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Басталуы">{(id) => <input id={id} type="time" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} className={inputCls} />}</Field>
+        <Field label="Аяқталуы">{(id) => <input id={id} type="time" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} className={inputCls} />}</Field>
+      </div>
+      <Field label="Ескерту" hint="Мысалы: қосымша сабақ, басқа кабинет">{(id, d) => <input id={id} aria-describedby={d} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} className={inputCls} />}</Field>
+      <Button block loading={busy} onClick={save}>Қосу</Button>
+    </div>
   )
 }

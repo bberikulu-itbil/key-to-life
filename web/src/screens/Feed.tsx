@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { createPost, errText, hidePost, listActivities, listPeople, listPosts, openDirect, photoUrl, pinPost, setParliament, setPostStatus, uploadPhoto, votePost,
   type Activity, type Me, type Post, type PostKind, type PostStatus } from '../lib/api'
-import { TYPE_LABEL, WD_SHORT, chatTime, fmtDate, hm, isoDow, nextSession, parse, today } from '../lib/time'
+import { TYPE_LABEL, WD_SHORT, chatTime, fmtDate, isoDow, nextSession, parse, sessionTime, today } from '../lib/time'
 import { useMe } from '../App'
 import Stories, { storyCandidates } from '../components/Stories'
 import Activities from './Activities'
@@ -30,7 +30,7 @@ export default function Feed({ query }: { query: string }) {
   const upcoming = useMemo(() => {
     const t = today()
     return (acts.data ?? []).filter((a) => a.status === 'approved').map((a) => ({ a, d: nextSession(a, t, 30) }))
-      .filter((x): x is { a: Activity; d: string } => !!x.d).sort((x, y) => (x.d + x.a.start_time).localeCompare(y.d + y.a.start_time))
+      .filter((x): x is { a: Activity; d: string } => !!x.d).sort((x, y) => (x.d + sessionTime(x.a, x.d).start).localeCompare(y.d + sessionTime(y.a, y.d).start))
   }, [acts.data])
 
   const setTab = (t: Tab) => go(t === 'all' ? '/' : `/?t=${t}`)
@@ -121,7 +121,7 @@ function Upcoming({ items }: { items: { a: Activity; d: string }[] }) {
           <span className="min-w-0">
             <span className="block text-xs text-accent font-semibold">{TYPE_LABEL[a.type]}</span>
             <span className="block font-semibold leading-snug line-clamp-2">{a.title}</span>
-            <span className="block text-sm text-muted truncate tabular-nums">{hm(a.start_time)} · {a.place}</span>
+            <span className="block text-sm text-muted truncate tabular-nums">{sessionTime(a, d).start} · {a.place}</span>
           </span>
         </a>
       ))}

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { Extra, TimeSlot } from './time'
 
 export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY)
 
@@ -17,6 +18,7 @@ export type Activity = {
   on_date: string | null; weekdays: number[] | null; date_from: string | null; date_to: string | null
   start_time: string; end_time: string; author_id: string; supervisor_id: string; curator_id: string | null; created_at: string
   features: Feature[]
+  slots: TimeSlot[] | null; extra: Extra[]
   author: { full_name: string; class: { name: string; teacher_id: string | null } | null }
   supervisor: { full_name: string }
   enrollments: { student_id: string; waitlisted: boolean }[]
@@ -53,7 +55,7 @@ export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
-const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
+const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, slots, extra:activity_sessions(id, on_date, start_time, end_time, note), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), enrollments(student_id, waitlisted)'
 
 export const listActivities = () =>
   ok(supabase.from('activities').select(ACT).order('created_at', { ascending: false })) as unknown as Promise<Activity[]>
@@ -350,3 +352,8 @@ export async function uploadStudentPhoto(studentId: string, file: File) {
   await rpc('set_student_photo', { p_student: studentId, p_path: path })
   return path
 }
+
+export const addSession = (row: { activity_id: string; on_date: string; start_time: string; end_time: string; note: string | null }) => ok(supabase.from('activity_sessions').insert(row))
+export const removeSession = (id: string) => ok(supabase.from('activity_sessions').delete().eq('id', id))
+export const activityAttendance = (activityId: string) =>
+  ok(supabase.from('attendance').select('student_id, session_date, status').eq('activity_id', activityId)) as Promise<{ student_id: string; session_date: string; status: Mark }[]>

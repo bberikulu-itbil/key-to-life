@@ -45,3 +45,11 @@ assert.equal(nextSession(weekly, '2026-10-15'), '2026-10-19')
 assert.equal(nextSession(once, '2026-10-20'), '2026-10-25')
 assert.equal(nextSession(once, '2026-10-26'), null)
 console.log('nextSession ok')
+
+import { sessionTime } from './time'
+const multi = { ...weekly, slots: [{ wd: 1, start: '15:00', end: '16:30' }, { wd: 3, start: '17:00', end: '18:00' }], extra: [{ id: 'x', on_date: '2026-10-17', start_time: '10:00:00', end_time: '12:00:00', note: null }], start_time: '15:00:00', end_time: '16:30:00' }
+assert.ok(isSession(multi, '2026-10-12') && isSession(multi, '2026-10-14') && isSession(multi, '2026-10-17'))   // Mon, Wed, extra Sat
+assert.ok(!isSession(multi, '2026-10-13'))
+assert.deepEqual(sessionTime(multi, '2026-10-14'), { start: '17:00', end: '18:00' })
+assert.deepEqual(sessionTime(multi, '2026-10-17'), { start: '10:00', end: '12:00' })
+console.log('slots+extra ok')

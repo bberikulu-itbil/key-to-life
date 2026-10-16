@@ -1,5 +1,5 @@
 import { listActivities, listCalendars, listEvents, listHidden, listLessons, type Activity, type CalEvent, type Calendar, type Lesson, type Me } from './api'
-import { addDays, isSession, isoDow, parse } from './time'
+import { addDays, isSession, isoDow, parse, sessionTime } from './time'
 
 export type Item = { key: string; src: string; color: string; title: string; start: Date; end: Date; allDay: boolean; place?: string | null; link?: string; kind: 'activity' | 'event' | 'lesson' }
 export type Source = { key: string; name: string; color: string; editable?: boolean; cal?: Calendar }
@@ -19,8 +19,10 @@ export function buildItems(from: string, to: string, me: Me, d: { activities: Ac
   const items: Item[] = []
   const mine = d.activities.filter((a) => myActivity(me, a))
   for (let day = from; day <= to; day = addDays(day, 1)) {
-    for (const a of mine) if (isSession(a, day))
-      items.push({ key: `a${a.id}${day}`, src: 'activities', color: ACT_COLOR, title: a.title, start: at(day, a.start_time), end: at(day, a.end_time), allDay: false, place: a.place, link: `/a/${a.id}`, kind: 'activity' })
+    for (const a of mine) if (isSession(a, day)) {
+      const t = sessionTime(a, day)
+      items.push({ key: `a${a.id}${day}`, src: 'activities', color: ACT_COLOR, title: a.title, start: at(day, t.start), end: at(day, t.end), allDay: false, place: a.place, link: `/a/${a.id}`, kind: 'activity' })
+    }
     for (const l of d.lessons) if (l.weekday === isoDow(day))
       items.push({ key: `l${l.id}${day}`, src: 'timetable', color: LESSON_COLOR, title: me.role === 'student' ? l.subject : `${l.subject} · ${l.class.name}`, start: at(day, l.start_time), end: at(day, l.end_time), allDay: false, place: l.room, kind: 'lesson' })
   }
