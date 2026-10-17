@@ -39,12 +39,13 @@ export default function ActivityDetail({ id }: { id: string }) {
   const joined = a.enrollments.filter((e) => !e.waitlisted)
   const ended = lastDay(a) < today()
   const isOwner = a.author_id === me.id || a.supervisor_id === me.id || me.role === 'deputy' || me.role === 'admin'
-  const canKeepJournal = isOwner
   const decide = needsMyDecision(me, a)
   const isStaff = me.role !== 'student'
   const manager = a.supervisor_id === me.id || me.role === 'deputy' || me.role === 'admin'
   const curatorIds = [...new Set([...(a.curators ?? []).map((x) => x.student_id), ...(a.curator_id ? [a.curator_id] : [])])]
   const insider = (!!mine && !mine.waitlisted) || isOwner || curatorIds.includes(me.id)
+  // the student in charge takes the roll call too
+  const canKeepJournal = isOwner || curatorIds.includes(me.id)
   const tabs = a.status === 'approved'
     ? [['about', tx('Шолу')] as const, ['feed', tx('Лента')] as const, ...TABS.filter(([f]) => a.features.includes(f) && (f !== 'tasks' || insider))]
     : []
@@ -90,7 +91,7 @@ export default function ActivityDetail({ id }: { id: string }) {
       {shown === 'about' && (
         <>
           <p className="whitespace-pre-line break-words">{a.description}</p>
-          {stats && <><Requests activityId={a.id} /><Journal a={a} /><Analytics a={a} /></>}
+          {stats && <>{isOwner && <Requests activityId={a.id} />}<Journal a={a} /><Analytics a={a} /></>}
           {!canKeepJournal && mine && !mine.waitlisted && a.status === 'approved' && a.features.includes('attendance') && <MyMarks a={a} onAsk={() => setAbsence(true)} />}
 
           {/* student actions */}
