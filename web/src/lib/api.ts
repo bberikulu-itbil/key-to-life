@@ -210,12 +210,6 @@ export const setHidden = (key: string, hidden: boolean) =>
   hidden ? ok(supabase.from('calendar_hidden').upsert({ cal_key: key })) : ok(supabase.from('calendar_hidden').delete().eq('cal_key', key))
 export const canEditCalendar = (id: string) => rpc<boolean>('can_edit_calendar', { p_cal: id })
 
-export type WeekendMealKey = 'fri_dinner' | 'sat_breakfast' | 'sat_lunch' | 'sat_dinner' | 'sun_breakfast' | 'sun_lunch' | 'sun_dinner'
-export type WeekendMeal = { student_id: string; class_id: string; weekend_start: string; meal: WeekendMealKey; will_eat: boolean }
-export const listWeekendMeals = (weekendStart: string) =>
-  ok(supabase.from('weekend_meals').select('student_id, class_id, weekend_start, meal, will_eat').eq('weekend_start', weekendStart)) as Promise<WeekendMeal[]>
-export const setWeekendMeal = (weekendStart: string, meal: WeekendMealKey, willEat: boolean) =>
-  rpc('set_weekend_meal', { p_weekend_start: weekendStart, p_meal: meal, p_will_eat: willEat })
 
 /* ---------- timetable & syllabus ---------- */
 const LESSON = 'id, class_id, weekday, start_time, end_time, subject, teacher_id, teacher_name, room, teacher:profiles!teacher_id(full_name), class:classes(name)'
@@ -423,9 +417,9 @@ export const createProposal = (to: 'parliament' | 'admin' | 'teacher', teacher: 
 /* ---------- surveys ---------- */
 export type Question = { q: string; type: 'single' | 'multi' | 'text'; options?: string[] }
 export type Survey = { id: string; author_id: string; title: string; description: string | null; questions: Question[]; audience: 'all' | 'students' | 'staff' | 'class' | 'activity'
-  class_id: string | null; activity_id: string | null; anonymous: boolean; closes_at: string | null; closed: boolean; created_at: string
+  class_id: string | null; activity_id: string | null; anonymous: boolean; closes_at: string | null; closed: boolean; created_at: string; kind: 'weekend' | null
   author: { full_name: string }; class: { name: string } | null; activity: { title: string } | null; mine: { answers: unknown[] }[] }
-const SURVEY = 'id, author_id, title, description, questions, audience, class_id, activity_id, anonymous, closes_at, closed, created_at, author:profiles!author_id(full_name), class:classes(name), activity:activities(title), mine:survey_responses(answers)'
+const SURVEY = 'id, kind, author_id, title, description, questions, audience, class_id, activity_id, anonymous, closes_at, closed, created_at, author:profiles!author_id(full_name), class:classes(name), activity:activities(title), mine:survey_responses(answers)'
 export const listSurveys = () => ok(supabase.from('surveys').select(SURVEY).order('created_at', { ascending: false }).limit(100)) as unknown as Promise<Survey[]>
 export const getSurvey = (id: string) => ok(supabase.from('surveys').select(SURVEY).eq('id', id).single()) as unknown as Promise<Survey>
 export const createSurvey = (p: Record<string, unknown>) => rpc<string>('create_survey', { p })

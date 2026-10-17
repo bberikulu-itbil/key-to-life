@@ -45,16 +45,17 @@ export function SurveyView({ id }: { id: string }) {
   if (s.loading && !s.data) return <><PageHead title={tx('Сауалнама')} back /><Skeleton /></>
   if (s.error || !s.data) return <><PageHead title={tx('Сауалнама')} back /><ErrorBox text={s.error ?? tx('Табылмады')} /></>
   const v = s.data
-  const owner = v.author_id === me.id || me.role === 'deputy' || me.role === 'admin'
+  // Hafta Sonu: staff only read the results
+  const owner = v.author_id === me.id || me.role === 'deputy' || me.role === 'admin' || (v.kind === 'weekend' && me.role !== 'student')
   return (
     <div className="grid gap-3 pb-6">
       <PageHead title={tx('Сауалнама')} back />
       <Card className="grid gap-1">
         <h1 className="text-xl font-bold break-words">{v.title}</h1>
-        {v.description && <p className="whitespace-pre-line text-sm">{v.description}</p>}
+        {v.description && <p className="whitespace-pre-line text-sm">{tx(v.description)}</p>}
         <p className="text-xs text-muted">{audLabel(v)} · {v.author.full_name}{v.anonymous ? tx(' · анонимді: автор аттарды көрмейді') : ''}</p>
       </Card>
-      {owner ? <Results s={v} onChange={s.reload} /> : <Answer s={v} onDone={s.reload} />}
+      {owner ? <Results s={v} onChange={s.reload} canClose={v.author_id === me.id || me.role === 'deputy' || me.role === 'admin'} /> : <Answer s={v} onDone={s.reload} />}
     </div>
   )
 }
@@ -76,7 +77,7 @@ function Answer({ s, onDone }: { s: Survey; onDone: () => void }) {
       {prev.length > 0 && <p className="text-sm rounded-md bg-success-soft text-success p-3">{tx('Жауап бердіңіз.{0}', open ? tx(' Сауалнама жабылғанша өзгертуге болады.') : '')}</p>}
       {s.questions.map((q, i) => (
         <Card key={i} className="grid gap-2">
-          <p className="font-semibold">{i + 1}. {q.q}</p>
+          <p className="font-semibold">{i + 1}. {tx(q.q)}</p>
           {q.type === 'text' ? (
             <textarea aria-label={q.q} disabled={!open} value={a[i] as string} onChange={(e) => put(i, e.target.value)} className={`${inputCls} h-24 py-2`} maxLength={1000} />
           ) : (q.options ?? []).map((o, k) => {
@@ -85,7 +86,7 @@ function Answer({ s, onDone }: { s: Survey; onDone: () => void }) {
               <label key={k} className={`flex items-center gap-3 min-h-11 rounded-md px-3 ${on ? 'bg-accent-soft' : 'bg-surface-2'}`}>
                 <input type={q.type === 'single' ? 'radio' : 'checkbox'} name={`q${i}`} disabled={!open} checked={on} className="size-5 accent-[var(--accent)]"
                   onChange={() => put(i, q.type === 'single' ? k : on ? (a[i] as number[]).filter((x) => x !== k) : [...(a[i] as number[]), k])} />
-                <span>{o}</span>
+                <span>{tx(o)}</span>
               </label>
             )
           })}
@@ -96,7 +97,7 @@ function Answer({ s, onDone }: { s: Survey; onDone: () => void }) {
   )
 }
 
-function Results({ s, onChange }: { s: Survey; onChange: () => void }) {
+function Results({ s, onChange, canClose }: { s: Survey; onChange: () => void; canClose: boolean }) {
   const r = useLoad(() => surveyResults(s.id), [s.id])
   const rows = r.data ?? []
   const toggle = async () => { try { await closeSurvey(s.id, isOpen(s)); toast(isOpen(s) ? tx('Жабылды') : tx('Қайта ашылды')); onChange() } catch (e) { toast(errText(e)) } }
@@ -104,11 +105,11 @@ function Results({ s, onChange }: { s: Survey; onChange: () => void }) {
     <div className="grid gap-3">
       <Card className="flex items-center gap-3">
         <div className="flex-1"><p className="text-2xl font-bold tabular-nums">{rows.length}</p><p className="text-xs text-muted">{tx('жауап')}</p></div>
-        <Button kind="secondary" onClick={toggle}>{isOpen(s) ? tx('Жабу') : tx('Қайта ашу')}</Button>
+        {canClose && <Button kind="secondary" onClick={toggle}>{isOpen(s) ? tx('Жабу') : tx('Қайта ашу')}</Button>}
       </Card>
       {r.loading && !r.data ? <Skeleton /> : r.error ? <ErrorBox text={r.error} /> : s.questions.map((q, i) => (
         <Card key={i} className="grid gap-2">
-          <p className="font-semibold">{i + 1}. {q.q}</p>
+          <p className="font-semibold">{i + 1}. {tx(q.q)}</p>
           {q.type === 'text' ? (
             rows.filter((x) => String(x.answers[i] ?? '').trim()).length ? (
               <ul className="grid gap-1.5">{rows.filter((x) => String(x.answers[i] ?? '').trim()).map((x, k) => (
@@ -120,7 +121,7 @@ function Results({ s, onChange }: { s: Survey; onChange: () => void }) {
             const pct = rows.length ? Math.round((100 * who.length) / rows.length) : 0
             return (
               <div key={k} className="grid gap-1">
-                <div className="flex justify-between text-sm"><span>{o}</span><span className="tabular-nums font-semibold">{who.length} · {pct}%</span></div>
+                <div className="flex justify-between text-sm"><span>{tx(o)}</span><span className="tabular-nums font-semibold">{who.length} · {pct}%</span></div>
                 <div className="h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full bg-accent" style={{ width: `${pct}%` }} /></div>
                 {!s.anonymous && who.length > 0 && <p className="text-xs text-muted">{who.map((x) => x.respondent).join(', ')}</p>}
               </div>
