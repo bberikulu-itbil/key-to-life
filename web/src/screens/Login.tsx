@@ -37,7 +37,7 @@ export default function Login() {
       <form onSubmit={submit} className="w-full max-w-sm grid gap-5" noValidate>
         <LangChips signedIn={false} />
         <div className="grid gap-1">
-          <div className="size-12 rounded-md bg-accent text-on-accent grid place-items-center text-lg font-bold" aria-hidden>KL</div>
+          <img src={`${import.meta.env.BASE_URL}logo-192.png`} alt="" className="size-16 rounded-[14px]" />
           <h1 className="text-display font-bold mt-3">Key To Life</h1>
           <p className="text-muted">{tx('Үйірмелер, курстар, жарыстар және олимпиадаға дайындық бір жерде.')}</p>
         </div>

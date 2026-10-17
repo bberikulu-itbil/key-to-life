@@ -34,7 +34,7 @@ export default function Chats() {
       {chats.loading && !chats.data ? <Skeleton /> : chats.error ? <ErrorBox text={chats.error} retry={chats.reload} /> : (
         <ul className="bg-surface rounded-lg shadow-card border border-[var(--card-line,transparent)] divide-y divide-line">
           {filter === 'all' && (
-            <Row href="#/chats/system" icon="bell" accent title="Lyceum Life" sub={sys.data?.[0]?.title ?? tx('Жүйелік хабарламалар')} time={sys.data?.[0] ? chatTime(sys.data[0].created_at) : ''} unread={sysUnread} badge={tx('Жүйе')} />
+            <Row href="#/chats/system" icon="bell" accent title="Key To Life" sub={sys.data?.[0]?.title ?? tx('Жүйелік хабарламалар')} time={sys.data?.[0] ? chatTime(sys.data[0].created_at) : ''} unread={sysUnread} badge={tx('Жүйе')} />
           )}
           {list.map((c) => (
             <Row key={c.id} href={`#/c/${c.id}`} icon={KIND_ICON[c.kind]} title={c.title} time={chatTime(c.last_at)} unread={c.unread}

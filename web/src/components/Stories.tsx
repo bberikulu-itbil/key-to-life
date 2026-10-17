@@ -38,7 +38,7 @@ export default function Stories({ me, items, onJoined }: { me: Me; items: Activi
         {items.map((a, i) => (
           <button key={a.id} type="button" role="listitem" onClick={() => setOpen(i)} className="shrink-0 w-[72px] grid justify-items-center gap-1 text-center">
             <span className="size-[68px] rounded-full p-[3px] grid" style={{ background: seen.includes(a.id) ? 'var(--border)' : TONE[a.type] }}>
-              <span className="rounded-full bg-surface border-2 border-surface grid place-items-center text-xs font-bold leading-tight px-1" style={{ color: TONE[a.type] }}>
+              <span className="rounded-full bg-surface border-2 border-surface grid place-items-center text-[9.5px] font-bold leading-tight tracking-tight px-0.5 overflow-hidden" style={{ color: TONE[a.type] }}>
                 {TYPE_LABEL[a.type]}
               </span>
             </span>

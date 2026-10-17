@@ -59,7 +59,7 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   )
 
   if (view) return (
-    <div className="grid gap-3 pb-4">
+    <div className="grid grid-cols-1 gap-3 pb-4">
       <PageHead title={PAGE_TITLE[view]} back right={view !== 'events' ? <Button kind="secondary" onClick={() => setOpen({ kind: 'new', what: view === 'lost' ? 'lost' : 'proposal' })}>{view === 'lost' ? tx('Жариялау') : tx('Жазу')}</Button> : undefined} />
       {view === 'events' ? <Activities tab="all" feed embedded />
         : posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} />
@@ -71,8 +71,9 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   )
 
   return (
-    <div className="grid gap-3 pb-4">
-      <header className="flex items-center gap-2 min-h-14">
+    <div className="grid grid-cols-1 gap-3 pb-4">
+      <header className="flex items-center gap-3 min-h-14">
+        <img src={`${import.meta.env.BASE_URL}logo-192.png`} alt="" className="size-11 rounded-[10px] shrink-0" />
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold">Key To Life</h1>
           <p className="text-sm text-muted truncate">{me.school.name}</p>
@@ -82,17 +83,18 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
 
       {/* open competitions, clubs and olympiads to join — above the feed */}
       {acts.data && storyCandidates(me, acts.data).length > 0 && (
-        <section className="grid gap-2" aria-label={tx('Ашық жарыстар, үйірмелер, олимпиадалар')}>
-          <h2 className="text-sm font-semibold text-muted">{tx('Ашық жарыстар, үйірмелер, олимпиадалар')}</h2>
+        // the page grid is grid-cols-1 (minmax 0): with an auto column this edge-to-edge row (-mx-4) widened the whole page
+        <>
+          <h2 className="text-sm font-semibold text-muted -mb-1">{tx('Ашық жарыстар, үйірмелер, олимпиадалар')}</h2>
           <Stories me={me} items={storyCandidates(me, acts.data)} onJoined={acts.reload} />
-        </section>
+        </>
       )}
 
       {/* 3 × 2: six shortcuts stay readable at 320px */}
       <nav aria-label={tx('Бөлімдер')} className="grid grid-cols-3 gap-2">
         {QUICK.map(([icon, label, path]) => (
-          <a key={path} href={`#${path}`} className="min-w-0 flex items-center gap-2 min-h-12 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-2 text-[13px] leading-tight font-semibold active:bg-surface-2">
-            <span className="size-8 rounded-md bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={icon} size={18} /></span><span className="min-w-0 break-words">{label}</span>
+          <a key={path} href={`#${path}`} className="min-w-0 grid justify-items-center content-center gap-1 min-h-[72px] rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-1 py-2 text-[13px] leading-tight font-semibold text-center active:bg-surface-2">
+            <span className="size-8 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span><span className="min-w-0 max-w-full truncate">{label}</span>
           </a>
         ))}
       </nav>

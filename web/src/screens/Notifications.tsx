@@ -17,7 +17,7 @@ export default function Notifications() {
 
   return (
     <div className="grid gap-3 pb-4">
-      <PageHead title="Lyceum Life" back />
+      <PageHead title="Key To Life" back />
       {loading && !data ? <Skeleton /> : error ? <ErrorBox text={error} retry={reload} />
         : !data?.length ? <Empty icon="bell" title={tx('Хабарлама жоқ')} text={tx('Ұсыныстарыңыз расталғанда, рұқсат берілгенде немесе орын босағанда осында жазамыз.')} />
         : (
