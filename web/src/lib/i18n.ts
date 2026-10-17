@@ -36,7 +36,10 @@ export function txTitle(s: string) {
 }
 
 /** Saves the choice and reloads, so every label (module constants included) is rebuilt in the new language. */
-export function setLang(l: Lang) {
+export function rememberLang(l: Lang) {
   try { localStorage.setItem('lang', l) } catch { /* storage blocked: the choice cannot be kept */ }
+}
+export function setLang(l: Lang) {
+  rememberLang(l)
   location.reload()
 }

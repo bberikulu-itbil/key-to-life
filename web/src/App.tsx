@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { getMe, myChats, myRegistration, setMyLang, supabase, tgLink, unreadCount, type Me, type Registration } from './lib/api'
 import Registrations from './screens/Registrations'
 import { Pending } from './screens/Register'
-import { chosen, setLang } from './lib/i18n'
+import { chosen, lang, rememberLang, setLang } from './lib/i18n'
 import { FirstRunLang } from './components/LangPicker'
 import { inTelegram, syncBackButton, tg } from './lib/telegram'
 import Feed, { PostPage } from './screens/Feed'
@@ -63,7 +63,8 @@ export default function App() {
   // a language picked on another device follows the account; one picked here is saved to it (the bot uses it)
   useEffect(() => {
     if (!me) return
-    if (!chosen && me.lang) setLang(me.lang)
+    // same language as now: just keep it, no reload
+    if (!chosen && me.lang) { if (me.lang === lang) rememberLang(me.lang); else setLang(me.lang) }
     else if (chosen && me.lang !== chosen) setMyLang(chosen).catch(() => {})
   }, [me])
 
@@ -71,7 +72,8 @@ export default function App() {
   if (!session) return <><Login /><Toaster /></>
   if (!me && reg) return <Pending name={reg.full_name} status={reg.status} note={reg.note} onCheck={() => location.reload()} onSignOut={() => { setReg(null); supabase.auth.signOut() }} />
   if (!me) return <div className="p-6 text-danger" role="alert">{tx('Профиль табылмады:')}{' '}{err}. <button className="underline" onClick={() => supabase.auth.signOut()}>{tx('Шығу')}</button></div>
-  if (!chosen) return me.lang ? null : <><FirstRunLang signedIn /><Toaster /></>
+  if (!chosen && !me.lang) return <><FirstRunLang signedIn /><Toaster /></>
+  if (!chosen && me.lang !== lang) return <div className="min-h-dvh grid place-items-center text-muted">{tx('Жүктелуде…')}</div>
   return <Shell me={me} />
 }
 
