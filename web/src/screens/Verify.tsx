@@ -5,6 +5,7 @@ import { useMe } from '../App'
 import { LEAVE_CATEGORY } from './LeaveForm'
 import { LEAVE_STATUS, when } from './Leaves'
 import { Button, Card, Field, Icon, PageHead, Skeleton, go, inputCls } from '../components/ui'
+import { tx } from '../lib/i18n'
 
 type R = Record<string, string | boolean>
 
@@ -23,24 +24,24 @@ export default function Verify({ code }: { code?: string }) {
 
   const submit = (e: FormEvent) => { e.preventDefault(); if (input.trim()) go(`/v/${input.trim().toUpperCase()}`) }
 
-  if (me.role === 'student') return <><PageHead title="QR тексеру" back /><Card><p>QR-ды тек мұғалімдер тексереді.</p></Card></>
+  if (me.role === 'student') return <><PageHead title={tx('QR тексеру')} back /><Card><p>{tx('QR-ды тек мұғалімдер тексереді.')}</p></Card></>
 
   const ok = res?.valid_now === true
   const approved = res?.status === 'approved'
   const tone = ok ? 'bg-success-soft text-success' : approved ? 'bg-warning-soft text-warning' : 'bg-danger-soft text-danger'
-  const verdict = ok ? 'Жарамды — қазір' : approved ? 'Расталған, бірақ уақыты емес' : 'Жарамсыз'
+  const verdict = ok ? tx('Жарамды — қазір') : approved ? tx('Расталған, бірақ уақыты емес') : tx('Жарамсыз')
 
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title="QR тексеру" back />
+      <PageHead title={tx('QR тексеру')} back />
       <form onSubmit={submit} className="grid grid-cols-[1fr_auto] gap-2 items-end">
-        <Field label="Код" hint="QR-ды телефон камерасымен сканерлесеңіз, бет өзі ашылады">{(id, d) =>
+        <Field label={tx('Код')} hint={tx('QR-ды телефон камерасымен сканерлесеңіз, бет өзі ашылады')}>{(id, d) =>
           <input id={id} aria-describedby={d} value={input} onChange={(e) => setInput(e.target.value)} className={`${inputCls} uppercase tabular-nums`} placeholder="L-3F9A2C" />}</Field>
-        <Button type="submit">Тексеру</Button>
+        <Button type="submit">{tx('Тексеру')}</Button>
       </form>
       {busy && <Skeleton rows={1} />}
       {err && <Card className="bg-danger-soft text-danger">{err}</Card>}
-      {code && !busy && res === null && <Card className="bg-danger-soft text-danger font-semibold">Мұндай код табылмады</Card>}
+      {code && !busy && res === null && <Card className="bg-danger-soft text-danger font-semibold">{tx('Мұндай код табылмады')}</Card>}
       {res && (
         <div className={`rounded-lg p-5 grid gap-3 ${tone}`} role="status">
           <p className="flex items-center gap-2 text-xl font-bold"><Icon n={ok ? 'check' : 'x'} size={28} />{verdict}</p>
@@ -48,7 +49,7 @@ export default function Verify({ code }: { code?: string }) {
             {res.type === 'leave' ? (
               <>
                 <p className="text-lg font-semibold">{res.student as string} <span className="text-sm text-muted">{res.class as string}</span></p>
-                <p>{res.kind === 'outside' ? 'Сыртқа шығу' : 'Сабақтан сұрану'} · {LEAVE_CATEGORY[res.category as string]}</p>
+                <p>{res.kind === 'outside' ? tx('Сыртқа шығу') : tx('Сабақтан сұрану')} · {LEAVE_CATEGORY[res.category as string]}</p>
                 <p className="tabular-nums">{when({ starts_at: res.starts_at as string, ends_at: res.ends_at as string })}</p>
                 <p className="text-sm text-muted">{LEAVE_STATUS[res.status as keyof typeof LEAVE_STATUS]?.[0]}{res.decided_by ? ` · ${res.decided_by}` : ''} · {res.code as string}</p>
               </>
@@ -57,7 +58,7 @@ export default function Verify({ code }: { code?: string }) {
                 <p className="text-lg font-semibold">{res.resource as string} <span className="text-sm text-muted">{res.group as string}</span></p>
                 <p className="tabular-nums">{fmtDate(res.date as string)} · {res.start as string}–{res.end as string}</p>
                 <p>{res.user as string} · {res.purpose as string}</p>
-                <p className="text-sm text-muted">{res.status === 'approved' ? 'Расталған' : res.status === 'pending' ? 'Растау күтуде' : 'Белсенді емес'} · {res.code as string}</p>
+                <p className="text-sm text-muted">{res.status === 'approved' ? tx('Расталған') : res.status === 'pending' ? tx('Растау күтуде') : tx('Белсенді емес')} · {res.code as string}</p>
               </>
             )}
           </div>

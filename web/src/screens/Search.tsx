@@ -4,8 +4,9 @@ import { TYPE_LABEL, scheduleLabel } from '../lib/time'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import { Card, Empty, Icon, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import { tx } from '../lib/i18n'
 
-const ROLE: Record<string, string> = { student: 'Оқушы', teacher: 'Мұғалім', class_teacher: 'Сынып жетекшісі', deputy: 'Орынбасар', admin: 'Әкімші' }
+const ROLE: Record<string, string> = { student: tx('Оқушы'), teacher: tx('Мұғалім'), class_teacher: tx('Сынып жетекшісі'), deputy: tx('Орынбасар'), admin: tx('Әкімші') }
 
 /** One field over activities, people, rooms and lost & found. Everything is loaded once and filtered here. */
 export default function Search() {
@@ -34,27 +35,27 @@ export default function Search() {
 
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title="Іздеу" back />
+      <PageHead title={tx('Іздеу')} back />
       <label className="relative">
-        <span className="sr-only">Іздеу</span>
+        <span className="sr-only">{tx('Іздеу')}</span>
         <Icon n="search" className="absolute left-3 top-3.5 text-muted" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="Іс-шара, адам, кабинет, зат" className={`${inputCls} pl-10`} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder={tx('Іс-шара, адам, кабинет, зат')} className={`${inputCls} pl-10`} />
       </label>
-      {data.loading && !data.data ? <Skeleton /> : !r ? <p className="text-sm text-muted text-center py-6">Кемінде 2 әріп жазыңыз</p>
-        : !total ? <Card><Empty icon="search" title="Ештеңе табылмады" text="Басқа сөзбен іздеп көріңіз." /></Card> : (
+      {data.loading && !data.data ? <Skeleton /> : !r ? <p className="text-sm text-muted text-center py-6">{tx('Кемінде 2 әріп жазыңыз')}</p>
+        : !total ? <Card><Empty icon="search" title={tx('Ештеңе табылмады')} text={tx('Басқа сөзбен іздеп көріңіз.')} /></Card> : (
           <>
-            <Group title="Іс-шаралар" n={r.acts.length}>{r.acts.map((a) => (
+            <Group title={tx('Іс-шаралар')} n={r.acts.length}>{r.acts.map((a) => (
               <Row key={a.id} href={`#/a/${a.id}`} icon="star" title={a.title} sub={`${TYPE_LABEL[a.type]} · ${scheduleLabel(a)} · ${a.place}`} />))}</Group>
-            <Group title="Адамдар" n={r.people.length}>{r.people.map((p) => (
+            <Group title={tx('Адамдар')} n={r.people.length}>{r.people.map((p) => (
               <button key={p.id} type="button" onClick={() => dm(p.id)} className="w-full flex items-center gap-3 px-4 min-h-14 text-left">
                 <Avatar name={p.full_name} size={36} />
                 <span className="flex-1 min-w-0"><span className="block truncate font-medium">{p.full_name}</span><span className="block text-xs text-muted">{ROLE[p.role]}{p.class ? ` · ${p.class.name}` : ''}</span></span>
                 <Icon n="chat" className="text-accent" />
               </button>))}</Group>
-            <Group title="Кабинеттер" n={r.rooms.length}>{r.rooms.map((x) => (
-              <Row key={x.id} href={`#/book/${x.id}`} icon="grid" title={x.name} sub={`${x.group ?? ''}${x.capacity ? ` · ${x.capacity} орын` : ''} · броньдау`} />))}</Group>
-            <Group title="Lost & Found" n={r.lost.length}>{r.lost.map((p) => (
-              <Row key={p.id} href="#/lost" icon="search" title={p.title} sub={`${p.kind === 'lost' ? 'Жоғалды' : 'Табылды'}${p.place ? ` · ${p.place}` : ''}${p.status === 'resolved' ? ' · иесі табылды' : ''}`} />))}</Group>
+            <Group title={tx('Кабинеттер')} n={r.rooms.length}>{r.rooms.map((x) => (
+              <Row key={x.id} href={`#/book/${x.id}`} icon="grid" title={x.name} sub={tx('{0}{1} · броньдау', x.group ?? '', x.capacity ? tx(' · {0} орын', x.capacity) : '')} />))}</Group>
+            <Group title={tx('Lost & Found')} n={r.lost.length}>{r.lost.map((p) => (
+              <Row key={p.id} href="#/lost" icon="search" title={p.title} sub={`${p.kind === 'lost' ? tx('Жоғалды') : tx('Табылды')}${p.place ? ` · ${p.place}` : ''}${p.status === 'resolved' ? tx(' · иесі табылды') : ''}`} />))}</Group>
           </>
         )}
     </div>

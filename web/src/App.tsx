@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { getMe, myChats, supabase, tgLink, unreadCount, type Me } from './lib/api'
+import { getMe, myChats, setMyLang, supabase, tgLink, unreadCount, type Me } from './lib/api'
+import { chosen, setLang } from './lib/i18n'
+import { FirstRunLang } from './components/LangPicker'
 import { inTelegram, syncBackButton, tg } from './lib/telegram'
 import Feed from './screens/Feed'
 import Search from './screens/Search'
@@ -29,6 +31,7 @@ import MyActivities from './screens/MyActivities'
 import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
 import { MenuCard } from './components/HomeWidgets'
+import { tx } from './lib/i18n'
 
 const Ctx = createContext<{ me: Me; refreshBadge: () => void }>(null!)
 export const useMe = () => useContext(Ctx)
@@ -50,10 +53,17 @@ export default function App() {
     if (!session) { setMe(null); return }
     getMe(session.user.id).then(setMe, (e) => setErr(String(e.message ?? e)))
   }, [session?.user.id])
+  // a language picked on another device follows the account; one picked here is saved to it (the bot uses it)
+  useEffect(() => {
+    if (!me) return
+    if (!chosen && me.lang) setLang(me.lang)
+    else if (chosen && me.lang !== chosen) setMyLang(chosen).catch(() => {})
+  }, [me])
 
-  if (session === undefined || (session && !me && !err)) return <div className="min-h-dvh grid place-items-center text-muted">Жүктелуде…</div>
+  if (session === undefined || (session && !me && !err)) return <div className="min-h-dvh grid place-items-center text-muted">{tx('Жүктелуде…')}</div>
   if (!session) return <><Login /><Toaster /></>
-  if (!me) return <div className="p-6 text-danger" role="alert">Профиль табылмады: {err}. <button className="underline" onClick={() => supabase.auth.signOut()}>Шығу</button></div>
+  if (!me) return <div className="p-6 text-danger" role="alert">{tx('Профиль табылмады:')}{' '}{err}. <button className="underline" onClick={() => supabase.auth.signOut()}>{tx('Шығу')}</button></div>
+  if (!chosen) return me.lang ? null : <><FirstRunLang signedIn /><Toaster /></>
   return <Shell me={me} />
 }
 
@@ -96,7 +106,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'lost') screen = <Feed key="lost" query="" page="lost" />
   else if (seg === 'events') screen = <Feed key="events" query="" page="events" />
   else if (seg === 'proposals') screen = <Feed key="proposals" query="" page="proposals" />
-  else if (seg === 'menu') screen = <div className="grid gap-3 pb-6"><PageHead title="Асхана" back /><MenuCard me={me} /></div>
+  else if (seg === 'menu') screen = <div className="grid gap-3 pb-6"><PageHead title={tx('Асхана')} back /><MenuCard me={me} /></div>
   else if (seg === 'feedback') screen = <Feedback />
   else if (seg === 'surveys' && id === 'new') screen = <SurveyNew />
   else if (seg === 'surveys' && id) screen = <SurveyView key={id} id={id} />
@@ -104,7 +114,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'profile') screen = <Profile onAddUser={() => setSheet('adduser')} />
   else screen = <Feed query={path.split('?')[1] ?? ''} />
 
-  const tabs = [['/', 'home', 'Home'], ['/plan', 'clock', 'Жоспар'], ['+', 'plus', 'Әрекет'], ['/chats', 'chat', 'Чаттар'], ['/profile', 'user', 'Профиль']] as const
+  const tabs = [['/', 'home', tx('Home')], ['/plan', 'clock', tx('Жоспар')], ['+', 'plus', tx('Әрекет')], ['/chats', 'chat', tx('Чаттар')], ['/profile', 'user', tx('Профиль')]] as const
   const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
@@ -112,17 +122,17 @@ function Shell({ me }: { me: Me }) {
       <div className="min-h-dvh pb-[calc(80px+env(safe-area-inset-bottom))]">
         <main className="mx-auto max-w-[640px] pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]">{screen}</main>
       </div>
-      <nav aria-label="Негізгі мәзір" className="fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
+      <nav aria-label={tx('Негізгі мәзір')} className="fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto max-w-[640px] grid grid-cols-5 h-16 items-center">
           {tabs.map(([p, icon, label]) =>
             p === '+' ? (
-              <button key={p} type="button" onClick={() => setSheet('menu')} aria-label="Әрекеттер мәзірі"
+              <button key={p} type="button" onClick={() => setSheet('menu')} aria-label={tx('Әрекеттер мәзірі')}
                 className="justify-self-center -mt-6 size-[52px] rounded-full bg-accent text-on-accent grid place-items-center shadow-pop"><Icon n="plus" size={24} /></button>
             ) : (
               <a key={p} href={`#${p}`} aria-current={active(p) ? 'page' : undefined}
                 className={`relative grid justify-items-center gap-0.5 text-xs h-14 content-center ${active(p) ? 'text-accent font-semibold' : 'text-muted'}`}>
                 <Icon n={icon} size={24} />{label}
-                {p === '/chats' && badge > 0 && <span className="absolute top-1.5 left-1/2 ml-1.5 min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center" aria-label={`${badge} оқылмаған`}>{badge > 9 ? '9+' : badge}</span>}
+                {p === '/chats' && badge > 0 && <span className="absolute top-1.5 left-1/2 ml-1.5 min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center" aria-label={tx('{0} оқылмаған', badge)}>{badge > 9 ? '9+' : badge}</span>}
               </a>
             ),
           )}
@@ -130,18 +140,18 @@ function Shell({ me }: { me: Me }) {
       </nav>
 
       {sheet === 'menu' && (
-        <Sheet title="Не істейміз?" onClose={() => setSheet(null)}>
+        <Sheet title={tx('Не істейміз?')} onClose={() => setSheet(null)}>
           <div className="grid grid-cols-2 gap-3">
-            <MenuItem icon="clock" title="Рұқсат сұрау" text={me.role === 'student' ? 'Сыртқа шығу, сабақтан немесе іс-шарадан' : 'Келген өтініштер және бүгін рұқсат берілгендер'} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
-            <MenuItem icon="grid" title="Броньдау" text="Кабинет, спортзал, шай бөлмесі" onClick={() => { setSheet(null); go('/book') }} />
-            <MenuItem icon="file" title="Іс-шара ұсыну" text="Үйірме, курс, жарыс, турнир немесе іс-шара" onClick={() => { setSheet(null); go('/a/new') }} />
-            <MenuItem icon="chat" title="Жаңа хат" text={me.role === 'student' ? 'Мұғалімге немесе сыныптасқа' : 'Оқушыға, әріптеске немесе хабарландыру арнасы'} onClick={() => { setSheet(null); go('/chats') }} />
-            {me.role !== 'student' && <MenuItem icon="check" title="QR тексеру" text="Рұқсат немесе бронь кодын тексеру" onClick={() => { setSheet(null); go('/v/') }} />}
-            {canAddUsers(me) && <MenuItem icon="userplus" title="Пайдаланушы қосу" text={me.role === 'class_teacher' ? 'Өз сыныбыңызға оқушы тіркеу' : 'Оқушы немесе мұғалім тіркеу'} onClick={() => setSheet('adduser')} />}
+            <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе іс-шарадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
+            <MenuItem icon="grid" title={tx('Броньдау')} text={tx('Кабинет, спортзал, шай бөлмесі')} onClick={() => { setSheet(null); go('/book') }} />
+            <MenuItem icon="file" title={tx('Іс-шара ұсыну')} text={tx('Үйірме, курс, жарыс, турнир немесе іс-шара')} onClick={() => { setSheet(null); go('/a/new') }} />
+            <MenuItem icon="chat" title={tx('Жаңа хат')} text={me.role === 'student' ? tx('Мұғалімге немесе сыныптасқа') : tx('Оқушыға, әріптеске немесе хабарландыру арнасы')} onClick={() => { setSheet(null); go('/chats') }} />
+            {me.role !== 'student' && <MenuItem icon="check" title={tx('QR тексеру')} text={tx('Рұқсат немесе бронь кодын тексеру')} onClick={() => { setSheet(null); go('/v/') }} />}
+            {canAddUsers(me) && <MenuItem icon="userplus" title={tx('Пайдаланушы қосу')} text={me.role === 'class_teacher' ? tx('Өз сыныбыңызға оқушы тіркеу') : tx('Оқушы немесе мұғалім тіркеу')} onClick={() => setSheet('adduser')} />}
           </div>
         </Sheet>
       )}
-      {sheet === 'adduser' && <Sheet title="Пайдаланушы қосу" onClose={() => setSheet(null)}><AddUser /></Sheet>}
+      {sheet === 'adduser' && <Sheet title={tx('Пайдаланушы қосу')} onClose={() => setSheet(null)}><AddUser /></Sheet>}
       <Toaster />
     </Ctx.Provider>
   )

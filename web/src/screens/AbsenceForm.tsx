@@ -4,6 +4,7 @@ import { addDays, fmtDate, lastDay, sessions, today } from '../lib/time'
 import { useMe } from '../App'
 import { CATEGORY } from './ActivityDetail'
 import { Button, Empty, Field, Skeleton, inputCls, toast, useLoad } from '../components/ui'
+import { tx } from '../lib/i18n'
 
 export default function AbsenceForm({ activityId, onDone }: { activityId?: string; onDone: () => void }) {
   const { me } = useMe()
@@ -21,37 +22,37 @@ export default function AbsenceForm({ activityId, onDone }: { activityId?: strin
   const [err, setErr] = useState('')
 
   if (loading) return <Skeleton rows={2} />
-  if (!mine.length) return <Empty title="Жазылған іс-шара жоқ" text="Рұқсат тек өзіңіз қатысатын іс-шараның сабақтарына сұралады." />
+  if (!mine.length) return <Empty title={tx('Жазылған іс-шара жоқ')} text={tx('Рұқсат тек өзіңіз қатысатын іс-шараның сабақтарына сұралады.')} />
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     const d = date || dates[0]
-    if (!a || !d) return setErr('Алдағы 30 күнде сабақ жоқ')
-    if (reason.trim().length < 10) return setErr('Себебін кемінде 10 таңбамен жазыңыз')
+    if (!a || !d) return setErr(tx('Алдағы 30 күнде сабақ жоқ'))
+    if (reason.trim().length < 10) return setErr(tx('Себебін кемінде 10 таңбамен жазыңыз'))
     setBusy(true); setErr('')
-    try { await requestAbsence(a.id, d, cat, reason); toast('Өтініш жауапты мұғалімге жіберілді'); onDone() } catch (x) { setErr(errText(x)) } finally { setBusy(false) }
+    try { await requestAbsence(a.id, d, cat, reason); toast(tx('Өтініш жауапты мұғалімге жіберілді')); onDone() } catch (x) { setErr(errText(x)) } finally { setBusy(false) }
   }
 
   return (
     <form onSubmit={submit} noValidate className="grid gap-4">
-      <Field label="Қай іс-шарадан?">
+      <Field label={tx('Қай іс-шарадан?')}>
         {(id) => <select id={id} value={a?.id} onChange={(e) => { setAct(e.target.value); setDate('') }} className={inputCls}>
           {mine.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select>}
       </Field>
-      <Field label="Сабақ күні">
+      <Field label={tx('Сабақ күні')}>
         {(id) => dates.length ? <select id={id} value={date || dates[0]} onChange={(e) => setDate(e.target.value)} className={inputCls}>
-          {dates.map((d) => <option key={d} value={d}>{fmtDate(d)}{d === t ? ' (бүгін)' : ''}</option>)}</select>
-          : <p id={id} className="text-sm text-muted">Алдағы 30 күнде сабақ жоқ.</p>}
+          {dates.map((d) => <option key={d} value={d}>{fmtDate(d)}{d === t ? tx(' (бүгін)') : ''}</option>)}</select>
+          : <p id={id} className="text-sm text-muted">{tx('Алдағы 30 күнде сабақ жоқ.')}</p>}
       </Field>
-      <Field label="Себеп">
+      <Field label={tx('Себеп')}>
         {(id) => <select id={id} value={cat} onChange={(e) => setCat(e.target.value)} className={inputCls}>
           {Object.entries(CATEGORY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}
       </Field>
-      <Field label="Толығырақ" hint="Жауапты мұғалім ғана көреді">
+      <Field label={tx('Толығырақ')} hint={tx('Жауапты мұғалім ғана көреді')}>
         {(id, d) => <textarea id={id} aria-describedby={d} value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} className={`${inputCls} h-24 py-2`} />}
       </Field>
       {err && <p role="alert" className="text-sm text-danger">{err}</p>}
-      <Button type="submit" block loading={busy}>Өтінішті жіберу</Button>
+      <Button type="submit" block loading={busy}>{tx('Өтінішті жіберу')}</Button>
     </form>
   )
 }

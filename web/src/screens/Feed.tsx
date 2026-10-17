@@ -7,22 +7,23 @@ import Stories, { storyCandidates } from '../components/Stories'
 import Activities from './Activities'
 import { DutyCard, TodayCard } from '../components/HomeWidgets'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
+import { tx } from '../lib/i18n'
 
 type Tab = 'all' | 'news' | 'announcement'
 type Page = 'lost' | 'events' | 'proposals'
-const TABS: [Tab, string][] = [['all', 'Барлығы'], ['news', 'Жаңалықтар'], ['announcement', 'Хабарландыру']]
-const PAGE_TITLE: Record<Page, string> = { lost: 'Lost & Found', events: 'Events', proposals: 'Ұсыныстар' }
+const TABS: [Tab, string][] = [['all', tx('Барлығы')], ['news', tx('Жаңалықтар')], ['announcement', tx('Хабарландыру')]]
+const PAGE_TITLE: Record<Page, string> = { lost: tx('Lost & Found'), events: tx('Events'), proposals: tx('Ұсыныстар') }
 // old notification links (/?t=parliament) still land on the right page
 const LEGACY: Record<string, Page> = { lost: 'lost', upcoming: 'events', parliament: 'proposals' }
-const QUICK: [string, string, string][] = [['list', 'Асхана', '/menu'], ['search', 'Lost & Found', '/lost'], ['grid', 'Cabinets', '/book'], ['star', 'Events', '/events'], ['flag', 'Ұсыныстар', '/proposals'], ['poll', 'Сауалнама', '/surveys']]
+const QUICK: [string, string, string][] = [['list', tx('Асхана'), '/menu'], ['search', tx('Lost & Found'), '/lost'], ['grid', tx('Cabinets'), '/book'], ['star', tx('Events'), '/events'], ['flag', tx('Ұсыныстар'), '/proposals'], ['poll', tx('Сауалнама'), '/surveys']]
 const PROPOSAL: Record<PostStatus, [string, Tone]> = {
-  open: ['Жаңа', 'accent'], considering: ['Қаралуда', 'warn'], accepted: ['Қабылданды', 'ok'], rejected: ['Қабылданбады', 'bad'], resolved: ['Жабылды', 'muted'],
+  open: [tx('Жаңа'), 'accent'], considering: [tx('Қаралуда'), 'warn'], accepted: [tx('Қабылданды'), 'ok'], rejected: [tx('Қабылданбады'), 'bad'], resolved: [tx('Жабылды'), 'muted'],
 }
 const canAnswer = (me: Me) => me.role === 'deputy' || me.role === 'admin' || me.parliament
 const deputy = (me: Me) => me.role === 'deputy' || me.role === 'admin'
 const canAnswerPost = (me: Me, p: Post) =>
   p.addressee === 'admin' ? deputy(me) : p.addressee === 'teacher' ? p.addressee_id === me.id || deputy(me) : canAnswer(me)
-const TO_LABEL = (p: Post) => (p.addressee === 'admin' ? 'Әкімшілікке' : p.addressee === 'teacher' ? `Мұғалімге: ${p.to?.full_name ?? ''}` : 'Парламентке')
+const TO_LABEL = (p: Post) => (p.addressee === 'admin' ? tx('Әкімшілікке') : p.addressee === 'teacher' ? tx('Мұғалімге: {0}', p.to?.full_name ?? '') : tx('Парламентке'))
 const votes = (p: Post) => p.votes.filter((v) => v.value === 1).length
 
 type Open = null | { kind: 'post'; p: Post } | { kind: 'new'; what: PostKind | null } | { kind: 'answer'; p: Post } | { kind: 'parliament' }
@@ -45,7 +46,7 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
     <section className="grid gap-2">
       <div className="flex items-baseline justify-between mt-2">
         <h2 className="text-lg font-bold">{title}</h2>
-        {t && <button type="button" onClick={() => (t in PAGE_TITLE ? go(`/${t}`) : setTab(t as Tab))} className="text-sm text-accent font-semibold min-h-11 px-1">Барлығы</button>}
+        {t && <button type="button" onClick={() => (t in PAGE_TITLE ? go(`/${t}`) : setTab(t as Tab))} className="text-sm text-accent font-semibold min-h-11 px-1">{tx('Барлығы')}</button>}
       </div>
       {body}
     </section>
@@ -54,15 +55,15 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   const sheets = (
     <>
       {open?.kind === 'post' && <Sheet title={KIND_TITLE[open.p.kind]} onClose={() => setOpen(null)}><PostView p={open.p} me={me} onChange={reload} /></Sheet>}
-      {open?.kind === 'new' && <Sheet title="Жариялау" onClose={() => setOpen(null)}><NewPost me={me} initial={open.what} onDone={reload} /></Sheet>}
-      {open?.kind === 'answer' && <Sheet title="Ұсынысқа жауап" onClose={() => setOpen(null)}><Answer p={open.p} onDone={reload} /></Sheet>}
-      {open?.kind === 'parliament' && <Sheet title="Парламент құрамы" onClose={() => setOpen(null)}><Members /></Sheet>}
+      {open?.kind === 'new' && <Sheet title={tx('Жариялау')} onClose={() => setOpen(null)}><NewPost me={me} initial={open.what} onDone={reload} /></Sheet>}
+      {open?.kind === 'answer' && <Sheet title={tx('Ұсынысқа жауап')} onClose={() => setOpen(null)}><Answer p={open.p} onDone={reload} /></Sheet>}
+      {open?.kind === 'parliament' && <Sheet title={tx('Парламент құрамы')} onClose={() => setOpen(null)}><Members /></Sheet>}
     </>
   )
 
   if (view) return (
     <div className="grid gap-3 pb-4">
-      <PageHead title={PAGE_TITLE[view]} back right={view !== 'events' ? <Button kind="secondary" onClick={() => setOpen({ kind: 'new', what: view === 'lost' ? 'lost' : 'proposal' })}>{view === 'lost' ? 'Жариялау' : 'Жазу'}</Button> : undefined} />
+      <PageHead title={PAGE_TITLE[view]} back right={view !== 'events' ? <Button kind="secondary" onClick={() => setOpen({ kind: 'new', what: view === 'lost' ? 'lost' : 'proposal' })}>{view === 'lost' ? tx('Жариялау') : tx('Жазу')}</Button> : undefined} />
       {view === 'events' ? <Activities tab="all" feed embedded />
         : posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} />
         : view === 'lost' ? <LostTab list={of(['lost', 'found'])} onOpen={(p) => setOpen({ kind: 'post', p })} onNew={() => setOpen({ kind: 'new', what: 'lost' })} />
@@ -79,11 +80,11 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
           <h1 className="text-2xl font-bold">Key To Life</h1>
           <p className="text-sm text-muted truncate">{me.school.name}</p>
         </div>
-        <a href="#/search" aria-label="Іздеу" className="size-11 rounded-full bg-accent text-on-accent grid place-items-center"><Icon n="search" /></a>
+        <a href="#/search" aria-label={tx('Іздеу')} className="size-11 rounded-full bg-accent text-on-accent grid place-items-center"><Icon n="search" /></a>
       </header>
 
       {/* 3 × 2: six shortcuts stay readable at 320px */}
-      <nav aria-label="Бөлімдер" className="grid grid-cols-3 gap-2">
+      <nav aria-label={tx('Бөлімдер')} className="grid grid-cols-3 gap-2">
         {QUICK.map(([icon, label, path]) => (
           <a key={path} href={`#${path}`} className="min-w-0 flex items-center gap-2 min-h-12 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-2 text-[13px] leading-tight font-semibold active:bg-surface-2">
             <span className="size-8 rounded-md bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={icon} size={18} /></span><span className="min-w-0 break-words">{label}</span>
@@ -92,7 +93,7 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
       </nav>
 
       <div className="flex items-end gap-2 border-b border-line">
-        <div role="tablist" aria-label="Лента" className="flex-1 flex gap-5 overflow-x-auto [scrollbar-width:none]">
+        <div role="tablist" aria-label={tx('Лента')} className="flex-1 flex gap-5 overflow-x-auto [scrollbar-width:none]">
           {TABS.map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
               className={`relative h-11 whitespace-nowrap text-[15px] ${tab === k ? 'font-semibold text-fg' : 'text-muted'}`}>
@@ -100,7 +101,7 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label="Жариялау" className="size-11 grid place-items-center text-accent"><Icon n="plus" /></button>
+        <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label={tx('Жариялау')} className="size-11 grid place-items-center text-accent"><Icon n="plus" /></button>
       </div>
 
       {posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} /> : (
@@ -111,17 +112,17 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
               <DutyCard />
               {(of(['news', 'announcement']).length > 0) && <Highlights list={of(['news', 'announcement']).slice(0, 6)} onOpen={(p) => setOpen({ kind: 'post', p })} />}
               {acts.data && <Stories me={me} items={storyCandidates(me, acts.data)} onJoined={acts.reload} />}
-              {section('Мектеп лентасы', 'news', of(['news', 'announcement']).length
+              {section(tx('Мектеп лентасы'), 'news', of(['news', 'announcement']).length
                 ? <SocialFeed list={of(['news', 'announcement']).slice(0, 8)} onOpen={(p) => setOpen({ kind: 'post', p })} />
-                : <Card><p className="text-sm text-muted">Жаңалықтар мен хабарландырулар осында көрінеді.</p></Card>)}
+                : <Card><p className="text-sm text-muted">{tx('Жаңалықтар мен хабарландырулар осында көрінеді.')}</p></Card>)}
             </>
           )}
 
           {tab === 'news' && (of(['news']).length ? <NewsList list={of(['news'])} onOpen={(p) => setOpen({ kind: 'post', p })} />
-            : <Card><Empty icon="file" title="Жаңалық жоқ" text="Мұғалімдер мен парламент мүшелері лицей жаңалықтарын осында жариялайды." /></Card>)}
+            : <Card><Empty icon="file" title={tx('Жаңалық жоқ')} text={tx('Мұғалімдер мен парламент мүшелері лицей жаңалықтарын осында жариялайды.')} /></Card>)}
 
           {tab === 'announcement' && (of(['announcement']).length ? <div className="grid gap-2">{of(['announcement']).map((p) => <Announcement key={p.id} p={p} onOpen={() => setOpen({ kind: 'post', p })} />)}</div>
-            : <Card><Empty icon="megaphone" title="Хабарландыру жоқ" /></Card>)}
+            : <Card><Empty icon="megaphone" title={tx('Хабарландыру жоқ')} /></Card>)}
 
         </>
       )}
@@ -131,14 +132,14 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   )
 }
 
-const KIND_TITLE: Record<PostKind, string> = { news: 'Жаңалық', announcement: 'Хабарландыру', lost: 'Жоғалды', found: 'Табылды', proposal: 'Ұсыныс' }
+const KIND_TITLE: Record<PostKind, string> = { news: tx('Жаңалық'), announcement: tx('Хабарландыру'), lost: tx('Жоғалды'), found: tx('Табылды'), proposal: tx('Ұсыныс') }
 
 function Highlights({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void }) {
   return (
-    <section className="grid gap-2" aria-label="Жаңалықтар мен хабарландырулар">
+    <section className="grid gap-2" aria-label={tx('Жаңалықтар мен хабарландырулар')}>
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-bold">Жаңалықтар мен хабарландырулар</h2>
-        <span className="text-xs text-muted">Солға сырғытыңыз</span>
+        <h2 className="text-lg font-bold">{tx('Жаңалықтар мен хабарландырулар')}</h2>
+        <span className="text-xs text-muted">{tx('Солға сырғытыңыз')}</span>
       </div>
       <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 [scrollbar-width:none]">
         {list.map((p) => (
@@ -146,7 +147,7 @@ function Highlights({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void 
             <span className="flex items-start gap-3">
               <span className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={p.kind === 'announcement' ? 'megaphone' : 'file'} /></span>
               <span className="min-w-0">
-                <span className="block text-xs text-muted">{p.pinned ? 'Маңызды · ' : ''}{p.kind === 'announcement' ? 'Хабарландыру' : 'Жаңалық'}</span>
+                <span className="block text-xs text-muted">{p.pinned ? tx('Маңызды · ') : ''}{p.kind === 'announcement' ? tx('Хабарландыру') : tx('Жаңалық')}</span>
                 <span className="block font-semibold leading-snug line-clamp-3">{p.title}</span>
               </span>
             </span>
@@ -168,7 +169,7 @@ function SocialFeed({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void 
               <span className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={p.kind === 'announcement' ? 'megaphone' : 'file'} /></span>
               <span className="min-w-0">
                 <span className="block font-semibold truncate">{p.author.full_name}</span>
-                <span className="block text-xs text-muted">{p.kind === 'announcement' ? 'Хабарландыру' : 'Жаңалық'} · {chatTime(p.created_at)}</span>
+                <span className="block text-xs text-muted">{p.kind === 'announcement' ? tx('Хабарландыру') : tx('Жаңалық')} · {chatTime(p.created_at)}</span>
               </span>
             </div>
             {p.photo && <img src={photoUrl(p.photo)} alt="" loading="lazy" className="w-full aspect-[16/9] object-cover bg-surface-2" />}
@@ -178,7 +179,7 @@ function SocialFeed({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void 
             </div>
           </button>
           <div className="flex items-center gap-4 px-4 pb-3 text-xs text-muted">
-            <span className="flex items-center gap-1"><Icon n={p.pinned ? 'star' : 'file'} size={15} />{p.pinned ? 'Маңызды' : 'Лицей жаңалығы'}</span>
+            <span className="flex items-center gap-1"><Icon n={p.pinned ? 'star' : 'file'} size={15} />{p.pinned ? tx('Маңызды') : tx('Лицей жаңалығы')}</span>
           </div>
         </article>
       ))}
@@ -191,7 +192,7 @@ function Announcement({ p, onOpen }: { p: Post; onOpen: () => void }) {
     <button type="button" onClick={onOpen} className={`text-left rounded-lg p-4 flex gap-3 ${p.pinned ? 'bg-accent-soft' : 'bg-surface shadow-card border border-[var(--card-line,transparent)]'}`}>
       <span className={`size-10 rounded-full grid place-items-center shrink-0 ${p.pinned ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent'}`}><Icon n="megaphone" /></span>
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2 text-xs text-muted">{p.pinned && <b className="text-accent">Маңызды</b>}<span>{p.author.full_name} · {chatTime(p.created_at)}</span></span>
+        <span className="flex items-center gap-2 text-xs text-muted">{p.pinned && <b className="text-accent">{tx('Маңызды')}</b>}<span>{p.author.full_name} · {chatTime(p.created_at)}</span></span>
         <span className="block font-semibold mt-0.5">{p.title}</span>
         {p.body && <span className="block text-sm text-muted line-clamp-3 whitespace-pre-line">{p.body}</span>}
       </span>
@@ -233,7 +234,7 @@ function LostGrid({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void })
         <button key={p.id} type="button" onClick={() => onOpen(p)} className={`text-left rounded-lg overflow-hidden bg-surface shadow-card border border-[var(--card-line,transparent)] ${p.status === 'resolved' ? 'opacity-60' : ''}`}>
           <span className="relative block aspect-square bg-surface-2">
             {p.photo ? <img src={photoUrl(p.photo)} alt="" loading="lazy" className="size-full object-cover" /> : <span className="size-full grid place-items-center text-muted"><Icon n="search" size={36} /></span>}
-            <span className="absolute top-2 left-2"><Badge tone={p.status === 'resolved' ? 'muted' : p.kind === 'lost' ? 'bad' : 'ok'}>{p.status === 'resolved' ? 'Иесі табылды' : KIND_TITLE[p.kind]}</Badge></span>
+            <span className="absolute top-2 left-2"><Badge tone={p.status === 'resolved' ? 'muted' : p.kind === 'lost' ? 'bad' : 'ok'}>{p.status === 'resolved' ? tx('Иесі табылды') : KIND_TITLE[p.kind]}</Badge></span>
           </span>
           <span className="block p-2.5">
             <span className="block font-semibold text-sm line-clamp-1">{p.title}</span>
@@ -250,9 +251,9 @@ function LostTab({ list, onOpen, onNew }: { list: Post[]; onOpen: (p: Post) => v
   const l = list.filter((p) => (f === 'resolved' ? p.status === 'resolved' : p.status === 'open' && (f === 'all' || p.kind === f)))
   return (
     <div className="grid gap-3">
-      <Chips label="Сүзгі" value={f} onChange={setF} items={[['all', 'Барлығы'], ['lost', 'Жоғалды'], ['found', 'Табылды'], ['resolved', 'Иесі табылды']]} />
-      {l.length ? <LostGrid list={l} onOpen={onOpen} /> : <Card><Empty icon="search" title="Әзірге бос" text="Жоғалған немесе табылған затты суретімен жариялаңыз." /></Card>}
-      <Button kind="secondary" onClick={onNew}>Зат жариялау</Button>
+      <Chips label={tx('Сүзгі')} value={f} onChange={setF} items={[['all', tx('Барлығы')], ['lost', tx('Жоғалды')], ['found', tx('Табылды')], ['resolved', tx('Иесі табылды')]]} />
+      {l.length ? <LostGrid list={l} onOpen={onOpen} /> : <Card><Empty icon="search" title={tx('Әзірге бос')} text={tx('Жоғалған немесе табылған затты суретімен жариялаңыз.')} /></Card>}
+      <Button kind="secondary" onClick={onNew}>{tx('Зат жариялау')}</Button>
     </div>
   )
 }
@@ -265,7 +266,7 @@ function Proposal({ p, me, onChange, onAnswer }: { p: Post; me: Me; onChange: ()
   return (
     <Card className="grid gap-2">
       <div className="flex gap-3">
-        {(p.addressee ?? 'parliament') === 'parliament' && <button type="button" onClick={vote} disabled={busy} aria-pressed={mine} aria-label={`Қолдау, ${votes(p)} дауыс`}
+        {(p.addressee ?? 'parliament') === 'parliament' && <button type="button" onClick={vote} disabled={busy} aria-pressed={mine} aria-label={tx('Қолдау, {0} дауыс', votes(p))}
           className={`w-12 shrink-0 rounded-md grid justify-items-center content-center py-2 gap-0.5 ${mine ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent'}`}>
           <Icon n="star" size={18} /><span className="text-sm font-bold tabular-nums">{votes(p)}</span>
         </button>}
@@ -275,8 +276,8 @@ function Proposal({ p, me, onChange, onAnswer }: { p: Post; me: Me; onChange: ()
           {p.body && <p className="text-sm text-muted whitespace-pre-line break-words line-clamp-4">{p.body}</p>}
         </div>
       </div>
-      {p.answer && <p className="rounded-md bg-surface-2 px-3 py-2 text-sm"><b>Жауап{p.answerer ? ` · ${p.answerer.full_name}` : ''}:</b> {p.answer}</p>}
-      {canAnswerPost(me, p) && <div><Button kind="ghost" onClick={onAnswer}>{p.answer ? 'Жауапты өзгерту' : 'Жауап беру'}</Button></div>}
+      {p.answer && <p className="rounded-md bg-surface-2 px-3 py-2 text-sm"><b>{tx('Жауап{0}:', p.answerer ? ` · ${p.answerer.full_name}` : '')}</b> {p.answer}</p>}
+      {canAnswerPost(me, p) && <div><Button kind="ghost" onClick={onAnswer}>{p.answer ? tx('Жауапты өзгерту') : tx('Жауап беру')}</Button></div>}
     </Card>
   )
 }
@@ -286,12 +287,12 @@ function ProposalsTab({ list, me, onChange, onAnswer, onNew, onMembers }: { list
   const [sort, setSort] = useState<'top' | 'new'>('top')
   const of = list.filter((p) => (p.addressee ?? 'parliament') === to)
   const l = to === 'parliament' && sort === 'top' ? [...of].sort((a, b) => votes(b) - votes(a)) : of
-  const HINT = { parliament: 'Лицейді жақсарту идеясы. Барлығы көреді және қолдап дауыс береді, парламент пен орынбасар жауап береді.',
-    admin: 'Әкімшілікке жеке ұсыныс. Тек сіз бен орынбасарлар көреді.', teacher: 'Бір мұғалімге жеке ұсыныс. Тек сіз бен сол мұғалім көреді.' }
+  const HINT = { parliament: tx('Лицейді жақсарту идеясы. Барлығы көреді және қолдап дауыс береді, парламент пен орынбасар жауап береді.'),
+    admin: tx('Әкімшілікке жеке ұсыныс. Тек сіз бен орынбасарлар көреді.'), teacher: tx('Бір мұғалімге жеке ұсыныс. Тек сіз бен сол мұғалім көреді.') }
   return (
     <div className="grid gap-3">
-      <div role="tablist" aria-label="Кімге" className="grid grid-cols-3 gap-1 bg-surface-2 rounded-md p-1">
-        {([['parliament', 'Парламент'], ['admin', 'Әкімшілік'], ['teacher', 'Мұғалім']] as const).map(([k, label]) => (
+      <div role="tablist" aria-label={tx('Кімге')} className="grid grid-cols-3 gap-1 bg-surface-2 rounded-md p-1">
+        {([['parliament', tx('Парламент')], ['admin', tx('Әкімшілік')], ['teacher', tx('Мұғалім')]] as const).map(([k, label]) => (
           <button key={k} type="button" role="tab" aria-selected={to === k} onClick={() => setTo(k)}
             className={`h-10 rounded-sm text-sm font-semibold ${to === k ? 'bg-surface shadow-card' : 'text-muted'}`}>{label}</button>
         ))}
@@ -299,13 +300,13 @@ function ProposalsTab({ list, me, onChange, onAnswer, onNew, onMembers }: { list
       <p className="text-sm text-muted">{HINT[to]}</p>
       {to === 'parliament' && (
         <div className="flex gap-2 items-center">
-          <div className="flex-1"><Chips label="Реттеу" value={sort} onChange={setSort} items={[['top', 'Танымал'], ['new', 'Жаңа']]} /></div>
-          {deputy(me) && <Button kind="ghost" onClick={onMembers}>Парламент құрамы</Button>}
+          <div className="flex-1"><Chips label={tx('Реттеу')} value={sort} onChange={setSort} items={[['top', tx('Танымал')], ['new', tx('Жаңа')]]} /></div>
+          {deputy(me) && <Button kind="ghost" onClick={onMembers}>{tx('Парламент құрамы')}</Button>}
         </div>
       )}
       {l.length ? l.map((p) => <Proposal key={p.id} p={p} me={me} onChange={onChange} onAnswer={() => onAnswer(p)} />)
-        : <Card><Empty icon="flag" title="Ұсыныс жоқ" text={to === 'parliament' ? 'Бірінші ұсынысты сіз жазыңыз.' : 'Жіберген немесе сізге келген ұсыныстар осында шығады.'} /></Card>}
-      <Button onClick={onNew}>Ұсыныс жазу</Button>
+        : <Card><Empty icon="flag" title={tx('Ұсыныс жоқ')} text={to === 'parliament' ? tx('Бірінші ұсынысты сіз жазыңыз.') : tx('Жіберген немесе сізге келген ұсыныстар осында шығады.')} /></Card>}
+      <Button onClick={onNew}>{tx('Ұсыныс жазу')}</Button>
     </div>
   )
 }
@@ -323,15 +324,15 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
         <p className="text-xs text-muted">{p.author.full_name}{p.author.class ? ` · ${p.author.class.name}` : ''} · {fmtDate(p.created_at.slice(0, 10))}</p>
         <h3 className="text-xl font-bold mt-1 text-balance break-words">{p.title}</h3>
       </div>
-      {lf && p.place && <p className="flex items-center gap-1.5 text-sm"><Icon n="pin" size={16} />{p.kind === 'lost' ? 'Жоғалған жері' : 'Табылған жері'}: {p.place}</p>}
+      {lf && p.place && <p className="flex items-center gap-1.5 text-sm"><Icon n="pin" size={16} />{p.kind === 'lost' ? tx('Жоғалған жері') : tx('Табылған жері')}: {p.place}</p>}
       {p.body && <p className="whitespace-pre-line break-words leading-relaxed">{p.body}</p>}
       <div className="grid gap-2">
-        {lf && p.author_id !== me.id && <Button onClick={dm}>{p.kind === 'lost' ? 'Таптым — иесіне жазу' : 'Бұл менікі — жазу'}</Button>}
+        {lf && p.author_id !== me.id && <Button onClick={dm}>{p.kind === 'lost' ? tx('Таптым — иесіне жазу') : tx('Бұл менікі — жазу')}</Button>}
         {lf && (p.author_id === me.id || staff) && (p.status === 'open'
-          ? <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'resolved'), 'Белгіленді')}>Иесі табылды</Button>
-          : <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'open'), 'Қайта ашылды')}>Қайта ашу</Button>)}
-        {staff && (p.kind === 'news' || p.kind === 'announcement') && <Button kind="secondary" onClick={() => act(() => pinPost(p.id, !p.pinned), 'Сақталды')}>{p.pinned ? 'Маңыздыдан алу' : 'Маңызды деп бекіту'}</Button>}
-        {(p.author_id === me.id || deputy || (lf && staff)) && <Button kind="danger" onClick={() => act(() => hidePost(p.id), 'Жойылды')}>Жою</Button>}
+          ? <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'resolved'), tx('Белгіленді'))}>{tx('Иесі табылды')}</Button>
+          : <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'open'), tx('Қайта ашылды'))}>{tx('Қайта ашу')}</Button>)}
+        {staff && (p.kind === 'news' || p.kind === 'announcement') && <Button kind="secondary" onClick={() => act(() => pinPost(p.id, !p.pinned), tx('Сақталды'))}>{p.pinned ? tx('Маңыздыдан алу') : tx('Маңызды деп бекіту')}</Button>}
+        {(p.author_id === me.id || deputy || (lf && staff)) && <Button kind="danger" onClick={() => act(() => hidePost(p.id), tx('Жойылды'))}>{tx('Жою')}</Button>}
       </div>
     </article>
   )
@@ -340,10 +341,10 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
 function NewPost({ me, initial, onDone }: { me: Me; initial: PostKind | null; onDone: () => void }) {
   const staff = me.role !== 'student'
   const options: [PostKind, string, string, string][] = [
-    ...(staff || me.parliament ? [['news', 'file', 'Жаңалық', 'Фотосымен, лентаның басында'] as [PostKind, string, string, string]] : []),
-    ...(staff ? [['announcement', 'megaphone', 'Хабарландыру', 'Барлығына маңызды ақпарат'] as [PostKind, string, string, string]] : []),
-    ['lost', 'search', 'Жоғалған немесе табылған зат', 'Lost & Found'],
-    ['proposal', 'flag', 'Ұсыныс', 'Парламентке, әкімшілікке немесе мұғалімге'],
+    ...(staff || me.parliament ? [['news', 'file', tx('Жаңалық'), tx('Фотосымен, лентаның басында')] as [PostKind, string, string, string]] : []),
+    ...(staff ? [['announcement', 'megaphone', tx('Хабарландыру'), tx('Барлығына маңызды ақпарат')] as [PostKind, string, string, string]] : []),
+    ['lost', 'search', tx('Жоғалған немесе табылған зат'), tx('Lost & Found')],
+    ['proposal', 'flag', tx('Ұсыныс'), tx('Парламентке, әкімшілікке немесе мұғалімге')],
   ]
   const [kind, setKind] = useState<PostKind | null>(initial)
   const [to, setTo] = useState<'parliament' | 'admin' | 'teacher'>('parliament')
@@ -363,7 +364,7 @@ function NewPost({ me, initial, onDone }: { me: Me; initial: PostKind | null; on
       ))}
       <button type="button" onClick={() => go('/a/new')} className="flex items-center gap-3 min-h-16 rounded-md px-3 py-2 text-left hover:bg-surface-2">
         <span className="size-10 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="grid" /></span>
-        <span className="flex-1"><span className="block font-semibold">Іс-шара ұсыну</span><span className="block text-sm text-muted">Үйірме, жарыс, турнир — растаған соң «Алда»-да шығады</span></span><Icon n="chev" className="text-muted" />
+        <span className="flex-1"><span className="block font-semibold">{tx('Іс-шара ұсыну')}</span><span className="block text-sm text-muted">{tx('Үйірме, жарыс, турнир — растаған соң Events бөлімінде шығады')}</span></span><Icon n="chev" className="text-muted" />
       </button>
     </div>
   )
@@ -371,47 +372,47 @@ function NewPost({ me, initial, onDone }: { me: Me; initial: PostKind | null; on
   const lf = kind === 'lost' || kind === 'found'
   const photo = lf || kind === 'news'
   const save = async () => {
-    if (f.title.trim().length < 3) return toast('Тақырыпты жазыңыз')
-    if (kind === 'proposal' && f.body.trim().length < 10) return toast('Ұсынысыңызды толығырақ жазыңыз')
+    if (f.title.trim().length < 3) return toast(tx('Тақырыпты жазыңыз'))
+    if (kind === 'proposal' && f.body.trim().length < 10) return toast(tx('Ұсынысыңызды толығырақ жазыңыз'))
     setBusy(true)
     try {
       const path = file ? await uploadPhoto(me.id, file) : null
       if (kind === 'proposal') {
-        if (to === 'teacher' && !teacher) { setBusy(false); return toast('Мұғалімді таңдаңыз') }
+        if (to === 'teacher' && !teacher) { setBusy(false); return toast(tx('Мұғалімді таңдаңыз')) }
         await createProposal(to, to === 'teacher' ? teacher : null, f.title, f.body)
       } else await createPost(kind, f.title, f.body, path, lf ? f.place : null)
-      toast(kind === 'proposal' ? 'Ұсыныс жіберілді, алушыға хабар кетті' : 'Жарияланды'); onDone()
+      toast(kind === 'proposal' ? tx('Ұсыныс жіберілді, алушыға хабар кетті') : tx('Жарияланды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
     <div className="grid gap-4">
       {lf && (
-        <div role="radiogroup" aria-label="Түрі" className="grid grid-cols-2 gap-1 bg-surface-2 rounded-md p-1">
+        <div role="radiogroup" aria-label={tx('Түрі')} className="grid grid-cols-2 gap-1 bg-surface-2 rounded-md p-1">
           {(['lost', 'found'] as const).map((k) => <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)}
-            className={`h-10 rounded-sm text-sm font-semibold ${kind === k ? 'bg-surface shadow-card' : 'text-muted'}`}>{k === 'lost' ? 'Жоғалттым' : 'Тауып алдым'}</button>)}
+            className={`h-10 rounded-sm text-sm font-semibold ${kind === k ? 'bg-surface shadow-card' : 'text-muted'}`}>{k === 'lost' ? tx('Жоғалттым') : tx('Тауып алдым')}</button>)}
         </div>
       )}
       {kind === 'proposal' && (
         <>
-          <Field label="Кімге">{(id) => <select id={id} value={to} onChange={(e) => setTo(e.target.value as typeof to)} className={inputCls}>
-            <option value="parliament">Оқушылар парламентіне (барлығы көреді)</option><option value="admin">Әкімшілікке (жеке)</option><option value="teacher">Мұғалімге (жеке)</option></select>}</Field>
-          {to === 'teacher' && <Field label="Мұғалім">{(id) => <select id={id} value={teacher} onChange={(e) => setTeacher(e.target.value)} className={inputCls}>
-            <option value="">Таңдаңыз</option>{(teachers.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}</select>}</Field>}
+          <Field label={tx('Кімге')}>{(id) => <select id={id} value={to} onChange={(e) => setTo(e.target.value as typeof to)} className={inputCls}>
+            <option value="parliament">{tx('Оқушылар парламентіне (барлығы көреді)')}</option><option value="admin">{tx('Әкімшілікке (жеке)')}</option><option value="teacher">{tx('Мұғалімге (жеке)')}</option></select>}</Field>
+          {to === 'teacher' && <Field label={tx('Мұғалім')}>{(id) => <select id={id} value={teacher} onChange={(e) => setTeacher(e.target.value)} className={inputCls}>
+            <option value="">{tx('Таңдаңыз')}</option>{(teachers.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}</select>}</Field>}
         </>
       )}
-      <Field label={kind === 'proposal' ? 'Ұсыныс' : lf ? 'Не?' : 'Тақырып'}>{(id) => <input id={id} value={f.title} maxLength={140} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls}
-        placeholder={kind === 'proposal' ? 'Асханаға су автоматы қою' : kind === 'lost' ? 'Көк түсті рюкзак' : kind === 'found' ? 'Кілт, 2-қабат' : ''} />}</Field>
-      {lf && <Field label={kind === 'lost' ? 'Қай жерде жоғалды' : 'Қай жерден табылды'}>{(id) => <input id={id} value={f.place} onChange={(e) => setF({ ...f, place: e.target.value })} className={inputCls} placeholder="Спортзал, 3-қабат" />}</Field>}
-      <Field label={kind === 'proposal' ? 'Неге керек, қалай жасауға болады' : 'Толығырақ'}>{(id) => <textarea id={id} value={f.body} maxLength={5000} onChange={(e) => setF({ ...f, body: e.target.value })} className={`${inputCls} h-28 py-2`} />}</Field>
+      <Field label={kind === 'proposal' ? tx('Ұсыныс') : lf ? tx('Не?') : tx('Тақырып')}>{(id) => <input id={id} value={f.title} maxLength={140} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls}
+        placeholder={kind === 'proposal' ? tx('Асханаға су автоматы қою') : kind === 'lost' ? tx('Көк түсті рюкзак') : kind === 'found' ? tx('Кілт, 2-қабат') : ''} />}</Field>
+      {lf && <Field label={kind === 'lost' ? tx('Қай жерде жоғалды') : tx('Қай жерден табылды')}>{(id) => <input id={id} value={f.place} onChange={(e) => setF({ ...f, place: e.target.value })} className={inputCls} placeholder={tx('Спортзал, 3-қабат')} />}</Field>}
+      <Field label={kind === 'proposal' ? tx('Неге керек, қалай жасауға болады') : tx('Толығырақ')}>{(id) => <textarea id={id} value={f.body} maxLength={5000} onChange={(e) => setF({ ...f, body: e.target.value })} className={`${inputCls} h-28 py-2`} />}</Field>
       {photo && (
-        <Field label="Фото" hint="Міндетті емес, 1 сурет">{(id, d) => (
+        <Field label={tx('Фото')} hint={tx('Міндетті емес, 1 сурет')}>{(id, d) => (
           <div className="flex items-center gap-3">
             <input id={id} aria-describedby={d} type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm file:mr-3 file:h-10 file:px-3 file:rounded-md file:border-0 file:bg-accent-soft file:text-accent file:font-semibold" />
-            {file && <img src={URL.createObjectURL(file)} alt="Таңдалған фото" className="size-14 rounded-md object-cover" />}
+            {file && <img src={URL.createObjectURL(file)} alt={tx('Таңдалған фото')} className="size-14 rounded-md object-cover" />}
           </div>
         )}</Field>
       )}
-      <Button block loading={busy} onClick={save}>{kind === 'proposal' ? 'Ұсыныс жіберу' : 'Жариялау'}</Button>
+      <Button block loading={busy} onClick={save}>{kind === 'proposal' ? tx('Ұсыныс жіберу') : tx('Жариялау')}</Button>
     </div>
   )
 }
@@ -420,13 +421,13 @@ function Answer({ p, onDone }: { p: Post; onDone: () => void }) {
   const [status, setStatus] = useState<PostStatus>(p.status === 'open' ? 'considering' : p.status)
   const [answer, setAnswer] = useState(p.answer ?? '')
   const [busy, setBusy] = useState(false)
-  const save = async () => { setBusy(true); try { await setPostStatus(p.id, status, answer); toast('Жауап жіберілді'); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
+  const save = async () => { setBusy(true); try { await setPostStatus(p.id, status, answer); toast(tx('Жауап жіберілді')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
   return (
     <div className="grid gap-4">
       <p className="rounded-md bg-surface-2 px-3 py-2"><b>{p.title}</b>{p.body ? <><br /><span className="text-sm text-muted">{p.body}</span></> : null}</p>
-      <Chips label="Шешім" value={status} onChange={setStatus} items={[['considering', 'Қаралуда'], ['accepted', 'Қабылданды'], ['rejected', 'Қабылданбады']]} />
-      <Field label="Жауап" hint="Авторға хабар барады">{(id, d) => <textarea id={id} aria-describedby={d} value={answer} onChange={(e) => setAnswer(e.target.value)} className={`${inputCls} h-28 py-2`} />}</Field>
-      <Button block loading={busy} onClick={save}>Жіберу</Button>
+      <Chips label={tx('Шешім')} value={status} onChange={setStatus} items={[['considering', tx('Қаралуда')], ['accepted', tx('Қабылданды')], ['rejected', tx('Қабылданбады')]]} />
+      <Field label={tx('Жауап')} hint={tx('Авторға хабар барады')}>{(id, d) => <textarea id={id} aria-describedby={d} value={answer} onChange={(e) => setAnswer(e.target.value)} className={`${inputCls} h-28 py-2`} />}</Field>
+      <Button block loading={busy} onClick={save}>{tx('Жіберу')}</Button>
     </div>
   )
 }
@@ -438,8 +439,8 @@ function Members() {
   const list = (people.data ?? []).filter((p) => p.role === 'student' && (p.full_name + (p.class?.name ?? '')).toLowerCase().includes(q.toLowerCase()))
   return (
     <div className="grid gap-3">
-      <p className="text-sm text-muted">Парламент мүшелері ұсыныстарға жауап береді және жаңалық жариялай алады.</p>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Оқушыны іздеу" aria-label="Оқушыны іздеу" className={inputCls} />
+      <p className="text-sm text-muted">{tx('Парламент мүшелері ұсыныстарға жауап береді және жаңалық жариялай алады.')}</p>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tx('Оқушыны іздеу')} aria-label={tx('Оқушыны іздеу')} className={inputCls} />
       {people.loading ? <Skeleton rows={2} /> : (
         <ul className="divide-y divide-line">
           {[...list].sort((a, b) => Number(b.parliament) - Number(a.parliament)).map((p) => (

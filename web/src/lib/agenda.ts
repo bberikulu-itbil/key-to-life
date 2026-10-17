@@ -1,5 +1,6 @@
 import { listActivities, listCalendars, listEvents, listHidden, listLessons, type Activity, type CalEvent, type Calendar, type Lesson, type Me, type SessionType } from './api'
 import { IMPORTANCE, addDays, isSession, isoDow, parse, sessionTime, sessionType } from './time'
+import { tx } from './i18n'
 
 export type Item = { key: string; src: string; color: string; title: string; start: Date; end: Date; allDay: boolean; place?: string | null; link?: string; kind: 'activity' | 'event' | 'lesson'; stype?: SessionType }
 export type Source = { key: string; name: string; color: string; editable?: boolean; cal?: Calendar }
@@ -41,8 +42,8 @@ export async function loadAgenda(me: Me, from: string, to: string) {
     listHidden(),
   ])
   const sources: Source[] = [
-    { key: 'activities', name: 'Менің іс-шараларым', color: ACT_COLOR },
-    { key: 'timetable', name: 'Сабақ кестесі', color: LESSON_COLOR },
+    { key: 'activities', name: tx('Менің іс-шараларым'), color: ACT_COLOR },
+    { key: 'timetable', name: tx('Сабақ кестесі'), color: LESSON_COLOR },
     ...calendars.map((c) => ({ key: c.id, name: c.name, color: c.color, cal: c })),
   ]
   const all = buildItems(from, to, me, { activities, events, calendars, lessons })

@@ -5,10 +5,11 @@ import { useMe } from '../App'
 import { LEAVE_CATEGORY } from './LeaveForm'
 import Qr from '../components/Qr'
 import { Badge, Button, Card, Empty, ErrorBox, Field, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
+import { tx } from '../lib/i18n'
 
 export const LEAVE_STATUS: Record<LeaveStatus, [string, Tone]> = {
-  pending_class_teacher: ['Сынып жетекшісінде', 'warn'], pending_deputy: ['Орынбасарда', 'warn'], pending_teacher: ['Пән мұғалімінде', 'warn'],
-  approved: ['Рұқсат берілді', 'ok'], rejected: ['Рұқсат берілмеді', 'bad'], cancelled: ['Тоқтатылды', 'muted'],
+  pending_class_teacher: [tx('Сынып жетекшісінде'), 'warn'], pending_deputy: [tx('Орынбасарда'), 'warn'], pending_teacher: [tx('Пән мұғалімінде'), 'warn'],
+  approved: [tx('Рұқсат берілді'), 'ok'], rejected: [tx('Рұқсат берілмеді'), 'bad'], cancelled: [tx('Тоқтатылды'), 'muted'],
 }
 const t2 = (s: string) => new Date(s).toTimeString().slice(0, 5)
 export const when = (l: Pick<Leave, 'starts_at' | 'ends_at'>) => {
@@ -33,14 +34,14 @@ function LeaveCard({ l, children, showStudent }: { l: Leave; children?: React.Re
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           {showStudent && <p className="font-semibold">{l.student.full_name} <span className="text-sm text-muted">{l.student.class?.name}</span></p>}
-          <p className={showStudent ? 'text-sm' : 'font-semibold'}>{l.kind === 'outside' ? 'Сыртқа шығу' : `Сабақтан · ${l.teacher?.full_name ?? ''}`}</p>
+          <p className={showStudent ? 'text-sm' : 'font-semibold'}>{l.kind === 'outside' ? tx('Сыртқа шығу') : tx('Сабақтан · {0}', l.teacher?.full_name ?? '')}</p>
           <p className="text-sm text-muted tabular-nums">{when(l)}</p>
         </div>
         <Badge tone={LEAVE_STATUS[l.status][1]}>{LEAVE_STATUS[l.status][0]}</Badge>
       </div>
       <p className="text-sm break-words"><b>{LEAVE_CATEGORY[l.category]}:</b> {l.reason}</p>
-      {l.escalated && <p className="text-sm text-warning">Сынып жетекшісі 20 минутта жауап бермеді — орынбасарға өтті.</p>}
-      {l.ct_opinion !== null && <p className="text-sm">Сынып жетекшісі: <b>{l.ct_opinion ? 'келіседі' : 'келіспейді'}</b>{l.ct_note && ` · «${l.ct_note}»`}</p>}
+      {l.escalated && <p className="text-sm text-warning">{tx('Сынып жетекшісі 20 минутта жауап бермеді — орынбасарға өтті.')}</p>}
+      {l.ct_opinion !== null && <p className="text-sm">{tx('Сынып жетекшісі:')}{' '}<b>{l.ct_opinion ? tx('келіседі') : tx('келіспейді')}</b>{l.ct_note && ` · «${l.ct_note}»`}</p>}
       {l.decision_note && <p className="text-sm text-muted">{l.decider?.full_name}: «{l.decision_note}»</p>}
       {children}
     </Card>
@@ -51,25 +52,25 @@ function StudentLeaves() {
   const { me } = useMe()
   const { data, error, loading, reload } = useLoad(() => listLeaves({ student: me.id }), [me.id])
   const [qr, setQr] = useState<Leave | null>(null)
-  const cancel = async (l: Leave) => { try { await cancelLeave(l.id); toast('Өтініш тоқтатылды'); reload() } catch (e) { toast(errText(e)) } }
+  const cancel = async (l: Leave) => { try { await cancelLeave(l.id); toast(tx('Өтініш тоқтатылды')); reload() } catch (e) { toast(errText(e)) } }
   const live = (l: Leave) => new Date(l.ends_at) > new Date()
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title="Рұқсаттарым" back right={<Button kind="secondary" onClick={() => go('/leave/new')}>Сұрау</Button>} />
+      <PageHead title={tx('Рұқсаттарым')} back right={<Button kind="secondary" onClick={() => go('/leave/new')}>{tx('Сұрау')}</Button>} />
       {loading && !data ? <Skeleton /> : error ? <ErrorBox text={error} retry={reload} /> : !data?.length
-        ? <Empty title="Өтініш жоқ" text="Сыртқа шығу немесе сабақтан сұрану керек болса, осы жерден сұраңыз." action={<Button onClick={() => go('/leave/new')}>Рұқсат сұрау</Button>} />
+        ? <Empty title={tx('Өтініш жоқ')} text={tx('Сыртқа шығу немесе сабақтан сұрану керек болса, осы жерден сұраңыз.')} action={<Button onClick={() => go('/leave/new')}>{tx('Рұқсат сұрау')}</Button>} />
         : data.map((l) => (
           <LeaveCard key={l.id} l={l}>
             {live(l) && (l.status === 'approved' || l.status.startsWith('pending')) && (
               <div className="flex gap-2 flex-wrap">
-                {l.status === 'approved' && <Button onClick={() => setQr(l)}>QR көрсету</Button>}
-                <Button kind="ghost" onClick={() => cancel(l)}>Тоқтату</Button>
+                {l.status === 'approved' && <Button onClick={() => setQr(l)}>{tx('QR көрсету')}</Button>}
+                <Button kind="ghost" onClick={() => cancel(l)}>{tx('Тоқтату')}</Button>
               </div>
             )}
           </LeaveCard>
         ))}
-      {qr && <Sheet title="Рұқсат QR" onClose={() => setQr(null)}><div className="grid justify-items-center gap-2 text-center"><Qr code={qr.code} label="Рұқсат" />
-        <p className="text-sm text-muted tabular-nums">{when(qr)}</p><p className="text-sm text-muted">Кезекші мұғалімге көрсетіңіз.</p></div></Sheet>}
+      {qr && <Sheet title={tx('Рұқсат QR')} onClose={() => setQr(null)}><div className="grid justify-items-center gap-2 text-center"><Qr code={qr.code} label={tx('Рұқсат')} />
+        <p className="text-sm text-muted tabular-nums">{when(qr)}</p><p className="text-sm text-muted">{tx('Кезекші мұғалімге көрсетіңіз.')}</p></div></Sheet>}
     </div>
   )
 }
@@ -86,26 +87,26 @@ function StaffLeaves() {
 
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title="Рұқсаттар" back right={<Button kind="secondary" onClick={() => go('/v/')}>QR тексеру</Button>} />
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Шешіміңізді күтуде · {mine.length}</h2>
+      <PageHead title={tx('Рұқсаттар')} back right={<Button kind="secondary" onClick={() => go('/v/')}>{tx('QR тексеру')}</Button>} />
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">{tx('Шешіміңізді күтуде · {0}', mine.length)}</h2>
       {pending.loading && !pending.data ? <Skeleton rows={2} /> : pending.error ? <ErrorBox text={pending.error} retry={pending.reload} />
-        : !mine.length ? <Card><p className="text-sm text-muted">Күтіп тұрған өтініш жоқ.</p></Card>
+        : !mine.length ? <Card><p className="text-sm text-muted">{tx('Күтіп тұрған өтініш жоқ.')}</p></Card>
         : mine.map((l) => {
           const ctStep = l.status === 'pending_class_teacher' && l.class_teacher_id === me.id && me.role !== 'deputy' && me.role !== 'admin'
           const left = l.deadline_at ? Math.max(0, Math.round((new Date(l.deadline_at).getTime() - Date.now()) / 60000)) : null
           return (
             <LeaveCard key={l.id} l={l} showStudent>
-              {ctStep && left !== null && <p className="text-sm text-warning">{left} минуттан кейін кезекші орынбасарға өтеді. Сіздің жауабыңыз орынбасарға бірге жіберіледі.</p>}
+              {ctStep && left !== null && <p className="text-sm text-warning">{tx('{0} минуттан кейін кезекші орынбасарға өтеді. Сіздің жауабыңыз орынбасарға бірге жіберіледі.', left)}</p>}
               <div className="flex gap-2 flex-wrap">
-                <Button onClick={() => setDeciding({ l, ok: true })}>{ctStep ? 'Келісемін' : 'Рұқсат беру'}</Button>
-                <Button kind="danger" onClick={() => setDeciding({ l, ok: false })}>{ctStep ? 'Келіспеймін' : 'Бермеу'}</Button>
+                <Button onClick={() => setDeciding({ l, ok: true })}>{ctStep ? tx('Келісемін') : tx('Рұқсат беру')}</Button>
+                <Button kind="danger" onClick={() => setDeciding({ l, ok: false })}>{ctStep ? tx('Келіспеймін') : tx('Бермеу')}</Button>
               </div>
             </LeaveCard>
           )
         })}
 
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-3">Бүгін рұқсат берілгендер · {granted.length}</h2>
-      {today.loading && !today.data ? <Skeleton rows={2} /> : !granted.length ? <Card><p className="text-sm text-muted">Бүгін ешкімге рұқсат берілмеген.</p></Card> : (
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-3">{tx('Бүгін рұқсат берілгендер · {0}', granted.length)}</h2>
+      {today.loading && !today.data ? <Skeleton rows={2} /> : !granted.length ? <Card><p className="text-sm text-muted">{tx('Бүгін ешкімге рұқсат берілмеген.')}</p></Card> : (
         <Card className="p-0 divide-y divide-line">
           {granted.map((l) => {
             const active = new Date(l.starts_at) <= now && now <= new Date(l.ends_at)
@@ -113,10 +114,10 @@ function StaffLeaves() {
               <div key={l.id} className="flex items-center gap-2 px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{l.student.full_name} <span className="text-sm text-muted">{l.student.class?.name}</span></p>
-                  <p className="text-sm text-muted tabular-nums">{l.kind === 'outside' ? 'Сыртта' : 'Сабақтан'} · {when(l)} · {l.code}</p>
+                  <p className="text-sm text-muted tabular-nums">{l.kind === 'outside' ? tx('Сыртта') : tx('Сабақтан')} · {when(l)} · {l.code}</p>
                 </div>
-                {l.category === 'illness' && <Badge tone="bad">Ауырып</Badge>}
-                {active && <Badge tone="ok">Қазір</Badge>}
+                {l.category === 'illness' && <Badge tone="bad">{tx('Ауырып')}</Badge>}
+                {active && <Badge tone="ok">{tx('Қазір')}</Badge>}
               </div>
             )
           })}
@@ -124,7 +125,7 @@ function StaffLeaves() {
       )}
 
       {deciding && (
-        <Sheet title={deciding.ok ? 'Рұқсат беру' : 'Бас тарту'} onClose={() => setDeciding(null)}>
+        <Sheet title={deciding.ok ? tx('Рұқсат беру') : tx('Бас тарту')} onClose={() => setDeciding(null)}>
           <Decide l={deciding.l} ok={deciding.ok} onDone={() => { setDeciding(null); pending.reload(); today.reload(); refreshBadge() }} />
         </Sheet>
       )}
@@ -136,19 +137,19 @@ function Decide({ l, ok, onDone }: { l: Leave; ok: boolean; onDone: () => void }
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const go_ = async () => {
-    if (!ok && note.trim().length < 3) return toast('Себебін жазыңыз')
+    if (!ok && note.trim().length < 3) return toast(tx('Себебін жазыңыз'))
     setBusy(true)
     try {
       const st = await decideLeave(l.id, ok, note)
-      toast(st === 'pending_deputy' ? 'Жауабыңыз орынбасарға жіберілді' : ok ? 'Рұқсат берілді' : 'Рұқсат берілмеді')
+      toast(st === 'pending_deputy' ? tx('Жауабыңыз орынбасарға жіберілді') : ok ? tx('Рұқсат берілді') : tx('Рұқсат берілмеді'))
       onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
     <div className="grid gap-4">
       <p>{l.student.full_name} · <span className="tabular-nums">{when(l)}</span></p>
-      <Field label={ok ? 'Түсініктеме (міндетті емес)' : 'Себебі'}>{(id) => <textarea id={id} value={note} onChange={(e) => setNote(e.target.value)} className={`${inputCls} h-24 py-2`} />}</Field>
-      <Button block kind={ok ? 'primary' : 'danger'} loading={busy} onClick={go_}>{ok ? 'Растау' : 'Бас тарту'}</Button>
+      <Field label={ok ? tx('Түсініктеме (міндетті емес)') : tx('Себебі')}>{(id) => <textarea id={id} value={note} onChange={(e) => setNote(e.target.value)} className={`${inputCls} h-24 py-2`} />}</Field>
+      <Button block kind={ok ? 'primary' : 'danger'} loading={busy} onClick={go_}>{ok ? tx('Растау') : tx('Бас тарту')}</Button>
     </div>
   )
 }

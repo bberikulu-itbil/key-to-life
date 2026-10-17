@@ -1,14 +1,15 @@
 import type { Activity, ActivityStatus, ActivityType, Mark, SessionType } from './api'
+import { tx } from './i18n'
 
 export const TYPE_LABEL: Record<ActivityType, string> = {
-  olympiad_prep: 'Олимпиада', club: 'Үйірме', course: 'Курс', event: 'Іс-шара', competition: 'Жарыс', tournament: 'Турнир', challenge: 'Челлендж',
+  olympiad_prep: tx('Олимпиада'), club: tx('Үйірме'), course: tx('Курс'), event: tx('Іс-шара'), competition: tx('Жарыс'), tournament: tx('Турнир'), challenge: tx('Челлендж'),
 }
 export const STATUS_LABEL: Record<ActivityStatus, string> = {
-  pending_class_teacher: 'Сынып жетекшісінде', pending_deputy: 'Орынбасарда', approved: 'Расталды', rejected: 'Қайтарылды', cancelled: 'Тоқтатылды',
+  pending_class_teacher: tx('Сынып жетекшісінде'), pending_deputy: tx('Орынбасарда'), approved: tx('Расталды'), rejected: tx('Қайтарылды'), cancelled: tx('Тоқтатылды'),
 }
-export const MARK_LABEL: Record<Mark, string> = { present: 'Келді', late: 'Кешікті', excused: 'Себепті', absent: 'Келмеді' }
-export const WD_SHORT = ['Дс', 'Сс', 'Ср', 'Бс', 'Жм', 'Сн', 'Жс']   // ISO 1..7
-const MONTHS = ['қаңтар', 'ақпан', 'наурыз', 'сәуір', 'мамыр', 'маусым', 'шілде', 'тамыз', 'қыркүйек', 'қазан', 'қараша', 'желтоқсан']
+export const MARK_LABEL: Record<Mark, string> = { present: tx('Келді'), late: tx('Кешікті'), excused: tx('Себепті'), absent: tx('Келмеді') }
+export const WD_SHORT = [tx('Дс'), tx('Сс'), tx('Ср'), tx('Бс'), tx('Жм'), tx('Сн'), tx('Жс')]   // ISO 1..7
+const MONTHS = [tx('қаңтар'), tx('ақпан'), tx('наурыз'), tx('сәуір'), tx('мамыр'), tx('маусым'), tx('шілде'), tx('тамыз'), tx('қыркүйек'), tx('қазан'), tx('қараша'), tx('желтоқсан')]
 
 // Dates are plain 'YYYY-MM-DD' strings in the school's local day; build them from local parts, never toISOString (UTC).
 export const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -52,17 +53,17 @@ export const sessionType = (a: { extra?: Extra[]; types?: SessionType[]; default
   return a.types?.find((t) => t.id === id)
 }
 export const IMPORTANCE: Record<1 | 2 | 3, { label: string; color: string }> = {
-  1: { label: 'Орташа', color: '#1d5bd8' }, 2: { label: 'Маңызды', color: '#d97706' }, 3: { label: 'Өте маңызды', color: '#dc2626' },
+  1: { label: tx('Орташа'), color: '#1d5bd8' }, 2: { label: tx('Маңызды'), color: '#d97706' }, 3: { label: tx('Өте маңызды'), color: '#dc2626' },
 }
 
 export const lastDay = (a: Sched) => [a.schedule === 'once' ? a.on_date! : a.date_to!, ...(a.extra ?? []).map((x) => x.on_date)].sort().reverse()[0]
 
 export function scheduleLabel(a: Activity) {
   const time = `${hm(a.start_time)}–${hm(a.end_time)}`
-  const extra = a.extra?.length ? ` · +${a.extra.length} күн` : ''
+  const extra = a.extra?.length ? tx(' · +{0} күн', a.extra.length) : ''
   if (a.schedule === 'once') return `${fmtDate(a.on_date!)} · ${time}${extra}`
   if (a.slots?.length) return [...a.slots].sort((x, y) => x.wd - y.wd).map((s) => `${WD_SHORT[s.wd - 1]} ${s.start}–${s.end}`).join(', ') + extra
-  if (!a.weekdays?.length) return a.extra?.length ? `Күнтізбе бойынша · ${a.extra.length} сабақ` : 'Уақыты күнтізбеде қойылады'
+  if (!a.weekdays?.length) return a.extra?.length ? tx('Күнтізбе бойынша · {0} сабақ', a.extra.length) : tx('Уақыты күнтізбеде қойылады')
   return `${a.weekdays.map((w) => WD_SHORT[w - 1]).join(', ')} · ${time}${extra}`
 }
 
@@ -107,7 +108,7 @@ export function pickRange(slots: Slot[], sel: [number, number] | null, i: number
 export function chatTime(ts: string, now = new Date()) {
   const d = new Date(ts)
   const day = iso(d), t = iso(now)
-  return day === t ? d.toTimeString().slice(0, 5) : day === addDays(t, -1) ? 'кеше' : fmtDate(day)
+  return day === t ? d.toTimeString().slice(0, 5) : day === addDays(t, -1) ? tx('кеше') : fmtDate(day)
 }
 
 /** First session on or after `from`, looking `days` ahead; null when there is none. */

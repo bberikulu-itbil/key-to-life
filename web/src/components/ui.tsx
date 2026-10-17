@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { errText } from '../lib/api'
+import { tx } from '../lib/i18n'
 
 /* ---------- routing (hash based, works on any static host) ---------- */
 const getPath = () => location.hash.slice(1) || '/'
@@ -95,7 +96,7 @@ export const Empty = ({ icon = 'inbox', title, text, action }: { icon?: string; 
 )
 
 export const Skeleton = ({ rows = 3 }: { rows?: number }) => (
-  <div className="grid gap-3" aria-busy="true" aria-label="Жүктелуде">
+  <div className="grid gap-3" aria-busy="true" aria-label={tx('Жүктелуде')}>
     {Array.from({ length: rows }, (_, i) => <div key={i} className="h-20 rounded-lg bg-surface-2 animate-pulse" />)}
   </div>
 )
@@ -103,7 +104,7 @@ export const Skeleton = ({ rows = 3 }: { rows?: number }) => (
 export const ErrorBox = ({ text, retry }: { text: string; retry?: () => void }) => (
   <div role="alert" className="rounded-lg bg-danger-soft text-danger p-4 grid gap-2">
     <p className="font-semibold">{text}</p>
-    {retry && <div><Button kind="ghost" onClick={retry}>Қайта жүктеу</Button></div>}
+    {retry && <div><Button kind="ghost" onClick={retry}>{tx('Қайта жүктеу')}</Button></div>}
   </div>
 )
 
@@ -134,7 +135,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         className="w-full max-w-[640px] max-h-[90dvh] overflow-y-auto bg-surface rounded-t-lg shadow-pop pb-[max(16px,env(safe-area-inset-bottom))] outline-none">
         <div className="sticky top-0 bg-surface flex items-center gap-2 px-4 pt-3 pb-2 border-b border-line">
           <h2 className="flex-1 text-lg font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Жабу" className="size-11 grid place-items-center rounded-md hover:bg-surface-2"><Icon n="x" /></button>
+          <button type="button" onClick={onClose} aria-label={tx('Жабу')} className="size-11 grid place-items-center rounded-md hover:bg-surface-2"><Icon n="x" /></button>
         </div>
         <div className="p-4">{children}</div>
       </div>
@@ -153,7 +154,7 @@ export function Toaster() {
 
 export const PageHead = ({ title, back, right }: { title: string; back?: boolean; right?: ReactNode }) => (
   <div className="flex items-center gap-1 min-h-14">
-    {back && <button type="button" onClick={() => history.length > 1 ? history.back() : go('/')} aria-label="Артқа" className="tg-hide size-11 -ml-3 grid place-items-center"><Icon n="back" /></button>}
+    {back && <button type="button" onClick={() => history.length > 1 ? history.back() : go('/')} aria-label={tx('Артқа')} className="tg-hide size-11 -ml-3 grid place-items-center"><Icon n="back" /></button>}
     <h1 className="flex-1 text-xl font-bold text-balance">{title}</h1>
     {right}
   </div>

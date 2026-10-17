@@ -1,6 +1,7 @@
 import type { Activity } from '../lib/api'
 import { STATUS_LABEL, TYPE_LABEL, scheduleLabel } from '../lib/time'
 import { Badge, Icon, type Tone } from './ui'
+import { tx } from '../lib/i18n'
 
 export const statusTone = (s: Activity['status']): Tone =>
   s === 'approved' ? 'ok' : s === 'rejected' ? 'bad' : s === 'cancelled' ? 'muted' : 'warn'
@@ -17,7 +18,7 @@ export default function ActivityCard({ a, showStatus }: { a: Activity; showStatu
       <div className="mt-1 grid gap-1 text-sm text-muted">
         <span className="flex items-center gap-1.5 tabular-nums"><Icon n="clock" size={16} />{scheduleLabel(a)}</span>
         <span className="flex items-center gap-1.5"><Icon n="pin" size={16} />{a.place} · {a.supervisor.full_name}</span>
-        <span className="flex items-center gap-1.5 tabular-nums"><Icon n="users" size={16} />{a.capacity ? `${joined}/${a.capacity} орын` : `${joined} қатысушы`}</span>
+        <span className="flex items-center gap-1.5 tabular-nums"><Icon n="users" size={16} />{a.capacity ? tx('{0}/{1} орын', joined, a.capacity) : tx('{0} қатысушы', joined)}</span>
       </div>
     </a>
   )

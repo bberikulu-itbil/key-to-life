@@ -5,6 +5,7 @@ import { parseIcs, toIcs } from '../lib/ics'
 import { addDays, fmtDate, iso, today } from '../lib/time'
 import { useMe } from '../App'
 import { Button, Card, Field, Icon, PageHead, Sheet, Skeleton, ErrorBox, TypeBadge, inputCls, toast, useLoad } from '../components/ui'
+import { tx } from '../lib/i18n'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
 
@@ -34,7 +35,7 @@ export default function Calendars() {
     // shortcut: a Blob link; inside Telegram this should switch to WebApp.downloadFile once the Mini App ships
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([ics], { type: 'text/calendar' })), download: `lyceum-life-${t}.ics` })
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000)
-    toast(`${items.length} жазба экспортталды`)
+    toast(tx('{0} жазба экспортталды', items.length))
   }
 
   const upcoming = visibleItems.filter((i) => i.end >= new Date() && i.start <= new Date(Date.now() + 30 * 864e5))
@@ -42,7 +43,7 @@ export default function Calendars() {
 
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title={classCal?.name ?? 'Күнтізбелерім'} back />
+      <PageHead title={classCal?.name ?? tx('Күнтізбелерім')} back />
       {!ag.data ? (ag.error ? <ErrorBox text={ag.error} retry={ag.reload} /> : <Skeleton />) : (
         <>
           <Card className="p-0 divide-y divide-line">
@@ -52,9 +53,9 @@ export default function Calendars() {
                 <div key={s.key} className="flex items-center gap-3 px-4 min-h-14">
                   <span className="size-3 rounded-full shrink-0" style={{ background: s.color }} aria-hidden />
                   <span className={`flex-1 min-w-0 ${hidden ? 'text-muted line-through' : ''}`}>{s.name}
-                    {s.key === 'activities' && <span className="block text-xs text-muted no-underline">Жазылған іс-шаралар автоматты түрде</span>}
+                    {s.key === 'activities' && <span className="block text-xs text-muted no-underline">{tx('Жазылған іс-шаралар автоматты түрде')}</span>}
                   </span>
-                  <button type="button" role="switch" aria-checked={!hidden} aria-label={`${s.name}: ${hidden ? 'жасырылған' : 'көрінеді'}`} onClick={() => toggle(s.key, !hidden)}
+                  <button type="button" role="switch" aria-checked={!hidden} aria-label={`${s.name}: ${hidden ? tx('жасырылған') : tx('көрінеді')}`} onClick={() => toggle(s.key, !hidden)}
                     className={`w-12 h-7 rounded-full p-0.5 transition-colors ${hidden ? 'bg-surface-2 border border-input' : 'bg-accent'}`}>
                     <span className={`block size-6 rounded-full bg-surface shadow-card transition-transform ${hidden ? '' : 'translate-x-5'}`} />
                   </button>
@@ -63,16 +64,16 @@ export default function Calendars() {
             })}
           </Card>
           <div className="grid grid-cols-3 gap-2">
-            <Button kind="secondary" disabled={!editable.length} onClick={() => setSheet('add')}>Қосу</Button>
-            <Button kind="secondary" disabled={!editable.length} onClick={() => setSheet('import')}>Импорт</Button>
-            <Button kind="secondary" onClick={exportIcs}>Экспорт</Button>
+            <Button kind="secondary" disabled={!editable.length} onClick={() => setSheet('add')}>{tx('Қосу')}</Button>
+            <Button kind="secondary" disabled={!editable.length} onClick={() => setSheet('import')}>{tx('Импорт')}</Button>
+            <Button kind="secondary" onClick={exportIcs}>{tx('Экспорт')}</Button>
           </div>
-          <p className="text-xs text-muted">Экспорт .ics файлын жасайды: оны Google Calendar немесе iPhone күнтізбесіне қосуға болады. Тек көрініп тұрған күнтізбелер кіреді.</p>
+          <p className="text-xs text-muted">{tx('Экспорт .ics файлын жасайды: оны Google Calendar немесе iPhone күнтізбесіне қосуға болады. Тек көрініп тұрған күнтізбелер кіреді.')}</p>
 
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">Алдағы 30 күн</h2>
-          {!days.length ? <Card><p className="text-sm text-muted">Жазба жоқ.</p></Card> : days.map((d) => (
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{tx('Алдағы 30 күн')}</h2>
+          {!days.length ? <Card><p className="text-sm text-muted">{tx('Жазба жоқ.')}</p></Card> : days.map((d) => (
             <section key={d} className="grid gap-1">
-              <h3 className="text-sm font-semibold">{d === t ? 'Бүгін' : fmtDate(d)}</h3>
+              <h3 className="text-sm font-semibold">{d === t ? tx('Бүгін') : fmtDate(d)}</h3>
               <Card className="py-1 divide-y divide-line">
                 {upcoming.filter((i) => onDay(i, d) && iso(i.start) === d).map((i) => <Row key={i.key} i={i} canDelete={i.kind === 'event' && editable.some((c) => c.id === i.src)} onDeleted={ag.reload} />)}
               </Card>
@@ -81,17 +82,17 @@ export default function Calendars() {
         </>
       )}
 
-      {sheet === 'add' && <Sheet title="Жоспар қосу" onClose={() => setSheet(null)}><AddEvent cals={editable} preferredId={classCal?.id} onDone={() => { setSheet(null); ag.reload() }} /></Sheet>}
-      {sheet === 'import' && <Sheet title=".ics импорт" onClose={() => setSheet(null)}><Import cals={editable} onDone={() => { setSheet(null); ag.reload() }} /></Sheet>}
+      {sheet === 'add' && <Sheet title={tx('Жоспар қосу')} onClose={() => setSheet(null)}><AddEvent cals={editable} preferredId={classCal?.id} onDone={() => { setSheet(null); ag.reload() }} /></Sheet>}
+      {sheet === 'import' && <Sheet title={tx('.ics импорт')} onClose={() => setSheet(null)}><Import cals={editable} onDone={() => { setSheet(null); ag.reload() }} /></Sheet>}
     </div>
   )
 }
 
 function Row({ i, canDelete, onDeleted }: { i: Item; canDelete: boolean; onDeleted: () => void }) {
-  const del = async () => { try { await removeEvent(i.key.slice(1)); toast('Өшірілді'); onDeleted() } catch (e) { toast(errText(e)) } }
+  const del = async () => { try { await removeEvent(i.key.slice(1)); toast(tx('Өшірілді')); onDeleted() } catch (e) { toast(errText(e)) } }
   const body = (
     <span className="flex gap-3 py-2.5 items-start">
-      <span className="w-12 text-sm tabular-nums text-right shrink-0">{i.allDay ? 'Күні бойы' : hhmm(i.start)}</span>
+      <span className="w-12 text-sm tabular-nums text-right shrink-0">{i.allDay ? tx('Күні бойы') : hhmm(i.start)}</span>
       <span className="min-w-0 flex-1 border-l-[3px] pl-3" style={{ borderColor: i.color }}>
         <span className="block font-medium break-words">{i.title}{i.stype && <span className="ml-2"><TypeBadge t={i.stype} /></span>}</span>
         {i.place && <span className="block text-sm text-muted">{i.place}</span>}
@@ -101,7 +102,7 @@ function Row({ i, canDelete, onDeleted }: { i: Item; canDelete: boolean; onDelet
   return (
     <div className="flex items-center">
       <div className="flex-1 min-w-0">{i.link ? <a href={`#${i.link}`}>{body}</a> : body}</div>
-      {canDelete && <button type="button" onClick={del} aria-label={`${i.title} — өшіру`} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button>}
+      {canDelete && <button type="button" onClick={del} aria-label={tx('{0} — өшіру', i.title)} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button>}
     </div>
   )
 }
@@ -111,28 +112,28 @@ function AddEvent({ cals, preferredId, onDone }: { cals: Calendar[]; preferredId
   const [f, setF] = useState({ cal: preferredId ?? cals.find((c) => c.kind === 'personal')?.id ?? cals[0]?.id ?? '', title: '', date: t, from: '16:00', to: '17:00', allDay: false, place: '' })
   const [busy, setBusy] = useState(false)
   const save = async () => {
-    if (!f.title.trim()) return toast('Атауын жазыңыз')
-    if (!f.allDay && f.to <= f.from) return toast('Аяқталу уақыты басталудан кейін болуы керек')
+    if (!f.title.trim()) return toast(tx('Атауын жазыңыз'))
+    if (!f.allDay && f.to <= f.from) return toast(tx('Аяқталу уақыты басталудан кейін болуы керек'))
     const s = f.allDay ? new Date(`${f.date}T00:00`) : new Date(`${f.date}T${f.from}`)
     const e = f.allDay ? new Date(`${f.date}T23:59`) : new Date(`${f.date}T${f.to}`)
     setBusy(true)
-    try { await addEvents([{ calendar_id: f.cal, title: f.title.trim(), starts_at: s.toISOString(), ends_at: e.toISOString(), all_day: f.allDay, location: f.place.trim() || null }]); toast('Қосылды'); onDone() }
+    try { await addEvents([{ calendar_id: f.cal, title: f.title.trim(), starts_at: s.toISOString(), ends_at: e.toISOString(), all_day: f.allDay, location: f.place.trim() || null }]); toast(tx('Қосылды')); onDone() }
     catch (x) { toast(errText(x)) } finally { setBusy(false) }
   }
   return (
     <div className="grid gap-4">
-      <Field label="Күнтізбе">{(id) => <select id={id} value={f.cal} onChange={(e) => setF({ ...f, cal: e.target.value })} className={inputCls}>{cals.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}</Field>
-      <Field label="Атауы">{(id) => <input id={id} value={f.title} maxLength={200} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls} placeholder="Codeforces контесті, кітап оқу…" />}</Field>
-      <Field label="Күні">{(id) => <input id={id} type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} className={inputCls} />}</Field>
-      <label className="flex items-center gap-3 min-h-11"><input type="checkbox" checked={f.allDay} onChange={(e) => setF({ ...f, allDay: e.target.checked })} className="size-5 accent-[var(--accent)]" />Күні бойы</label>
+      <Field label={tx('Күнтізбе')}>{(id) => <select id={id} value={f.cal} onChange={(e) => setF({ ...f, cal: e.target.value })} className={inputCls}>{cals.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}</Field>
+      <Field label={tx('Атауы')}>{(id) => <input id={id} value={f.title} maxLength={200} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls} placeholder={tx('Codeforces контесті, кітап оқу…')} />}</Field>
+      <Field label={tx('Күні')}>{(id) => <input id={id} type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} className={inputCls} />}</Field>
+      <label className="flex items-center gap-3 min-h-11"><input type="checkbox" checked={f.allDay} onChange={(e) => setF({ ...f, allDay: e.target.checked })} className="size-5 accent-[var(--accent)]" />{tx('Күні бойы')}</label>
       {!f.allDay && (
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Басталуы">{(id) => <input id={id} type="time" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} className={inputCls} />}</Field>
-          <Field label="Аяқталуы">{(id) => <input id={id} type="time" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} className={inputCls} />}</Field>
+          <Field label={tx('Басталуы')}>{(id) => <input id={id} type="time" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} className={inputCls} />}</Field>
+          <Field label={tx('Аяқталуы')}>{(id) => <input id={id} type="time" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} className={inputCls} />}</Field>
         </div>
       )}
-      <Field label="Орны" hint="Міндетті емес">{(id, d) => <input id={id} aria-describedby={d} value={f.place} onChange={(e) => setF({ ...f, place: e.target.value })} className={inputCls} />}</Field>
-      <Button block loading={busy} onClick={save}>Қосу</Button>
+      <Field label={tx('Орны')} hint={tx('Міндетті емес')}>{(id, d) => <input id={id} aria-describedby={d} value={f.place} onChange={(e) => setF({ ...f, place: e.target.value })} className={inputCls} />}</Field>
+      <Button block loading={busy} onClick={save}>{tx('Қосу')}</Button>
     </div>
   )
 }
@@ -144,8 +145,8 @@ function Import({ cals, onDone }: { cals: Calendar[]; onDone: () => void }) {
   const file = useRef<HTMLInputElement>(null)
   const read = async (f?: File) => {
     if (!f) return
-    if (f.size > 2_000_000) return toast('Файл тым үлкен (2 МБ-тан аспауы керек)')
-    try { const ev = parseIcs(await f.text()); if (!ev.length) toast('Файлда оқиға табылмады'); setParsed(ev) } catch (e) { toast(errText(e)) }
+    if (f.size > 2_000_000) return toast(tx('Файл тым үлкен (2 МБ-тан аспауы керек)'))
+    try { const ev = parseIcs(await f.text()); if (!ev.length) toast(tx('Файлда оқиға табылмады')); setParsed(ev) } catch (e) { toast(errText(e)) }
   }
   const save = async () => {
     if (!parsed?.length) return
@@ -157,17 +158,17 @@ function Import({ cals, onDone }: { cals: Calendar[]; onDone: () => void }) {
           all_day: e.allDay, location: e.location ?? null, notes: e.notes?.slice(0, 2000) ?? null, import_uid: e.uid.slice(0, 300) }))
         n += (await addEvents(rows)).length
       }
-      toast(n ? `${n} оқиға қосылды` : 'Барлығы бұрын импортталған'); onDone()
+      toast(n ? tx('{0} оқиға қосылды', n) : tx('Барлығы бұрын импортталған')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
     <div className="grid gap-4">
-      <p className="text-sm text-muted">Google Calendar, iPhone немесе Outlook-тан экспортталған .ics файлын таңдаңыз. Қайталанатын оқиғалар бір жылға дейін ашылады, бұрын қосылғандары екінші рет қосылмайды.</p>
-      <Field label="Қай күнтізбеге">{(id) => <select id={id} value={cal} onChange={(e) => setCal(e.target.value)} className={inputCls}>{cals.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}</Field>
+      <p className="text-sm text-muted">{tx('Google Calendar, iPhone немесе Outlook-тан экспортталған .ics файлын таңдаңыз. Қайталанатын оқиғалар бір жылға дейін ашылады, бұрын қосылғандары екінші рет қосылмайды.')}</p>
+      <Field label={tx('Қай күнтізбеге')}>{(id) => <select id={id} value={cal} onChange={(e) => setCal(e.target.value)} className={inputCls}>{cals.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}</Field>
       <input ref={file} type="file" accept=".ics,text/calendar" className="hidden" onChange={(e) => read(e.target.files?.[0])} />
-      <Button kind="secondary" onClick={() => file.current?.click()}>Файл таңдау</Button>
-      {parsed && <p className="text-sm">{parsed.length} оқиға табылды{parsed[0] ? `: «${parsed[0].title}» және т.б.` : ''}</p>}
-      <Button block loading={busy} disabled={!parsed?.length} onClick={save}>Импорттау</Button>
+      <Button kind="secondary" onClick={() => file.current?.click()}>{tx('Файл таңдау')}</Button>
+      {parsed && <p className="text-sm">{tx('{0} оқиға табылды{1}', parsed.length, parsed[0] ? tx(': «{0}» және т.б.', parsed[0].title) : '')}</p>}
+      <Button block loading={busy} disabled={!parsed?.length} onClick={save}>{tx('Импорттау')}</Button>
     </div>
   )
 }

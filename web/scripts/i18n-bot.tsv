@@ -1,0 +1,30 @@
+Key To Life ашу	Open Key To Life	Key To Life'ı aç	Открыть Key To Life
+Қосымшада ашу	Open in the app	Uygulamada aç	Открыть в приложении
+Себебі:	Reason:	Sebebi:	Причина:
+✅ Келісемін	✅ I agree	✅ Onaylıyorum	✅ Согласен
+✅ Рұқсат беру	✅ Grant permission	✅ İzin ver	✅ Разрешить
+❌ Келіспеймін	❌ I disagree	❌ Onaylamıyorum	❌ Не согласен
+❌ Бас тарту	❌ Refuse	❌ Reddet	❌ Отказать
+✅ Рұқсат берілді	✅ Permission granted	✅ İzin verildi	✅ Разрешение дано
+❌ Рұқсат берілмеді	❌ Permission denied	❌ İzin verilmedi	❌ В разрешении отказано
+↪️ Жауабыңыз орынбасарға жіберілді	↪️ Your answer was sent to the deputy	↪️ Cevabınız müdür yardımcısına gönderildi	↪️ Ваш ответ отправлен завучу
+Сақталды	Saved	Kaydedildi	Сохранено
+Бас тарту себебін бір хабармен жазыңыз:	Write the reason for refusing in one message:	Reddetme sebebini tek mesajla yazın:	Напишите причину отказа одним сообщением:
+Себебі	Reason	Sebebi	Причина
+Сілтеменің мерзімі өткен. Қосымшада Профиль → «Байланыстыру» батырмасын қайта басыңыз.	The link has expired. In the app tap Profile → “Link” again.	Bağlantının süresi doldu. Uygulamada Profil → «Bağla» düğmesine tekrar basın.	Срок ссылки истёк. В приложении снова нажмите Профиль → «Привязать».
+Сәлем, {0}! Аккаунтыңыз байланысты. Енді рұқсат сұраулары мен хабарламалар осында келеді.	Hello, {0}! Your account is linked. Permission requests and notifications will now come here.	Merhaba, {0}! Hesabınız bağlandı. Artık izin talepleri ve bildirimler buraya gelecek.	Привет, {0}! Аккаунт привязан. Теперь запросы разрешений и уведомления будут приходить сюда.
+Key To Life — лицейдің іс-шаралары, рұқсаттар, бронь және чаттар.\n\nТөмендегі батырманы басып, бір рет ЖСН-мен кіріңіз — аккаунтыңыз осы Telegram-ға байланысады.	Key To Life — lyceum activities, permissions, bookings and chats.\n\nTap the button below and sign in once with your IIN — your account gets linked to this Telegram.	Key To Life — lise etkinlikleri, izinler, rezervasyon ve sohbetler.\n\nAşağıdaki düğmeye basıp bir kez ИИН ile giriş yapın — hesabınız bu Telegram'a bağlanır.	Key To Life — мероприятия лицея, разрешения, брони и чаты.\n\nНажмите кнопку ниже и один раз войдите по ИИН — аккаунт привяжется к этому Telegram.
+{0}. Себебі: {1}	{0}. Reason: {1}	{0}. Sebebi: {1}	{0}. Причина: {1}
+Қосымшаны ашу үшін төмендегі батырманы басыңыз.	Tap the button below to open the app.	Uygulamayı açmak için aşağıdaki düğmeye basın.	Нажмите кнопку ниже, чтобы открыть приложение.
+Сілтеменің мерзімі өткен. Іс-шара баптауларында «Telegram тобы» батырмасын қайта басыңыз.	The link has expired. Tap “Telegram group” in the activity settings again.	Bağlantının süresi doldu. Etkinlik ayarlarında «Telegram grubu» düğmesine tekrar basın.	Срок ссылки истёк. Снова нажмите «Группа Telegram» в настройках мероприятия.
+✅ Бұл топ «{0}» іс-шарасына байланысты. Түгелдеу нәтижелері осында жіберіледі.	✅ This group is linked to the activity “{0}”. Roll call results will be sent here.	✅ Bu grup «{0}» etkinliğine bağlandı. Yoklama sonuçları buraya gönderilecek.	✅ Эта группа привязана к мероприятию «{0}». Итоги переклички будут приходить сюда.
+Бастау	Start	Başlat	Начать
+Түгелдеу	Roll call	Yoklama	Перекличка
+келді	present	geldi	пришли
+кешікті	late	geç kaldı	опоздали
+себепті	excused	mazeretli	по уважительной
+келмеді	absent	gelmedi	не пришли
+белгісіз	not marked	işaretsiz	не отмечены
+{0} мин	{0} min	{0} dk	{0} мин
+ауырып қалды	was sick	hastalandı	заболел(а)
+басқа себеп	other reason	başka sebep	другая причина

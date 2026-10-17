@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "i18n": "node scripts/i18n-missing.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

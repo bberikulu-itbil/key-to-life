@@ -1,3 +1,4 @@
+import { tx } from './i18n'
 // Minimal iCalendar (.ics) reader/writer: enough for Google Calendar, Apple Calendar and Outlook exports.
 
 export type IcsEvent = { uid: string; title: string; start: Date; end: Date; allDay: boolean; location?: string; notes?: string }
@@ -9,7 +10,7 @@ const escape = (s: string) => s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').rep
 // shortcut: TZID parameters are ignored (floating times are read in the device's zone); fine for one-country schools.
 export function parseIcsDate(v: string): { d: Date; allDay: boolean } {
   const m = v.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/)
-  if (!m) throw new Error(`Күн форматы танылмады: ${v}`)
+  if (!m) throw new Error(tx('Күн форматы танылмады: {0}', v))
   const [, y, mo, d, h, mi, s, z] = m
   if (h === undefined) return { d: new Date(+y, +mo - 1, +d), allDay: true }
   const args = [+y, +mo - 1, +d, +h, +mi, +(s ?? 0)] as const
@@ -61,7 +62,7 @@ export function parseIcs(text: string): IcsEvent[] {
         const len = e.getTime() - s.d.getTime()
         const base = cur.UID || `${cur.SUMMARY}-${cur.DTSTART}`
         for (const d of expand(s.d, cur.RRULE)) {
-          out.push({ uid: cur.RRULE ? `${base}#${d.toISOString()}` : base, title: unescape(cur.SUMMARY).slice(0, 200) || 'Атаусыз',
+          out.push({ uid: cur.RRULE ? `${base}#${d.toISOString()}` : base, title: unescape(cur.SUMMARY).slice(0, 200) || tx('Атаусыз'),
             start: d, end: new Date(d.getTime() + len), allDay: s.allDay,
             location: cur.LOCATION ? unescape(cur.LOCATION) : undefined, notes: cur.DESCRIPTION ? unescape(cur.DESCRIPTION) : undefined })
         }

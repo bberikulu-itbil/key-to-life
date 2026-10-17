@@ -7,6 +7,7 @@ import { needsMyDecision } from './Activities'
 import { waitsForMe } from './Leaves'
 import { Button, Card, Empty, ErrorBox, Icon, Skeleton, TypeBadge, go, useLoad } from '../components/ui'
 import Tasks from '../components/Tasks'
+import { tx } from '../lib/i18n'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
 
@@ -39,29 +40,29 @@ export default function Plan() {
       <header className="flex items-center gap-3 min-h-14">
         <div className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center font-bold" aria-hidden>{me.full_name.split(' ').map((w) => w[0]).slice(0, 2).join('')}</div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold truncate">Жоспар</h1>
-          <p className="text-sm text-muted truncate">Сәлем, {me.full_name.split(' ')[1] ?? me.full_name}! · {me.class ? me.class.name : me.school.name}</p>
+          <h1 className="text-xl font-bold truncate">{tx('Жоспар')}</h1>
+          <p className="text-sm text-muted truncate">{tx('Сәлем, {0}! · {1}', me.full_name.split(' ')[1] ?? me.full_name, me.class ? me.class.name : me.school.name)}</p>
         </div>
-        <a href="#/calendars" className="size-11 grid place-items-center rounded-md text-accent" aria-label="Күнтізбелерім"><Icon n="clock" /></a>
+        <a href="#/calendars" className="size-11 grid place-items-center rounded-md text-accent" aria-label={tx('Күнтізбелерім')}><Icon n="clock" /></a>
       </header>
 
-      {isApprover(me) && pending > 0 && <Alert href="#/activities/review" tone="bg-warning-soft text-warning" icon="file" text={`${pending} ұсыныс сіздің шешіміңізді күтуде`} />}
-      {leaveCount > 0 && <Alert href="#/leaves" tone="bg-danger-soft text-danger" icon="clock" text={`${leaveCount} рұқсат сұрауы шешіміңізді күтуде`} />}
-      {(books.data ?? 0) > 0 && <Alert href="#/bookings/review" tone="bg-warning-soft text-warning" icon="grid" text={`${books.data} бронь сұрауы растауды күтуде`} />}
-      {myPending > 0 && <Alert href="#/activities/mine" tone="bg-accent-soft text-accent" icon="clock" text={`${myPending} ұсынысыңыз қаралып жатыр`} />}
+      {isApprover(me) && pending > 0 && <Alert href="#/activities/review" tone="bg-warning-soft text-warning" icon="file" text={tx('{0} ұсыныс сіздің шешіміңізді күтуде', pending)} />}
+      {leaveCount > 0 && <Alert href="#/leaves" tone="bg-danger-soft text-danger" icon="clock" text={tx('{0} рұқсат сұрауы шешіміңізді күтуде', leaveCount)} />}
+      {(books.data ?? 0) > 0 && <Alert href="#/bookings/review" tone="bg-warning-soft text-warning" icon="grid" text={tx('{0} бронь сұрауы растауды күтуде', books.data)} />}
+      {myPending > 0 && <Alert href="#/activities/mine" tone="bg-accent-soft text-accent" icon="clock" text={tx('{0} ұсынысыңыз қаралып жатыр', myPending)} />}
 
       <Card className="p-2.5">
         <div className="flex items-center justify-between px-1.5 pb-1">
-          <button type="button" onClick={() => setAnchor(addDays(anchor, -7))} aria-label="Алдыңғы апта" className="size-11 grid place-items-center"><Icon n="back" /></button>
+          <button type="button" onClick={() => setAnchor(addDays(anchor, -7))} aria-label={tx('Алдыңғы апта')} className="size-11 grid place-items-center"><Icon n="back" /></button>
           <span className="text-sm font-semibold">{fmtDate(week[0])} – {fmtDate(week[6])}</span>
-          <button type="button" onClick={() => setAnchor(addDays(anchor, 7))} aria-label="Келесі апта" className="size-11 grid place-items-center"><Icon n="chev" /></button>
+          <button type="button" onClick={() => setAnchor(addDays(anchor, 7))} aria-label={tx('Келесі апта')} className="size-11 grid place-items-center"><Icon n="chev" /></button>
         </div>
         <div className="grid grid-cols-7 gap-1">
           {week.map((d, i) => {
             const items = (ag.data?.items ?? []).filter((x) => onDay(x, d))
             const sel = d === day
             return (
-              <button key={d} type="button" aria-pressed={sel} onClick={() => setDay(d)} aria-label={`${fmtDate(d)}, ${items.length} жазба`}
+              <button key={d} type="button" aria-pressed={sel} onClick={() => setDay(d)} aria-label={tx('{0}, {1} жазба', fmtDate(d), items.length)}
                 className={`grid justify-items-center gap-0.5 rounded-md py-1.5 ${sel ? 'bg-accent text-on-accent' : d === t ? 'text-accent' : ''} ${items.some((x) => x.stype?.importance === 3) ? 'ring-2 ring-danger' : ''}`}>
                 <span className={`text-xs ${sel ? '' : 'text-muted'}`}>{WD_SHORT[i]}</span>
                 <span className="text-lg font-semibold tabular-nums">{parse(d).getDate()}</span>
@@ -73,13 +74,13 @@ export default function Plan() {
       </Card>
 
       <div className="flex items-baseline justify-between mt-1">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">{day === t ? 'Бүгін' : fmtDate(day)}</h2>
-        <a href="#/calendars" className="text-sm text-accent font-semibold">Күнтізбелер</a>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">{day === t ? tx('Бүгін') : fmtDate(day)}</h2>
+        <a href="#/calendars" className="text-sm text-accent font-semibold">{tx('Күнтізбелер')}</a>
       </div>
       {ag.loading && !ag.data ? <Skeleton rows={2} /> : ag.error ? <ErrorBox text={ag.error} retry={ag.reload} />
         : !ofDay.length ? (
-          <Card><Empty icon="clock" title="Бұл күні жазба жоқ" text="Іс-шараға жазылсаңыз немесе жеке жоспар қоссаңыз, осында көрінеді."
-            action={<Button kind="secondary" onClick={() => go('/calendars')}>Жоспар қосу</Button>} /></Card>
+          <Card><Empty icon="clock" title={tx('Бұл күні жазба жоқ')} text={tx('Іс-шараға жазылсаңыз немесе жеке жоспар қоссаңыз, осында көрінеді.')}
+            action={<Button kind="secondary" onClick={() => go('/calendars')}>{tx('Жоспар қосу')}</Button>} /></Card>
         ) : (
           <Card className="py-1">
             <ol>
@@ -88,9 +89,9 @@ export default function Plan() {
                 const past = i.end <= now
                 const body = (
                   <span className="grid grid-cols-[52px_1fr] gap-3 py-3">
-                    <span className="text-sm tabular-nums text-right pt-0.5">{i.allDay ? 'Күні бойы' : <>{hhmm(i.start)}<br /><span className="text-muted">{hhmm(i.end)}</span></>}</span>
+                    <span className="text-sm tabular-nums text-right pt-0.5">{i.allDay ? tx('Күні бойы') : <>{hhmm(i.start)}<br /><span className="text-muted">{hhmm(i.end)}</span></>}</span>
                     <span className="min-w-0 border-l-[3px] pl-3" style={{ borderColor: i.color }}>
-                      <span className="block font-semibold break-words">{i.title}{i.stype && <span className="ml-2"><TypeBadge t={i.stype} /></span>}{live && <span className="ml-2 text-xs text-success font-semibold">Қазір</span>}</span>
+                      <span className="block font-semibold break-words">{i.title}{i.stype && <span className="ml-2"><TypeBadge t={i.stype} /></span>}{live && <span className="ml-2 text-xs text-success font-semibold">{tx('Қазір')}</span>}</span>
                       {i.place && <span className="flex items-center gap-1 text-sm text-muted"><Icon n="pin" size={14} />{i.place}</span>}
                     </span>
                   </span>
@@ -103,9 +104,9 @@ export default function Plan() {
 
       <Tasks me={me} />
 
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">Менің іс-шараларым</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{tx('Менің іс-шараларым')}</h2>
       <div className="grid grid-cols-3 gap-2">
-        {([['#/my/olympiad', 'star', 'Олимпиада'], ['#/my/clubs', 'users', 'Үйірме, курс'], ['#/my/competitions', 'flag', 'Жарыстар']] as const).map(([href, icon, label]) => (
+        {([['#/my/olympiad', 'star', tx('Олимпиада')], ['#/my/clubs', 'users', tx('Үйірме, курс')], ['#/my/competitions', 'flag', tx('Жарыстар')]] as const).map(([href, icon, label]) => (
           <a key={href} href={href} className="grid justify-items-center gap-1.5 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] py-3 px-1 text-sm font-semibold text-center">
             <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span>{label}
           </a>

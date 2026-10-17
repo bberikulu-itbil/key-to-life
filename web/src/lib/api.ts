@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Extra, TimeSlot } from './time'
+import { tx, type Lang } from './i18n'
 
 export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY)
 
@@ -9,7 +10,7 @@ export type ActivityStatus = 'pending_class_teacher' | 'pending_deputy' | 'appro
 export type Feature = 'chat' | 'syllabus' | 'schedule' | 'tasks' | 'attendance'
 export type Mark = 'present' | 'late' | 'excused' | 'absent'
 
-export type Me = { id: string; full_name: string; role: Role; title: string | null; school_id: string; parliament: boolean; photo: string | null
+export type Me = { id: string; full_name: string; role: Role; title: string | null; school_id: string; parliament: boolean; photo: string | null; lang: Lang | null
   class: { id: string; name: string; grade: number; teacher_id: string | null } | null; school: { name: string } }
 
 /** importance: 1 орташа, 2 маңызды, 3 өте маңызды */
@@ -37,11 +38,11 @@ export type ActivityFull = Omit<Activity, 'enrollments'> & {
 // Postgres errors raised by our RPCs are already in Kazakh; map the few the database itself produces.
 export function errText(e: unknown): string {
   const m = (e as { message?: string })?.message ?? String(e)
-  if (m.includes('Invalid login credentials')) return 'ЖСН немесе құпия сөз қате'
-  if (m.includes('check constraint')) return 'Өрістерді тексеріңіз: кейбір мәндер тым қысқа немесе қате'
-  if (m.includes('Failed to fetch')) return 'Интернет байланысын тексеріңіз'
-  if (m.includes('duplicate key')) return 'Мұндай жазба бұрыннан бар'
-  return m
+  if (m.includes('Invalid login credentials')) return tx('ЖСН немесе құпия сөз қате')
+  if (m.includes('check constraint')) return tx('Өрістерді тексеріңіз: кейбір мәндер тым қысқа немесе қате')
+  if (m.includes('Failed to fetch')) return tx('Интернет байланысын тексеріңіз')
+  if (m.includes('duplicate key')) return tx('Мұндай жазба бұрыннан бар')
+  return tx(m)   // our RPCs raise Kazakh text, which is a dictionary key
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,7 +59,7 @@ export const signIn = (iin: string, password: string) =>
 export const signOut = () => supabase.auth.signOut()
 
 export const getMe = (id: string) =>
-  ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, photo, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
+  ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
 const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
@@ -316,7 +317,7 @@ export async function uploadPhoto(userId: string, file: File) {
   const c = document.createElement('canvas')
   c.width = Math.round(img.width * k); c.height = Math.round(img.height * k)
   c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
-  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Фотоны өңдеу мүмкін болмады'))), 'image/jpeg', 0.82))
+  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error(tx('Фотоны өңдеу мүмкін болмады')))), 'image/jpeg', 0.82))
   const path = `${userId}/${crypto.randomUUID()}.jpg`
   const { error } = await supabase.storage.from('posts').upload(path, blob, { contentType: 'image/jpeg' })
   if (error) throw new Error(errText(error))
@@ -338,6 +339,8 @@ export const tgLinkUrl = () => tgCall<{ url: string }>({ action: 'link_url' })
 export const tgStatus = async () =>
   ((await ok(supabase.from('telegram_links').select('tg_id, tg_username').not('tg_id', 'is', null).maybeSingle())) as { tg_id: number; tg_username: string | null } | null)
 export const tgUnlink = () => rpc('telegram_unlink', {})
+// the bot writes to this person in this language
+export const setMyLang = (l: Lang) => rpc('set_my_lang', { p_lang: l })
 export const tgGroupLinkUrl = (activity: string) => tgCall<{ url: string }>({ action: 'group_link_url', activity })
 export const tgUnlinkGroup = (activity: string) => rpc('unlink_telegram_group', { p_activity: activity })
 export const tgSendRollcall = (activity: string, date: string) => tgCall<{ ok: boolean }>({ action: 'rollcall', activity, date })
@@ -352,6 +355,10 @@ export const setTutor = (classId: string, tutor: string | null) => rpc('set_tuto
 
 /* ---------- activity modules ---------- */
 export const setActivityFeatures = (id: string, features: Feature[]) => rpc('set_activity_features', { p_id: id, p_features: features })
+export async function classChatId(classId: string) {
+  await rpc('ensure_chats', {})
+  return ((await ok(supabase.from('chats').select('id').eq('class_id', classId).eq('kind', 'class').maybeSingle())) as { id: string } | null)?.id ?? null
+}
 export async function activityChatId(activityId: string) {
   await rpc('ensure_chats', {})
   return ((await ok(supabase.from('chats').select('id').eq('activity_id', activityId).maybeSingle())) as { id: string } | null)?.id ?? null
@@ -371,7 +378,7 @@ export async function uploadStudentPhoto(studentId: string, file: File) {
   const c = document.createElement('canvas')
   c.width = c.height = Math.min(512, side)
   c.getContext('2d')!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, c.width, c.height)
-  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Суретті өңдеу мүмкін болмады'))), 'image/jpeg', 0.85))
+  const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error(tx('Суретті өңдеу мүмкін болмады')))), 'image/jpeg', 0.85))
   const path = `${studentId}/${crypto.randomUUID()}.jpg`
   const { error } = await supabase.storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg' })
   if (error) throw new Error(errText(error))

@@ -1,6 +1,7 @@
-// telegram: the Lyceum Life bot.
+// telegram: the Key To Life bot.
 //  • internal hook (pg_net, x-hook-secret): mirrors each notification to the linked Telegram chat; leave requests get decision buttons
 //  • Telegram webhook (secret token header): /start <code> links an account, buttons decide a leave, a reply gives the rejection reason
+//  • every text goes through bt() in the reader's language (profiles.lang, else the Telegram app's)
 //  • Mini App calls: login (initData → session), link (initData + JWT), link_url (JWT → t.me deep link),
 //    group_link_url (JWT → t.me/<bot>?startgroup=<code>), rollcall (JWT → roll call posted to the activity's group)
 //  • in a group, /start <code> (from the startgroup link) links that group to an activity
@@ -8,6 +9,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { checkInitData } from "./initdata.ts";
 import { esc, rollcallText } from "./rollcall.ts";
+import { asLang, bt, btTitle, type Lang } from "./bot-i18n.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const admin = createClient(SB_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -37,24 +39,31 @@ async function secret() {
 }
 
 // Telegram puts its own launch data in the URL hash, so the route travels in ?r=
-const appButton = (link: string | null, text = "Lyceum Life ашу") => ({ text, web_app: { url: `${APP_URL}?r=${encodeURIComponent(link || "/")}` } });
+const appButton = (L: Lang, link: string | null, text = "Key To Life ашу") => ({ text: bt(L, text), web_app: { url: `${APP_URL}?r=${encodeURIComponent(link || "/")}` } });
+
+// the reader's language: the one chosen in the app, else their Telegram app's
+async function langOf(tgId: number, code?: string): Promise<Lang> {
+  const { data } = await admin.from("telegram_links").select("profile:profiles(lang)").eq("tg_id", tgId).maybeSingle();
+  return asLang((data?.profile as { lang?: string } | null)?.lang ?? code?.slice(0, 2));
+}
 
 /* ---------- notification → Telegram ---------- */
 async function sendNotification(id: number) {
   const { data: p, error } = await admin.rpc("telegram_payload", { p_id: id });
   if (error || !p) return;
-  let text = `<b>${esc(p.title)}</b>`;
+  const L = asLang(p.lang);
+  let text = `<b>${esc(btTitle(L, p.title))}</b>`;
   if (p.body) text += `\n${esc(p.body)}`;
   const rows: unknown[][] = [];
   if (p.leave) {
-    text += `\n\n<i>Себебі:</i> ${esc(p.leave.reason)}`;
+    text += `\n\n<i>${bt(L, "Себебі:")}</i> ${esc(p.leave.reason)}`;
     const ct = p.leave.status === "pending_class_teacher";
     rows.push([
-      { text: ct ? "✅ Келісемін" : "✅ Рұқсат беру", callback_data: `l:${p.leave.id}:1` },
-      { text: ct ? "❌ Келіспеймін" : "❌ Бас тарту", callback_data: `l:${p.leave.id}:0` },
+      { text: bt(L, ct ? "✅ Келісемін" : "✅ Рұқсат беру"), callback_data: `l:${p.leave.id}:1` },
+      { text: bt(L, ct ? "❌ Келіспеймін" : "❌ Бас тарту"), callback_data: `l:${p.leave.id}:0` },
     ]);
   }
-  rows.push([appButton(p.link, "Қосымшада ашу")]);
+  rows.push([appButton(L, p.link, "Қосымшада ашу")]);
   await tg("sendMessage", { chat_id: p.tg_id, text, parse_mode: "HTML", reply_markup: { inline_keyboard: rows } });
 }
 
@@ -62,10 +71,10 @@ const RESULT: Record<string, string> = {
   approved: "✅ Рұқсат берілді", rejected: "❌ Рұқсат берілмеді", pending_deputy: "↪️ Жауабыңыз орынбасарға жіберілді",
 };
 
-async function decide(tgId: number, leaveId: string, approve: boolean, note: string | null) {
+async function decide(L: Lang, tgId: number, leaveId: string, approve: boolean, note: string | null) {
   const { data, error } = await admin.rpc("telegram_decide_leave", { p_tg: tgId, p_leave: leaveId, p_approve: approve, p_note: note });
-  if (error) throw new Error(error.message);
-  return RESULT[data as string] ?? "Сақталды";
+  if (error) throw new Error(bt(L, error.message));
+  return bt(L, RESULT[data as string] ?? "Сақталды");
 }
 
 /* ---------- Telegram webhook ---------- */
@@ -76,9 +85,10 @@ async function onUpdate(u: any) {
     const [kind, leaveId, v] = String(q.data ?? "").split(":");
     if (kind !== "l") return tg("answerCallbackQuery", { callback_query_id: q.id });
     const msg = q.message;
+    const L = await langOf(q.from.id, q.from.language_code);
     if (v === "1") {
       try {
-        const res = await decide(q.from.id, leaveId, true, null);
+        const res = await decide(L, q.from.id, leaveId, true, null);
         await tg("editMessageText", { chat_id: msg.chat.id, message_id: msg.message_id, text: `${msg.text}\n\n${res}`, reply_markup: { inline_keyboard: [] } });
         return tg("answerCallbackQuery", { callback_query_id: q.id, text: res });
       } catch (e) {
@@ -88,7 +98,7 @@ async function onUpdate(u: any) {
     // rejection needs a reason: ask for it and wait for the reply
     await admin.from("telegram_pending").upsert({ tg_id: q.from.id, leave_id: leaveId, message_id: msg.message_id, created_at: new Date().toISOString() });
     await tg("answerCallbackQuery", { callback_query_id: q.id });
-    return tg("sendMessage", { chat_id: msg.chat.id, text: "Бас тарту себебін бір хабармен жазыңыз:", reply_markup: { force_reply: true, input_field_placeholder: "Себебі" } });
+    return tg("sendMessage", { chat_id: msg.chat.id, text: bt(L, "Бас тарту себебін бір хабармен жазыңыз:"), reply_markup: { force_reply: true, input_field_placeholder: bt(L, "Себебі") } });
   }
 
   const m = u.message;
@@ -97,25 +107,27 @@ async function onUpdate(u: any) {
   if (m?.text && (m.chat?.type === "group" || m.chat?.type === "supergroup")) return onGroup(m);
   if (!m?.text || m.chat?.type !== "private") return;
   const from = m.from;
+  let L = await langOf(from.id, from.language_code);
 
   if (m.text.startsWith("/start")) {
     const code = m.text.split(" ")[1]?.trim();
     if (code) {
       const { data: c } = await admin.from("telegram_codes").select("user_id, expires_at").eq("code", code).is("activity_id", null).maybeSingle();
       if (!c || new Date(c.expires_at) < new Date()) {
-        return tg("sendMessage", { chat_id: m.chat.id, text: "Сілтеменің мерзімі өткен. Қосымшада Профиль → «Байланыстыру» батырмасын қайта басыңыз." });
+        return tg("sendMessage", { chat_id: m.chat.id, text: bt(L, "Сілтеменің мерзімі өткен. Қосымшада Профиль → «Байланыстыру» батырмасын қайта басыңыз.") });
       }
       await linkAccount(c.user_id, from.id, from.username);
       await admin.from("telegram_codes").delete().eq("code", code);
-      const { data: prof } = await admin.from("profiles").select("full_name").eq("id", c.user_id).single();
+      const { data: prof } = await admin.from("profiles").select("full_name, lang").eq("id", c.user_id).single();
+      L = asLang(prof?.lang ?? L);
       return tg("sendMessage", {
-        chat_id: m.chat.id, text: `Сәлем, ${prof?.full_name ?? ""}! Аккаунтыңыз байланысты. Енді рұқсат сұраулары мен хабарламалар осында келеді.`,
-        reply_markup: { inline_keyboard: [[appButton("/")]] },
+        chat_id: m.chat.id, text: bt(L, "Сәлем, {0}! Аккаунтыңыз байланысты. Енді рұқсат сұраулары мен хабарламалар осында келеді.", prof?.full_name ?? ""),
+        reply_markup: { inline_keyboard: [[appButton(L, "/")]] },
       });
     }
     return tg("sendMessage", {
-      chat_id: m.chat.id, text: "Lyceum Life — лицейдің іс-шаралары, рұқсаттар, бронь және чаттар.\n\nТөмендегі батырманы басып, бір рет ЖСН-мен кіріңіз — аккаунтыңыз осы Telegram-ға байланысады.",
-      reply_markup: { inline_keyboard: [[appButton("/")]] },
+      chat_id: m.chat.id, text: bt(L, "Key To Life — лицейдің іс-шаралары, рұқсаттар, бронь және чаттар.\n\nТөмендегі батырманы басып, бір рет ЖСН-мен кіріңіз — аккаунтыңыз осы Telegram-ға байланысады."),
+      reply_markup: { inline_keyboard: [[appButton(L, "/")]] },
     });
   }
 
@@ -124,28 +136,29 @@ async function onUpdate(u: any) {
   if (pend && Date.now() - new Date(pend.created_at).getTime() < 15 * 60_000) {
     await admin.from("telegram_pending").delete().eq("tg_id", from.id);
     try {
-      const res = await decide(from.id, pend.leave_id, false, m.text);
+      const res = await decide(L, from.id, pend.leave_id, false, m.text);
       if (pend.message_id) await tg("editMessageReplyMarkup", { chat_id: m.chat.id, message_id: pend.message_id, reply_markup: { inline_keyboard: [] } });
-      return tg("sendMessage", { chat_id: m.chat.id, text: `${res}. Себебі: ${m.text}` });
+      return tg("sendMessage", { chat_id: m.chat.id, text: bt(L, "{0}. Себебі: {1}", res, m.text) });
     } catch (e) {
       return tg("sendMessage", { chat_id: m.chat.id, text: (e as Error).message });
     }
   }
-  return tg("sendMessage", { chat_id: m.chat.id, text: "Қосымшаны ашу үшін төмендегі батырманы басыңыз.", reply_markup: { inline_keyboard: [[appButton("/")]] } });
+  return tg("sendMessage", { chat_id: m.chat.id, text: bt(L, "Қосымшаны ашу үшін төмендегі батырманы басыңыз."), reply_markup: { inline_keyboard: [[appButton(L, "/")]] } });
 }
 
 // deno-lint-ignore no-explicit-any
 async function onGroup(m: any) {
   const code = /^\/start(?:@\w+)?\s+(\S+)/.exec(m.text)?.[1];
   if (!code) return;
+  const L = await langOf(m.from?.id ?? 0, m.from?.language_code);
   const { data: c } = await admin.from("telegram_codes").select("activity_id, expires_at").eq("code", code).not("activity_id", "is", null).maybeSingle();
   if (!c || new Date(c.expires_at) < new Date()) {
-    return tg("sendMessage", { chat_id: m.chat.id, text: "Сілтеменің мерзімі өткен. Іс-шара баптауларында «Telegram тобы» батырмасын қайта басыңыз." });
+    return tg("sendMessage", { chat_id: m.chat.id, text: bt(L, "Сілтеменің мерзімі өткен. Іс-шара баптауларында «Telegram тобы» батырмасын қайта басыңыз.") });
   }
   const { data: a } = await admin.from("activities").update({ tg_chat_id: m.chat.id, tg_chat_title: m.chat.title ?? null })
     .eq("id", c.activity_id).select("title").single();
   await admin.from("telegram_codes").delete().eq("code", code);
-  return tg("sendMessage", { chat_id: m.chat.id, text: `✅ Бұл топ «${a?.title ?? ""}» іс-шарасына байланысты. Түгелдеу нәтижелері осында жіберіледі.` });
+  return tg("sendMessage", { chat_id: m.chat.id, text: bt(L, "✅ Бұл топ «{0}» іс-шарасына байланысты. Түгелдеу нәтижелері осында жіберіледі.", a?.title ?? "") });
 }
 
 async function sendRollcall(req: Request, activity: string, date: string) {
@@ -195,8 +208,9 @@ Deno.serve(async (req) => {
     if (profile?.role !== "admin") return json({ error: "Құқығыңыз жоқ" }, 403);
 
     const webhook = await tg("setWebhook", { url: SELF_URL, secret_token: await secret(), allowed_updates: ["message", "callback_query"], drop_pending_updates: true });
-    const menu = await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Lyceum Life", web_app: { url: APP_URL } } });
+    const menu = await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Key To Life", web_app: { url: APP_URL } } });
     const cmds = await tg("setMyCommands", { commands: [{ command: "start", description: "Бастау" }] });
+    for (const l of ["en", "tr", "ru"] as const) await tg("setMyCommands", { commands: [{ command: "start", description: bt(l, "Бастау") }], language_code: l });
     return json({ webhook: webhook.ok, menu: menu.ok, commands: cmds.ok, bot: await botUsername() });
   }
 

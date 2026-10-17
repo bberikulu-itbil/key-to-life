@@ -3,6 +3,7 @@ import { errText, listClasses, listDuty, listMenu, listStaff, listTasks, listTea
 import { loadAgenda } from '../lib/agenda'
 import { addDays, fmtDate, isoDow, today } from '../lib/time'
 import { Button, Card, Field, Icon, Sheet, Skeleton, TypeBadge, inputCls, toast, useLoad } from './ui'
+import { tx } from '../lib/i18n'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
 const Head = ({ icon, title, href, action }: { icon: string; title: string; href?: string; action?: ReactNode }) => (
@@ -10,7 +11,7 @@ const Head = ({ icon, title, href, action }: { icon: string; title: string; href
     <span className="size-8 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span>
     <h2 className="flex-1 font-bold">{title}</h2>
     {action}
-    {href && <a href={href} className="text-sm text-accent font-semibold min-h-11 grid place-items-center px-1">Барлығы</a>}
+    {href && <a href={href} className="text-sm text-accent font-semibold min-h-11 grid place-items-center px-1">{tx('Барлығы')}</a>}
   </div>
 )
 
@@ -28,14 +29,14 @@ export function TodayCard({ me }: { me: Me }) {
   const d = data.data
   return (
     <Card className="grid gap-3">
-      <Head icon="clock" title={`Бүгін · ${fmtDate(t)}`} href="#/plan" />
-      {!d ? <Skeleton rows={1} /> : !d.next.length && !d.soon.length ? <p className="text-sm text-muted">Бүгінге жоспар бос. Тапсырма немесе жоспар қосу — Жоспар бетінде.</p> : (
+      <Head icon="clock" title={tx('Бүгін · {0}', fmtDate(t))} href="#/plan" />
+      {!d ? <Skeleton rows={1} /> : !d.next.length && !d.soon.length ? <p className="text-sm text-muted">{tx('Бүгінге жоспар бос. Тапсырма немесе жоспар қосу — Жоспар бетінде.')}</p> : (
         <ul className="grid gap-1.5">
           {d.next.map((i) => {
             const live = new Date() >= i.start
             return (
               <li key={i.key}><a href={i.link ? `#${i.link}` : '#/plan'} className="flex items-center gap-3 min-h-11">
-                <span className={`w-12 text-sm tabular-nums font-semibold ${live ? 'text-success' : ''}`}>{live ? 'Қазір' : hhmm(i.start)}</span>
+                <span className={`w-12 text-sm tabular-nums font-semibold ${live ? 'text-success' : ''}`}>{live ? tx('Қазір') : hhmm(i.start)}</span>
                 <span className="w-1 self-stretch rounded-full" style={{ background: i.color }} />
                 <span className="flex-1 min-w-0"><span className="block truncate font-medium">{i.title}</span>{i.place && <span className="block text-xs text-muted truncate">{i.place}</span>}</span>
                 {i.stype && <TypeBadge t={i.stype} />}
@@ -44,7 +45,7 @@ export function TodayCard({ me }: { me: Me }) {
           })}
           {d.soon.map((x) => (
             <li key={x.id}><a href="#/plan" className="flex items-center gap-3 min-h-11">
-              <span className={`w-12 text-xs font-semibold ${x.due_on && x.due_on < t ? 'text-danger' : 'text-warning'}`}>{x.due_on ? (x.due_on < t ? 'Өтті' : x.due_on === t ? 'Бүгін' : fmtDate(x.due_on)) : 'Тапсырма'}</span>
+              <span className={`w-12 text-xs font-semibold ${x.due_on && x.due_on < t ? 'text-danger' : 'text-warning'}`}>{x.due_on ? (x.due_on < t ? tx('Өтті') : x.due_on === t ? tx('Бүгін') : fmtDate(x.due_on)) : tx('Тапсырма')}</span>
               <Icon n="check" size={16} className="text-muted" />
               <span className="flex-1 min-w-0 truncate">{x.title}</span>
             </a></li>
@@ -56,7 +57,7 @@ export function TodayCard({ me }: { me: Me }) {
 }
 
 /* ---------- canteen menu ---------- */
-const MEALS: [Meal, string, string][] = [['breakfast', 'Таңғы ас', '10:00'], ['lunch', 'Түскі ас', '15:00'], ['snack', 'Бесін ас', '17:30'], ['dinner', 'Кешкі ас', '24:00']]
+const MEALS: [Meal, string, string][] = [['breakfast', tx('Таңғы ас'), '10:00'], ['lunch', tx('Түскі ас'), '15:00'], ['snack', tx('Бесін ас'), '17:30'], ['dinner', tx('Кешкі ас'), '24:00']]
 
 export function MenuCard({ me }: { me: Me }) {
   const [day, setDay] = useState(today())
@@ -68,23 +69,23 @@ export function MenuCard({ me }: { me: Me }) {
   const current = day === today() ? MEALS.find(([m, , until]) => items[m] && nowHm < until)?.[0] : undefined
   return (
     <Card className="grid gap-3">
-      <Head icon="list" title="Асхана мәзірі" action={me.role !== 'student' ? <Button kind="ghost" onClick={() => setEditing(true)}>Өзгерту</Button> : undefined} />
+      <Head icon="list" title={tx('Асхана мәзірі')} action={me.role !== 'student' ? <Button kind="ghost" onClick={() => setEditing(true)}>{tx('Өзгерту')}</Button> : undefined} />
       <div className="flex items-center gap-1">
-        <button type="button" onClick={() => setDay(addDays(day, -1))} aria-label="Алдыңғы күн" className="size-11 grid place-items-center"><Icon n="back" /></button>
-        <span className="flex-1 text-center text-sm font-semibold">{day === today() ? 'Бүгін' : day === addDays(today(), 1) ? 'Ертең' : fmtDate(day)}</span>
-        <button type="button" onClick={() => setDay(addDays(day, 1))} aria-label="Келесі күн" className="size-11 grid place-items-center"><Icon n="chev" /></button>
+        <button type="button" onClick={() => setDay(addDays(day, -1))} aria-label={tx('Алдыңғы күн')} className="size-11 grid place-items-center"><Icon n="back" /></button>
+        <span className="flex-1 text-center text-sm font-semibold">{day === today() ? tx('Бүгін') : day === addDays(today(), 1) ? tx('Ертең') : fmtDate(day)}</span>
+        <button type="button" onClick={() => setDay(addDays(day, 1))} aria-label={tx('Келесі күн')} className="size-11 grid place-items-center"><Icon n="chev" /></button>
       </div>
-      {menu.loading && !menu.data ? <Skeleton rows={1} /> : !menu.data?.length ? <p className="text-sm text-muted">Бұл күнге мәзір әлі енгізілмеген.</p> : (
+      {menu.loading && !menu.data ? <Skeleton rows={1} /> : !menu.data?.length ? <p className="text-sm text-muted">{tx('Бұл күнге мәзір әлі енгізілмеген.')}</p> : (
         <div className="grid gap-2">
           {shown.map(([m, label]) => (
             <div key={m} className={`rounded-md px-3 py-2 ${current === m ? 'bg-accent-soft' : 'bg-surface-2'}`}>
-              <p className="text-xs font-semibold text-muted">{label}{current === m ? ' · қазір' : ''}</p>
+              <p className="text-xs font-semibold text-muted">{label}{current === m ? tx(' · қазір') : ''}</p>
               <p className="whitespace-pre-line">{items[m] ?? '—'}</p>
             </div>
           ))}
         </div>
       )}
-      {editing && <Sheet title={`Мәзір · ${fmtDate(day)}`} onClose={() => setEditing(false)}><MenuEdit day={day} items={items} onDone={() => { setEditing(false); menu.reload() }} /></Sheet>}
+      {editing && <Sheet title={tx('Мәзір · {0}', fmtDate(day))} onClose={() => setEditing(false)}><MenuEdit day={day} items={items} onDone={() => { setEditing(false); menu.reload() }} /></Sheet>}
     </Card>
   )
 }
@@ -94,16 +95,16 @@ function MenuEdit({ day, items, onDone }: { day: string; items: Partial<Record<M
   const [busy, setBusy] = useState(false)
   const save = async () => {
     setBusy(true)
-    try { await Promise.all(MEALS.filter(([m]) => (f[m] ?? '') !== (items[m] ?? '')).map(([m]) => saveMenu(day, m, f[m] ?? ''))); toast('Мәзір сақталды'); onDone() }
+    try { await Promise.all(MEALS.filter(([m]) => (f[m] ?? '') !== (items[m] ?? '')).map(([m]) => saveMenu(day, m, f[m] ?? ''))); toast(tx('Мәзір сақталды')); onDone() }
     catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
     <div className="grid gap-4">
       {MEALS.map(([m, label]) => (
-        <Field key={m} label={label} hint={m === 'snack' ? 'Міндетті емес' : undefined}>{(id, d) => <textarea id={id} aria-describedby={d} value={f[m] ?? ''} onChange={(e) => setF({ ...f, [m]: e.target.value })}
-          className={`${inputCls} h-20 py-2`} placeholder="Әр тағамды жаңа жолдан" />}</Field>
+        <Field key={m} label={label} hint={m === 'snack' ? tx('Міндетті емес') : undefined}>{(id, d) => <textarea id={id} aria-describedby={d} value={f[m] ?? ''} onChange={(e) => setF({ ...f, [m]: e.target.value })}
+          className={`${inputCls} h-20 py-2`} placeholder={tx('Әр тағамды жаңа жолдан')} />}</Field>
       ))}
-      <Button block loading={busy} onClick={save}>Сақтау</Button>
+      <Button block loading={busy} onClick={save}>{tx('Сақтау')}</Button>
     </div>
   )
 }
@@ -121,10 +122,10 @@ export function DutyCard() {
   if (!v || (!v.deputy && !v.cls && !v.posts.length)) return null
   return (
     <Card className="grid gap-2">
-      <Head icon="users" title="Бүгінгі кезекшілер" href="#/duty" />
+      <Head icon="users" title={tx('Бүгінгі кезекшілер')} href="#/duty" />
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
-        {v.deputy && <><dt className="text-muted">Орынбасар</dt><dd className="font-medium">{v.deputy}</dd></>}
-        {v.cls && <><dt className="text-muted">Сынып</dt><dd className="font-medium">{v.cls}</dd></>}
+        {v.deputy && <><dt className="text-muted">{tx('Орынбасар')}</dt><dd className="font-medium">{v.deputy}</dd></>}
+        {v.cls && <><dt className="text-muted">{tx('Сынып')}</dt><dd className="font-medium">{v.cls}</dd></>}
         {v.posts.slice(0, 4).map((p) => <Fragment key={p.id}><dt className="text-muted">{p.post}</dt><dd className="font-medium">{p.user.full_name}</dd></Fragment>)}
       </dl>
     </Card>
