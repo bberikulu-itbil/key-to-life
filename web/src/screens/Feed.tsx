@@ -221,7 +221,7 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
     setOpts({ hide, off })
     try { await setPostOptions(p.id, hide, off); onChange() } catch (e) { setOpts(opts); toast(errText(e)) }
   }
-  if (p.orig) return (
+  if (p.repost_of && p.orig) return (
     <article className="grid gap-3">
       <p className="text-xs text-muted">{tx('{0} бөлісті', p.activity?.title ?? p.author.full_name)} · {fmtDate(p.created_at.slice(0, 10))}</p>
       {p.body && <p className="whitespace-pre-line break-words">{p.body}</p>}

@@ -321,7 +321,7 @@ export type Post = { id: string; author_id: string; kind: PostKind; title: strin
   hide_likes: boolean; comments_off: boolean; repost_of: string | null; comments: { count: number }[]
   orig: { id: string; kind: PostKind; title: string; body: string; photo: string | null; created_at: string; author: { full_name: string }; activity: { title: string } | null } | null }
 const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, activity_id, visibility, activity:activities(title), addressee, addressee_id, to:profiles!addressee_id(full_name), author:profiles!author_id(full_name, role, class:classes!class_id(name)), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value), '
-  + 'hide_likes, comments_off, repost_of, comments:post_comments(count), orig:posts!repost_of(id, kind, title, body, photo, created_at, author:profiles!author_id(full_name), activity:activities(title))'
+  + 'hide_likes, comments_off, repost_of, comments:post_comments(count), orig:repost_of(id, kind, title, body, photo, created_at, author:profiles!author_id(full_name), activity:activities(title))'
 export const listPosts = () =>
   ok(supabase.from('posts').select(POST).order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(200)) as unknown as Promise<Post[]>
 export const createPost = (kind: PostKind, title: string, body: string, photo?: string | null, place?: string | null) =>

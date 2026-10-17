@@ -45,8 +45,8 @@ export function FeedCard({ p, me, canRepost, onOpen, onRepost }: { p: Post; me: 
   return (
     <article className="rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] overflow-hidden">
       <button type="button" onClick={onOpen} className="w-full text-left">
-        {p.orig && <span className="flex items-center gap-1.5 px-4 pt-3 text-xs text-muted"><Icon n="repeat" size={14} />{tx('{0} бөлісті', p.activity?.title ?? p.author.full_name)} · {chatTime(p.created_at)}</span>}
-        {p.orig ? (
+        {p.repost_of && p.orig && <span className="flex items-center gap-1.5 px-4 pt-3 text-xs text-muted"><Icon n="repeat" size={14} />{tx('{0} бөлісті', p.activity?.title ?? p.author.full_name)} · {chatTime(p.created_at)}</span>}
+        {p.repost_of && p.orig ? (
           <span className="block p-4 pt-2 grid gap-2">{p.body && <span className="block whitespace-pre-line line-clamp-4">{p.body}</span>}<Original o={p.orig} /></span>
         ) : (
           <>
@@ -130,7 +130,7 @@ export function RepostForm({ p, me, led, onDone }: { p: Post; me: Me; led: Activ
   }
   return (
     <div className="grid gap-4">
-      <Original o={p.orig ?? { ...p }} />
+      <Original o={(p.repost_of && p.orig) || { ...p }} />
       <AsWho me={me} led={led} value={as} onChange={setAs} own={own} />
       <Field label={tx('Пікіріңіз')} hint={tx('Міндетті емес')}>{(id, d) => <textarea id={id} aria-describedby={d} value={text} maxLength={5000} onChange={(e) => setText(e.target.value)} className={`${inputCls} h-24 py-2`} />}</Field>
       <Button block loading={busy} onClick={save}>{tx('Репост жасау')}</Button>
