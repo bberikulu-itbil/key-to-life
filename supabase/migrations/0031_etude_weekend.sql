@@ -4,7 +4,7 @@
 -- show every weekly occurrence without a second recurrence engine.
 
 alter table calendar_events
-  add column responsible_name text
+  add column if not exists responsible_name text
     check (responsible_name is null or length(responsible_name) <= 120);
 
 insert into calendars (school_id, kind, class_id, name, color)
@@ -37,7 +37,7 @@ with target as (
   join schools s on s.id = k.school_id
   join calendars cal on cal.class_id = k.id and cal.kind = 'class'
   where lower(trim(k.name)) in ('7б', '7b')
-    and lower(trim(t.subject)) in ('etude i', 'etude ii')
+    and lower(trim(t.subject)) in ('etude i', 'etude ii', 'этюд-1', 'этюд-2')
 ), occurrence as (
   select x.*, g::date as event_day
   from target x
@@ -68,4 +68,4 @@ delete from timetable t
 using classes k
 where k.id = t.class_id
   and lower(trim(k.name)) in ('7б', '7b')
-  and lower(trim(t.subject)) in ('etude i', 'etude ii');
+  and lower(trim(t.subject)) in ('etude i', 'etude ii', 'этюд-1', 'этюд-2');
