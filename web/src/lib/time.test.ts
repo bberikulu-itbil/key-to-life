@@ -46,10 +46,22 @@ assert.equal(nextSession(once, '2026-10-20'), '2026-10-25')
 assert.equal(nextSession(once, '2026-10-26'), null)
 console.log('nextSession ok')
 
-import { sessionTime } from './time'
+import { sessionTime, sessionType, scheduleLabel } from './time'
 const multi = { ...weekly, slots: [{ wd: 1, start: '15:00', end: '16:30' }, { wd: 3, start: '17:00', end: '18:00' }], extra: [{ id: 'x', on_date: '2026-10-17', start_time: '10:00:00', end_time: '12:00:00', note: null }], start_time: '15:00:00', end_time: '16:30:00' }
 assert.ok(isSession(multi, '2026-10-12') && isSession(multi, '2026-10-14') && isSession(multi, '2026-10-17'))   // Mon, Wed, extra Sat
 assert.ok(!isSession(multi, '2026-10-13'))
 assert.deepEqual(sessionTime(multi, '2026-10-14'), { start: '17:00', end: '18:00' })
 assert.deepEqual(sessionTime(multi, '2026-10-17'), { start: '10:00', end: '12:00' })
 console.log('slots+extra ok')
+
+// calendar-only activity: no weekdays, sessions only from the calendar; type from the session, else the default
+{
+  const types = [{ id: 't1', name: 'Çalışma', importance: 1 as const }, { id: 't3', name: 'KBO', importance: 3 as const }]
+  const cal = { schedule: 'weekly' as const, on_date: null, weekdays: null, date_from: '2026-10-01', date_to: '2026-12-31', start_time: '15:00', end_time: '16:30', types, default_type_id: 't1',
+    extra: [{ id: 'x', on_date: '2026-11-20', start_time: '09:00', end_time: '13:00', note: null, type_id: 't3' }] }
+  assert.ok(!isSession(cal, '2026-10-14') && isSession(cal, '2026-11-20'))
+  assert.equal(sessionType(cal, '2026-11-20')?.name, 'KBO')
+  assert.equal(sessionType(cal, '2026-10-14')?.name, 'Çalışma')
+  assert.equal(scheduleLabel(cal as never), 'Күнтізбе бойынша · 1 сабақ')
+  console.log('calendar types ok')
+}

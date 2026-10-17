@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react'
-import { acceptWaitlisted, addParticipant, cancelActivity, errText, getActivity, listPeople, removeActivity, removeParticipant, setActivityFlags, setCurators, type ActivityFull } from '../lib/api'
+import { acceptWaitlisted, addParticipant, cancelActivity, errText, getActivity, listPeople, removeActivity, removeParticipant, removeSessionType, saveSessionType, setActivityFlags, setCurators, setDefaultSessionType, tgGroupLinkUrl, tgUnlinkGroup, type ActivityFull, type SessionType } from '../lib/api'
+import { IMPORTANCE } from '../lib/time'
+import { openTelegram } from '../lib/telegram'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import { Modules } from './ActivityDetail'
-import { Badge, Button, Card, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, Switch, go, inputCls, toast, useLoad } from '../components/ui'
+import { Badge, Button, Card, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, Switch, TypeBadge, go, inputCls, toast, useLoad } from '../components/ui'
 
 const H = ({ children }: { children: string }) => <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-3">{children}</h2>
 
 export default function ActivitySettings({ id }: { id: string }) {
   const { me } = useMe()
   const { data: a, error, loading, reload } = useLoad(() => getActivity(id), [id])
-  const [sheet, setSheet] = useState<null | 'modules' | 'add' | 'cancel' | 'remove'>(null)
+  const [sheet, setSheet] = useState<null | 'modules' | 'add' | 'cancel' | 'remove' | 'tg' | 'types'>(null)
   const [confirmOut, setConfirmOut] = useState<string | null>(null)
   const [q, setQ] = useState('')
   if (loading && !a) return <><PageHead title="Баптаулар" back /><Skeleton /></>
@@ -82,6 +84,8 @@ export default function ActivitySettings({ id }: { id: string }) {
       <Card className="p-0 divide-y divide-line">
         <Item icon="file" title="Атауы, уақыты, орны" hint="Сипаттама, жетекші, сыныптар, орын саны" onClick={() => go(`/a/${a.id}/edit`)} />
         <Item icon="grid" title="Бөлімдер" hint={`${a.features.length} бөлім қосулы`} onClick={() => setSheet('modules')} />
+        <Item icon="flag" title="Сабақ түрлері" hint={a.types.length ? a.types.map((t) => t.name).join(', ') : 'Мысалы: Çalışma, Camp, KBO — күнтізбеде маңыздылығымен көрінеді'} onClick={() => setSheet('types')} />
+        <Item icon="send" title="Telegram тобы" hint={a.tg_chat_title ? `«${a.tg_chat_title}» · түгелдеу осында жіберіледі` : 'Байланыстырсаңыз, түгелдеу нәтижесін топқа бір басумен жібересіз'} onClick={() => setSheet('tg')} />
         <div className="px-4"><Switch label="Тіркелу ашық" hint="Өшірсеңіз, оқушылар өздері жазыла алмайды, тек сіз қосасыз" on={a.enrollment_open}
           onChange={(v) => act(() => setActivityFlags(a.id, v, null), v ? 'Тіркелу ашылды' : 'Тіркелу жабылды')} /></div>
       </Card>
@@ -119,6 +123,8 @@ export default function ActivitySettings({ id }: { id: string }) {
       </Card>
 
       {sheet === 'modules' && <Sheet title="Бөлімдер" onClose={() => setSheet(null)}><Modules a={a} onDone={() => { setSheet(null); reload() }} /></Sheet>}
+      {sheet === 'tg' && <Sheet title="Telegram тобы" onClose={() => setSheet(null)}><TgGroup a={a} onChange={() => { setSheet(null); reload() }} /></Sheet>}
+      {sheet === 'types' && <Sheet title="Сабақ түрлері" onClose={() => { setSheet(null); reload() }}><SessionTypes a={a} onChange={reload} /></Sheet>}
       {sheet === 'add' && <Sheet title="Оқушы қосу" onClose={() => setSheet(null)}><AddPeople a={a} onAdded={reload} /></Sheet>}
       {sheet === 'cancel' && <Sheet title="Тоқтату" onClose={() => setSheet(null)}><Confirm label="Себебі" hint="Қатысушыларға хабар барады" button="Тоқтату" min={3}
         onConfirm={(v) => act(() => cancelActivity(a.id, v), 'Іс-шара тоқтатылды').then(() => setSheet(null))} /></Sheet>}
@@ -171,6 +177,79 @@ function Confirm({ label, hint, button, min = 0, match, onConfirm }: { label: st
     <div className="grid gap-4">
       <Field label={label} hint={hint}>{(id, d) => <input id={id} aria-describedby={d} value={v} onChange={(e) => setV(e.target.value)} className={inputCls} />}</Field>
       <Button block kind="danger" disabled={!ok} onClick={() => onConfirm(v.trim())}>{button}</Button>
+    </div>
+  )
+}
+
+function TgGroup({ a, onChange }: { a: ActivityFull; onChange: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const link = async () => {
+    setBusy(true)
+    try { openTelegram((await tgGroupLinkUrl(a.id)).url); toast('Telegram-да топты таңдап, ботты қосыңыз. Содан соң осы бетке оралыңыз') } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  const unlink = async () => { try { await tgUnlinkGroup(a.id); toast('Топ ажыратылды'); onChange() } catch (e) { toast(errText(e)) } }
+  return (
+    <div className="grid gap-4">
+      {a.tg_chat_title && <Card className="flex items-center gap-3"><Icon n="send" className="text-accent" /><span className="flex-1 font-semibold">{a.tg_chat_title}</span><Badge tone="ok">Байланысты</Badge></Card>}
+      <ol className="grid gap-1.5 text-sm text-muted list-decimal pl-5">
+        <li>Төмендегі батырманы басыңыз — Telegram ашылады.</li>
+        <li>Іс-шараның тобын таңдап, ботты қосыңыз (топта әкімші болуыңыз керек).</li>
+        <li>Бот топқа «байланысты» деп жазады. Енді журналдағы «Топқа жіберу» батырмасы түгелдеуді осы топқа жібереді.</li>
+      </ol>
+      <Button block loading={busy} onClick={link}>{a.tg_chat_title ? 'Басқа топқа ауыстыру' : 'Топты байланыстыру'}</Button>
+      {a.tg_chat_title && <Button block kind="ghost" onClick={unlink}>Ажырату</Button>}
+    </div>
+  )
+}
+
+const LEVELS = [1, 2, 3] as const
+
+function SessionTypes({ a, onChange }: { a: ActivityFull; onChange: () => void }) {
+  const [types, setTypes] = useState<SessionType[]>(a.types)
+  const [def, setDef] = useState(a.default_type_id ?? '')
+  const [f, setF] = useState<{ name: string; importance: 1 | 2 | 3 }>({ name: '', importance: 1 })
+  const [busy, setBusy] = useState(false)
+  const run = async (fn: () => Promise<unknown>) => { setBusy(true); try { await fn(); onChange() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
+  const add = () => run(async () => {
+    const name = f.name.trim()
+    if (!name) throw new Error('Атауын жазыңыз')
+    setTypes([...types, await saveSessionType({ activity_id: a.id, name, importance: f.importance })]); setF({ name: '', importance: 1 })
+  })
+  const level = (t: SessionType, importance: 1 | 2 | 3) => run(async () => { await saveSessionType({ id: t.id, activity_id: a.id, name: t.name, importance }); setTypes(types.map((x) => (x.id === t.id ? { ...x, importance } : x))) })
+  const remove = (t: SessionType) => run(async () => { await removeSessionType(t.id); setTypes(types.filter((x) => x.id !== t.id)); if (def === t.id) setDef('') })
+  const setDefault = (id: string) => run(async () => { await setDefaultSessionType(a.id, id || null); setDef(id) })
+  const Level = ({ value, onPick, label }: { value: 1 | 2 | 3; onPick: (v: 1 | 2 | 3) => void; label: string }) => (
+    <div role="radiogroup" aria-label={label} className="grid grid-cols-3 gap-1 bg-surface-2 rounded-md p-1">
+      {LEVELS.map((n) => (
+        <button key={n} type="button" role="radio" aria-checked={value === n} disabled={busy} onClick={() => onPick(n)}
+          className={`min-h-10 rounded-sm text-xs font-semibold ${value === n ? 'bg-surface shadow-card' : 'text-muted'}`}>{IMPORTANCE[n].label}</button>
+      ))}
+    </div>
+  )
+  return (
+    <div className="grid gap-4">
+      <p className="text-sm text-muted">Түрін күнтізбеде сабақ қосқанда таңдайсыз. «Өте маңызды» сабақтар күнтізбеде қызылмен ерекшеленеді.</p>
+      {types.length > 0 && (
+        <ul className="grid gap-3">
+          {types.map((t) => (
+            <li key={t.id} className="grid gap-2">
+              <div className="flex items-center gap-2"><span className="flex-1"><TypeBadge t={t} /></span>
+                <button type="button" disabled={busy} onClick={() => remove(t)} aria-label={`${t.name} түрін өшіру`} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button></div>
+              <Level value={t.importance} onPick={(v) => level(t, v)} label={`${t.name} маңыздылығы`} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <Card className="grid gap-3">
+        <Field label="Жаңа түр">{(id) => <input id={id} value={f.name} maxLength={40} onChange={(e) => setF({ ...f, name: e.target.value })} className={inputCls} placeholder="Мысалы: Çalışma, Camp, KBO" />}</Field>
+        <Level value={f.importance} onPick={(v) => setF({ ...f, importance: v })} label="Жаңа түрдің маңыздылығы" />
+        <Button kind="secondary" loading={busy} disabled={!f.name.trim()} onClick={add}>Қосу</Button>
+      </Card>
+      {types.length > 0 && a.schedule === 'weekly' && !!a.weekdays?.length && (
+        <Field label="Тұрақты сабақтардың түрі" hint="Апта сайынғы кестедегі сабақтар осы түрмен көрінеді">{(id, d) => <select id={id} aria-describedby={d} value={def} disabled={busy} onChange={(e) => setDefault(e.target.value)} className={inputCls}>
+          <option value="">Түрсіз</option>
+          {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>}</Field>
+      )}
     </div>
   )
 }

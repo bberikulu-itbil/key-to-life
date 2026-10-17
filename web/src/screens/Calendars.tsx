@@ -4,7 +4,7 @@ import { loadAgenda, onDay, type Item } from '../lib/agenda'
 import { parseIcs, toIcs } from '../lib/ics'
 import { addDays, fmtDate, iso, today } from '../lib/time'
 import { useMe } from '../App'
-import { Button, Card, Field, Icon, PageHead, Sheet, Skeleton, ErrorBox, inputCls, toast, useLoad } from '../components/ui'
+import { Button, Card, Field, Icon, PageHead, Sheet, Skeleton, ErrorBox, TypeBadge, inputCls, toast, useLoad } from '../components/ui'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
 
@@ -93,7 +93,7 @@ function Row({ i, canDelete, onDeleted }: { i: Item; canDelete: boolean; onDelet
     <span className="flex gap-3 py-2.5 items-start">
       <span className="w-12 text-sm tabular-nums text-right shrink-0">{i.allDay ? 'Күні бойы' : hhmm(i.start)}</span>
       <span className="min-w-0 flex-1 border-l-[3px] pl-3" style={{ borderColor: i.color }}>
-        <span className="block font-medium break-words">{i.title}</span>
+        <span className="block font-medium break-words">{i.title}{i.stype && <span className="ml-2"><TypeBadge t={i.stype} /></span>}</span>
         {i.place && <span className="block text-sm text-muted">{i.place}</span>}
       </span>
     </span>

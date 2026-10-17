@@ -1,7 +1,7 @@
-import { listActivities, listCalendars, listEvents, listHidden, listLessons, type Activity, type CalEvent, type Calendar, type Lesson, type Me } from './api'
-import { addDays, isSession, isoDow, parse, sessionTime } from './time'
+import { listActivities, listCalendars, listEvents, listHidden, listLessons, type Activity, type CalEvent, type Calendar, type Lesson, type Me, type SessionType } from './api'
+import { IMPORTANCE, addDays, isSession, isoDow, parse, sessionTime, sessionType } from './time'
 
-export type Item = { key: string; src: string; color: string; title: string; start: Date; end: Date; allDay: boolean; place?: string | null; link?: string; kind: 'activity' | 'event' | 'lesson' }
+export type Item = { key: string; src: string; color: string; title: string; start: Date; end: Date; allDay: boolean; place?: string | null; link?: string; kind: 'activity' | 'event' | 'lesson'; stype?: SessionType }
 export type Source = { key: string; name: string; color: string; editable?: boolean; cal?: Calendar }
 
 export const ACT_COLOR = '#1d5bd8'
@@ -20,8 +20,8 @@ export function buildItems(from: string, to: string, me: Me, d: { activities: Ac
   const mine = d.activities.filter((a) => myActivity(me, a))
   for (let day = from; day <= to; day = addDays(day, 1)) {
     for (const a of mine) if (isSession(a, day)) {
-      const t = sessionTime(a, day)
-      items.push({ key: `a${a.id}${day}`, src: 'activities', color: ACT_COLOR, title: a.title, start: at(day, t.start), end: at(day, t.end), allDay: false, place: a.place, link: `/a/${a.id}`, kind: 'activity' })
+      const t = sessionTime(a, day), stype = sessionType(a, day)
+      items.push({ key: `a${a.id}${day}`, src: 'activities', color: stype ? IMPORTANCE[stype.importance].color : ACT_COLOR, title: a.title, start: at(day, t.start), end: at(day, t.end), allDay: false, place: a.place, link: `/a/${a.id}`, kind: 'activity', stype })
     }
     for (const l of d.lessons) if (l.weekday === isoDow(day))
       items.push({ key: `l${l.id}${day}`, src: 'timetable', color: LESSON_COLOR, title: me.role === 'student' ? l.subject : `${l.subject} · ${l.class.name}`, start: at(day, l.start_time), end: at(day, l.end_time), allDay: false, place: l.room, kind: 'lesson' })

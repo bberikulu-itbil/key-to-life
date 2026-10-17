@@ -1,4 +1,4 @@
-import type { Activity, ActivityStatus, ActivityType, Mark } from './api'
+import type { Activity, ActivityStatus, ActivityType, Mark, SessionType } from './api'
 
 export const TYPE_LABEL: Record<ActivityType, string> = {
   olympiad_prep: 'Олимпиада', club: 'Үйірме', course: 'Курс', event: 'Іс-шара', competition: 'Жарыс', tournament: 'Турнир', challenge: 'Челлендж',
@@ -6,7 +6,7 @@ export const TYPE_LABEL: Record<ActivityType, string> = {
 export const STATUS_LABEL: Record<ActivityStatus, string> = {
   pending_class_teacher: 'Сынып жетекшісінде', pending_deputy: 'Орынбасарда', approved: 'Расталды', rejected: 'Қайтарылды', cancelled: 'Тоқтатылды',
 }
-export const MARK_LABEL: Record<Mark, string> = { present: 'Келді', late: 'Кешікті', excused: 'Рұқсатпен', absent: 'Жоқ' }
+export const MARK_LABEL: Record<Mark, string> = { present: 'Келді', late: 'Кешікті', excused: 'Себепті', absent: 'Келмеді' }
 export const WD_SHORT = ['Дс', 'Сс', 'Ср', 'Бс', 'Жм', 'Сн', 'Жс']   // ISO 1..7
 const MONTHS = ['қаңтар', 'ақпан', 'наурыз', 'сәуір', 'мамыр', 'маусым', 'шілде', 'тамыз', 'қыркүйек', 'қазан', 'қараша', 'желтоқсан']
 
@@ -20,7 +20,7 @@ export const fmtDate = (s: string) => { const d = parse(s); return `${d.getDate(
 export const hm = (t: string) => t.slice(0, 5)
 
 export type TimeSlot = { wd: number; start: string; end: string }
-export type Extra = { id: string; on_date: string; start_time: string; end_time: string; note: string | null }
+export type Extra = { id: string; on_date: string; start_time: string; end_time: string; note: string | null; type_id?: string | null }
 type Sched = Pick<Activity, 'schedule' | 'on_date' | 'weekdays' | 'date_from' | 'date_to'> & { slots?: TimeSlot[] | null; extra?: Extra[] }
 
 /** Same rule as is_session() in the database: regular day (per slot when set) in range, or an added extra date. */
@@ -46,6 +46,15 @@ export function sessions(a: Sched, from: string, to: string) {
   return out
 }
 
+/** Type of the session on day d: the added session's own type, else the activity's default for regular days. */
+export const sessionType = (a: { extra?: Extra[]; types?: SessionType[]; default_type_id?: string | null }, d: string) => {
+  const id = a.extra?.find((x) => x.on_date === d)?.type_id ?? a.default_type_id
+  return a.types?.find((t) => t.id === id)
+}
+export const IMPORTANCE: Record<1 | 2 | 3, { label: string; color: string }> = {
+  1: { label: 'Орташа', color: '#1d5bd8' }, 2: { label: 'Маңызды', color: '#d97706' }, 3: { label: 'Өте маңызды', color: '#dc2626' },
+}
+
 export const lastDay = (a: Sched) => [a.schedule === 'once' ? a.on_date! : a.date_to!, ...(a.extra ?? []).map((x) => x.on_date)].sort().reverse()[0]
 
 export function scheduleLabel(a: Activity) {
@@ -53,7 +62,8 @@ export function scheduleLabel(a: Activity) {
   const extra = a.extra?.length ? ` · +${a.extra.length} күн` : ''
   if (a.schedule === 'once') return `${fmtDate(a.on_date!)} · ${time}${extra}`
   if (a.slots?.length) return [...a.slots].sort((x, y) => x.wd - y.wd).map((s) => `${WD_SHORT[s.wd - 1]} ${s.start}–${s.end}`).join(', ') + extra
-  return `${(a.weekdays ?? []).map((w) => WD_SHORT[w - 1]).join(', ')} · ${time}${extra}`
+  if (!a.weekdays?.length) return a.extra?.length ? `Күнтізбе бойынша · ${a.extra.length} сабақ` : 'Уақыты күнтізбеде қойылады'
+  return `${a.weekdays.map((w) => WD_SHORT[w - 1]).join(', ')} · ${time}${extra}`
 }
 
 export function weekOf(s: string) {

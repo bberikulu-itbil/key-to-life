@@ -59,6 +59,14 @@ export const Card = ({ children, className = '' }: { children: ReactNode; classN
 
 const TONE = { ok: 'bg-success-soft text-success', late: 'bg-late-soft text-late', warn: 'bg-warning-soft text-warning', bad: 'bg-danger-soft text-danger', muted: 'bg-surface-2 text-muted', accent: 'bg-accent-soft text-accent' }
 export type Tone = keyof typeof TONE
+const TYPE_TONE = { 1: 'bg-accent-soft text-accent', 2: 'bg-warning-soft text-warning', 3: 'bg-danger text-on-accent' } as const
+/** Session type chip; «өте маңызды» (3) is filled red with a flag so it stands out in every calendar. */
+export const TypeBadge = ({ t }: { t: { name: string; importance: 1 | 2 | 3 } }) => (
+  <span className={`inline-flex items-center gap-1 rounded-full px-2 h-6 text-xs font-bold align-middle ${TYPE_TONE[t.importance]}`}>
+    {t.importance === 3 && <Icon n="flag" size={12} />}{t.name}
+  </span>
+)
+
 export const Badge = ({ tone, children }: { tone: Tone; children: ReactNode }) => (
   <span className={`${TONE[tone]} inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap`}>
     <span className="size-1.5 rounded-full bg-current" aria-hidden />{children}

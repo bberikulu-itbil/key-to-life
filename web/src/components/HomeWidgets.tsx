@@ -2,7 +2,7 @@ import { Fragment, useState, type ReactNode } from 'react'
 import { errText, listClasses, listDuty, listMenu, listStaff, listTasks, listTeacherDuty, saveMenu, type Me, type Meal } from '../lib/api'
 import { loadAgenda } from '../lib/agenda'
 import { addDays, fmtDate, isoDow, today } from '../lib/time'
-import { Button, Card, Field, Icon, Sheet, Skeleton, inputCls, toast, useLoad } from './ui'
+import { Button, Card, Field, Icon, Sheet, Skeleton, TypeBadge, inputCls, toast, useLoad } from './ui'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
 const Head = ({ icon, title, href, action }: { icon: string; title: string; href?: string; action?: ReactNode }) => (
@@ -38,6 +38,7 @@ export function TodayCard({ me }: { me: Me }) {
                 <span className={`w-12 text-sm tabular-nums font-semibold ${live ? 'text-success' : ''}`}>{live ? 'Қазір' : hhmm(i.start)}</span>
                 <span className="w-1 self-stretch rounded-full" style={{ background: i.color }} />
                 <span className="flex-1 min-w-0"><span className="block truncate font-medium">{i.title}</span>{i.place && <span className="block text-xs text-muted truncate">{i.place}</span>}</span>
+                {i.stype && <TypeBadge t={i.stype} />}
               </a></li>
             )
           })}

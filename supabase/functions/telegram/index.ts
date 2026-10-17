@@ -1,10 +1,13 @@
 // telegram: the Lyceum Life bot.
 //  • internal hook (pg_net, x-hook-secret): mirrors each notification to the linked Telegram chat; leave requests get decision buttons
 //  • Telegram webhook (secret token header): /start <code> links an account, buttons decide a leave, a reply gives the rejection reason
-//  • Mini App calls: login (initData → session), link (initData + JWT), link_url (JWT → t.me deep link)
+//  • Mini App calls: login (initData → session), link (initData + JWT), link_url (JWT → t.me deep link),
+//    group_link_url (JWT → t.me/<bot>?startgroup=<code>), rollcall (JWT → roll call posted to the activity's group)
+//  • in a group, /start <code> (from the startgroup link) links that group to an activity
 //  • GET ?setup=1 registers the webhook, menu button and commands (idempotent)
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { checkInitData } from "./initdata.ts";
+import { esc, rollcallText } from "./rollcall.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const admin = createClient(SB_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -33,7 +36,6 @@ async function secret() {
   return hookSecret;
 }
 
-const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
 // Telegram puts its own launch data in the URL hash, so the route travels in ?r=
 const appButton = (link: string | null, text = "Lyceum Life ашу") => ({ text, web_app: { url: `${APP_URL}?r=${encodeURIComponent(link || "/")}` } });
 
@@ -90,13 +92,16 @@ async function onUpdate(u: any) {
   }
 
   const m = u.message;
+  // a group became a supergroup: its id changes
+  if (m?.migrate_to_chat_id) return admin.from("activities").update({ tg_chat_id: m.migrate_to_chat_id }).eq("tg_chat_id", m.chat.id);
+  if (m?.text && (m.chat?.type === "group" || m.chat?.type === "supergroup")) return onGroup(m);
   if (!m?.text || m.chat?.type !== "private") return;
   const from = m.from;
 
   if (m.text.startsWith("/start")) {
     const code = m.text.split(" ")[1]?.trim();
     if (code) {
-      const { data: c } = await admin.from("telegram_codes").select("user_id, expires_at").eq("code", code).maybeSingle();
+      const { data: c } = await admin.from("telegram_codes").select("user_id, expires_at").eq("code", code).is("activity_id", null).maybeSingle();
       if (!c || new Date(c.expires_at) < new Date()) {
         return tg("sendMessage", { chat_id: m.chat.id, text: "Сілтеменің мерзімі өткен. Қосымшада Профиль → «Байланыстыру» батырмасын қайта басыңыз." });
       }
@@ -129,10 +134,41 @@ async function onUpdate(u: any) {
   return tg("sendMessage", { chat_id: m.chat.id, text: "Қосымшаны ашу үшін төмендегі батырманы басыңыз.", reply_markup: { inline_keyboard: [[appButton("/")]] } });
 }
 
+// deno-lint-ignore no-explicit-any
+async function onGroup(m: any) {
+  const code = /^\/start(?:@\w+)?\s+(\S+)/.exec(m.text)?.[1];
+  if (!code) return;
+  const { data: c } = await admin.from("telegram_codes").select("activity_id, expires_at").eq("code", code).not("activity_id", "is", null).maybeSingle();
+  if (!c || new Date(c.expires_at) < new Date()) {
+    return tg("sendMessage", { chat_id: m.chat.id, text: "Сілтеменің мерзімі өткен. Іс-шара баптауларында «Telegram тобы» батырмасын қайта басыңыз." });
+  }
+  const { data: a } = await admin.from("activities").update({ tg_chat_id: m.chat.id, tg_chat_title: m.chat.title ?? null })
+    .eq("id", c.activity_id).select("title").single();
+  await admin.from("telegram_codes").delete().eq("code", code);
+  return tg("sendMessage", { chat_id: m.chat.id, text: `✅ Бұл топ «${a?.title ?? ""}» іс-шарасына байланысты. Түгелдеу нәтижелері осында жіберіледі.` });
+}
+
+async function sendRollcall(req: Request, activity: string, date: string) {
+  // as the user: rollcall_payload checks that this person keeps the journal
+  const { data: p, error } = await asUser(req).rpc("rollcall_payload", { p_activity: activity, p_date: date });
+  if (error) return json({ error: error.message }, 400);
+  const body = { text: rollcallText(p), parse_mode: "HTML" };
+  let r = await tg("sendMessage", { chat_id: p.chat_id, ...body });
+  const moved = r.parameters?.migrate_to_chat_id;
+  if (!r.ok && moved) {
+    await admin.from("activities").update({ tg_chat_id: moved }).eq("tg_chat_id", p.chat_id);
+    r = await tg("sendMessage", { chat_id: moved, ...body });
+  }
+  return r.ok ? json({ ok: true }) : json({ error: "Топқа жіберілмеді: бот топтан шығарылған болуы мүмкін. Баптауларда топты қайта байланыстырыңыз." }, 400);
+}
+
 async function linkAccount(userId: string, tgId: number, username?: string) {
   await admin.from("telegram_links").update({ tg_id: null, tg_username: null }).eq("tg_id", tgId).neq("user_id", userId);
   await admin.from("telegram_links").upsert({ user_id: userId, tg_id: tgId, tg_username: username ?? null, linked_at: new Date().toISOString() });
 }
+
+// RPCs as the calling user, so the database checks their rights
+const asUser = (req: Request) => createClient(SB_URL, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: req.headers.get("authorization") ?? "" } }, auth: { persistSession: false } });
 
 async function userFromJwt(req: Request) {
   const jwt = req.headers.get("authorization")?.replace("Bearer ", "") ?? "";
@@ -204,6 +240,12 @@ Deno.serve(async (req) => {
       await admin.from("telegram_codes").insert({ code, user_id: user.id });
       return json({ url: `https://t.me/${await botUsername()}?start=${code}` });
     }
+    if (body.action === "group_link_url") {
+      const { data: code, error } = await asUser(req).rpc("telegram_group_code", { p_activity: String(body.activity ?? "") });
+      if (error) return json({ error: error.message }, 400);
+      return json({ url: `https://t.me/${await botUsername()}?startgroup=${code}` });
+    }
+    if (body.action === "rollcall") return await sendRollcall(req, String(body.activity ?? ""), String(body.date ?? ""));
     return json({ error: "Белгісіз әрекет" }, 400);
   } catch (e) {
     console.error(e);

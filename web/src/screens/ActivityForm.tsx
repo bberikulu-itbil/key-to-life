@@ -5,10 +5,11 @@ import { useMe } from '../App'
 import { Button, Card, ErrorBox, Field, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 
 type F = { type: ActivityType; title: string; description: string; supervisor_id: string; place: string; audience: number[]; capacity: string
-  schedule: 'once' | 'weekly'; on_date: string; weekdays: number[]; date_from: string; date_to: string; start_time: string; end_time: string
+  schedule: 'once' | 'weekly' | 'calendar'; on_date: string; weekdays: number[]; date_from: string; date_to: string; start_time: string; end_time: string
   perDay: boolean; times: Record<number, { start: string; end: string }>; extra: { date: string; start: string; end: string }[] }
 
 const GRADES = [5, 6, 7, 8, 9, 10, 11]
+const SCHEDULE = { weekly: 'Апта сайын', once: 'Бір рет', calendar: 'Күнтізбеде' } as const
 
 export function validate(f: F, t = today()): Partial<Record<keyof F, string>> {
   const e: Partial<Record<keyof F, string>> = {}
@@ -18,8 +19,8 @@ export function validate(f: F, t = today()): Partial<Record<keyof F, string>> {
   if (f.place.trim().length < 2) e.place = 'Өтетін орнын жазыңыз'
   if (f.capacity && !(+f.capacity >= 1 && +f.capacity <= 2000)) e.capacity = '1-ден 2000-ға дейін'
   if (f.schedule === 'once' && (!f.on_date || f.on_date < t)) e.on_date = 'Бүгін немесе кейінгі күнді таңдаңыз'
-  if (f.schedule === 'weekly') {
-    if (!f.weekdays.length) e.weekdays = 'Кемінде бір күн таңдаңыз'
+  if (f.schedule !== 'once') {
+    if (f.schedule === 'weekly' && !f.weekdays.length) e.weekdays = 'Кемінде бір күн таңдаңыз'
     if (!f.date_from || !f.date_to || f.date_to < f.date_from) e.date_to = 'Кезеңнің соңы басынан кейін болуы керек'
     else if (f.date_to < t) e.date_to = 'Кезеңнің соңы өтіп кеткен'
   }
@@ -49,7 +50,7 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
     getActivity(src).then((a) => {
       setApproved(!!id && a.status === 'approved')
       setF({ type: a.type, title: a.title, description: a.description, supervisor_id: a.supervisor_id, place: a.place, audience: a.audience_grades,
-        capacity: a.capacity ? String(a.capacity) : '', schedule: a.schedule, on_date: a.on_date ?? addDays(t, 7), weekdays: a.weekdays ?? [],
+        capacity: a.capacity ? String(a.capacity) : '', schedule: a.schedule === 'weekly' && !a.weekdays?.length ? 'calendar' : a.schedule, on_date: a.on_date ?? addDays(t, 7), weekdays: a.weekdays ?? [],
         date_from: a.date_from ?? t, date_to: a.date_to ?? addDays(t, 60), start_time: a.start_time.slice(0, 5), end_time: a.end_time.slice(0, 5),
         perDay: !!a.slots?.length, times: Object.fromEntries((a.slots ?? []).map((x) => [x.wd, { start: x.start, end: x.end }])), extra: [] })
       setLoaded(true)
@@ -67,9 +68,9 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
     try {
       const slots = f.schedule === 'weekly' && f.perDay ? f.weekdays.map((wd) => ({ wd, ...(f.times[wd] ?? { start: f.start_time, end: f.end_time }) })) : []
       const p = { type: f.type, title: f.title.trim(), description: f.description.trim(), supervisor_id: f.supervisor_id, place: f.place.trim(),
-        audience_grades: f.audience, capacity: f.capacity || null, schedule: f.schedule,
+        audience_grades: f.audience, capacity: f.capacity || null, schedule: f.schedule === 'once' ? 'once' : 'weekly',
         start_time: slots[0]?.start ?? f.start_time, end_time: slots[0]?.end ?? f.end_time, slots,
-        ...(f.schedule === 'once' ? { on_date: f.on_date, extra: f.extra } : { weekdays: f.weekdays, date_from: f.date_from, date_to: f.date_to }) }
+        ...(f.schedule === 'once' ? { on_date: f.on_date, extra: f.extra } : { weekdays: f.schedule === 'calendar' ? [] : f.weekdays, date_from: f.date_from, date_to: f.date_to }) }
       if (approved && id) { await updateActivity(id, p); toast('Сақталды. Уақыты өзгерсе, қатысушыларға хабар кетті'); go(`/a/${id}`); return }
       const newId = await submitActivity(p, id)
       toast(me.role === 'deputy' || me.role === 'admin' ? 'Жарияланды' : me.role === 'student' ? 'Сынып жетекшісіне жіберілді' : 'Орынбасарға жіберілді')
@@ -108,17 +109,18 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
       </Card>
 
       <Card className="grid gap-4">
-        <div role="radiogroup" aria-label="Кесте түрі" className="grid grid-cols-2 gap-1 bg-surface-2 rounded-md p-1">
-          {(['weekly', 'once'] as const).map((k) => (
+        <div role="radiogroup" aria-label="Кесте түрі" className="grid grid-cols-3 gap-1 bg-surface-2 rounded-md p-1">
+          {(['weekly', 'once', 'calendar'] as const).map((k) => (
             <button key={k} type="button" role="radio" aria-checked={f.schedule === k} onClick={() => set('schedule', k)}
-              className={`h-10 rounded-sm text-sm font-semibold ${f.schedule === k ? 'bg-surface shadow-card' : 'text-muted'}`}>{k === 'weekly' ? 'Апта сайын' : 'Бір рет'}</button>
+              className={`min-h-10 rounded-sm text-sm font-semibold leading-tight ${f.schedule === k ? 'bg-surface shadow-card' : 'text-muted'}`}>{SCHEDULE[k]}</button>
           ))}
         </div>
+        {f.schedule === 'calendar' && <p className="text-sm text-muted">Іс-шара құрылғаннан кейін Күнтізбе бөлімінде сабақтарды қосасыз: түрі (мысалы Çalışma, Camp, KBO), күні, қайталануы. Төмендегі уақыт — жаңа сабақтың әдепкі уақыты.</p>}
         {f.schedule === 'once' ? (
           <Field label="Күні" error={errors.on_date}>{(fid, d) => <input id={fid} aria-describedby={d} type="date" min={t} value={f.on_date} onChange={(e) => set('on_date', e.target.value)} className={inputCls} />}</Field>
         ) : (
           <>
-            <fieldset className="grid gap-1.5">
+            {f.schedule === 'weekly' && <fieldset className="grid gap-1.5">
               <legend className="text-sm font-semibold mb-1.5">Апта күндері</legend>
               <div className="grid grid-cols-7 gap-1">
                 {WD_SHORT.map((w, i) => (
@@ -127,7 +129,7 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
                 ))}
               </div>
               {errors.weekdays && <p className="text-sm text-danger">{errors.weekdays}</p>}
-            </fieldset>
+            </fieldset>}
             <div className="grid grid-cols-2 gap-3">
               <Field label="Басталуы">{(fid) => <input id={fid} type="date" value={f.date_from} onChange={(e) => set('date_from', e.target.value)} className={inputCls} />}</Field>
               <Field label="Аяқталуы" error={errors.date_to}>{(fid, d) => <input id={fid} aria-describedby={d} type="date" min={t} value={f.date_to} onChange={(e) => set('date_to', e.target.value)} className={inputCls} />}</Field>

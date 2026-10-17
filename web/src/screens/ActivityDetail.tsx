@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   decideAbsence, decideActivity, getActivity, getAttendance, joinActivity, leaveActivity, listRequests, markAttendance,
-  errText, listLeaves, activityChatId, myAttendance, setActivityFeatures, activityAttendance, addSession, removeSession, type ActivityFull, type Feature, type Mark,
+  errText, listLeaves, activityChatId, myAttendance, setActivityFeatures, activityAttendance, addSessions, removeSession, tgSendRollcall, type ActivityFull, type Feature, type Mark, type MarkRow,
 } from '../lib/api'
 import { when } from './Leaves'
-import { MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessions, today } from '../lib/time'
+import { IMPORTANCE, MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, addDays, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessionType, sessions, today } from '../lib/time'
 import Tasks from '../components/Tasks'
 import Avatar from '../components/Avatar'
 import ActivityFeed from '../components/ActivityFeed'
@@ -13,7 +13,7 @@ import { needsMyDecision } from './Activities'
 import { statusTone } from '../components/ActivityCard'
 import AbsenceForm from './AbsenceForm'
 import Syllabus from '../components/Syllabus'
-import { Badge, Button, Card, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import { Badge, Button, Card, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, TypeBadge, go, inputCls, toast, useLoad } from '../components/ui'
 
 const CATEGORY: Record<string, string> = { illness: 'Денсаулық', school_exam: 'Мектеп емтиханы', family: 'Отбасылық жағдай', competition: 'Басқа жарыс', other: 'Басқа себеп' }
 
@@ -187,6 +187,10 @@ function JoinButton({ a, grade, busy, onJoin }: { a: ActivityFull; grade?: numbe
 /* ---------- journal ---------- */
 const MARKS: Mark[] = ['present', 'late', 'excused', 'absent']
 const MARK_ON: Record<Mark, string> = { present: 'bg-success-soft text-success', late: 'bg-late-soft text-late', excused: 'bg-warning-soft text-warning', absent: 'bg-danger-soft text-danger' }
+const MARK_ICON: Record<Mark, string> = { present: 'check', late: 'clock', excused: 'file', absent: 'x' }
+const LATE_MIN = [5, 10, 15, 20]
+const EXCUSE: [NonNullable<MarkRow['excuse']>, string][] = [['sick', 'Ауырып қалды'], ['other', 'Басқа себеп']]
+const same = (x?: MarkRow, y?: MarkRow) => x?.status === y?.status && (x?.late_min ?? null) === (y?.late_min ?? null) && (x?.excuse ?? null) === (y?.excuse ?? null)
 
 function Journal({ a, fixed }: { a: ActivityFull; fixed?: string }) {
   const start = [a.schedule === 'once' ? a.on_date! : a.date_from!, ...a.extra.map((x) => x.on_date)].sort()[0]
@@ -194,15 +198,15 @@ function Journal({ a, fixed }: { a: ActivityFull; fixed?: string }) {
   const dates = useMemo(() => sessions(a, start, end), [a, start, end])
   const initialDate = dates.includes(today()) ? today() : dates.filter((d) => d <= today()).slice(-1)[0] ?? dates[0] ?? ''
   const [date, setDate] = useState(fixed ?? initialDate)
-  const [marks, setMarks] = useState<Record<string, Mark>>({})
-  const [saved, setSaved] = useState<Record<string, Mark>>({})
-  const [busy, setBusy] = useState(false)
+  const [marks, setMarks] = useState<Record<string, MarkRow>>({})
+  const [saved, setSaved] = useState<Record<string, MarkRow>>({})
+  const [busy, setBusy] = useState<'' | 'save' | 'all' | 'send'>('')
   const students = a.enrollments.filter((e) => !e.waitlisted)
 
   const [notes, setNotes] = useState<Record<string, { text: string; sick: boolean }>>({})
   useEffect(() => {
     if (!date) return
-    getAttendance(a.id, date).then((rows) => { const m = Object.fromEntries(rows.map((r) => [r.student_id, r.status])); setMarks(m); setSaved(m) }, (e) => toast(errText(e)))
+    getAttendance(a.id, date).then((rows) => { const m = Object.fromEntries(rows.map(({ student_id, ...r }) => [student_id, r])); setMarks(m); setSaved(m) }, (e) => toast(errText(e)))
     // roll call: show approved leaves overlapping this session and absence requests for this date
     const tm = sessionTime(a, date)
     const s0 = new Date(`${date}T${tm.start}`), s1 = new Date(`${date}T${tm.end}`)
@@ -215,13 +219,21 @@ function Journal({ a, fixed }: { a: ActivityFull; fixed?: string }) {
     }, () => setNotes({}))
   }, [a, date])
 
-  const dirty = students.some((s) => marks[s.student_id] !== saved[s.student_id])
+  const allowed = (id: string) => notes[id]?.text.startsWith('Рұқсат:') || notes[id]?.text === 'Рұқсат берілген'
+  // a known reason fills the excuse: an approved sick leave → «ауырып қалды»
+  const mark = (id: string, status: Mark): MarkRow => status === 'excused' ? { status, excuse: notes[id]?.sick ? 'sick' : allowed(id) ? 'other' : null } : { status }
+  const put = (id: string, r: MarkRow) => setMarks({ ...marks, [id]: r })
+  const dirty = students.some((s) => !same(marks[s.student_id], saved[s.student_id]))
   const save = async (all?: boolean) => {
-    const fill = (id: string): Mark => (notes[id]?.text.startsWith('Рұқсат:') || notes[id]?.text === 'Рұқсат берілген' ? 'excused' : 'present')
-    const next = all ? Object.fromEntries(students.map((s) => [s.student_id, marks[s.student_id] ?? fill(s.student_id)])) as Record<string, Mark> : marks
-    const rows = Object.entries(next).filter(([, v]) => v).map(([student_id, status]) => ({ student_id, status }))
-    setBusy(true)
-    try { await markAttendance(a.id, date, rows); setMarks(next); setSaved(next); toast('Журнал сақталды') } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+    const next = all ? Object.fromEntries(students.map((s) => [s.student_id, marks[s.student_id] ?? mark(s.student_id, allowed(s.student_id) ? 'excused' : 'present')])) : marks
+    const rows = Object.entries(next).map(([student_id, r]) => ({ student_id, ...r }))
+    setBusy(all ? 'all' : 'save')
+    try { await markAttendance(a.id, date, rows); setMarks(next); setSaved(next); toast('Журнал сақталды'); return true } catch (e) { toast(errText(e)); return false } finally { setBusy('') }
+  }
+  const send = async () => {
+    if (dirty && !(await save())) return
+    setBusy('send')
+    try { await tgSendRollcall(a.id, date); toast(`«${a.tg_chat_title}» тобына жіберілді`) } catch (e) { toast(errText(e)) } finally { setBusy('') }
   }
 
   return (
@@ -235,31 +247,56 @@ function Journal({ a, fixed }: { a: ActivityFull; fixed?: string }) {
                 {dates.map((d) => <option key={d} value={d}>{fmtDate(d)}{d === today() ? ' (бүгін)' : ''}</option>)}
               </select>}
             </Field>}
+            <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted" aria-hidden>
+              {MARKS.map((m) => <span key={m} className="inline-flex items-center gap-1"><span className={`size-5 rounded-sm grid place-items-center ${MARK_ON[m]}`}><Icon n={MARK_ICON[m]} size={13} /></span>{MARK_LABEL[m]}</span>)}
+            </p>
             <div className="grid divide-y divide-line">
-              {students.map((s) => (
-                <div key={s.student_id} className="grid gap-2 py-3">
-                  <span className="flex items-center gap-3"><Avatar name={s.student.full_name} photo={s.student.photo} size={48} />
-                    <span className="font-medium min-w-0">{s.student.full_name} <span className="text-sm text-muted">{s.student.class?.name}</span></span></span>
-                  {notes[s.student_id] && <span className={`text-sm ${notes[s.student_id].sick ? 'text-danger' : 'text-warning'}`}>{notes[s.student_id].sick ? 'Ауырып қалған · ' : ''}{notes[s.student_id].text}</span>}
-                  <div role="radiogroup" aria-label={s.student.full_name} className="grid grid-cols-4 gap-1 bg-surface-2 rounded-md p-1">
-                    {MARKS.map((m) => (
-                      <button key={m} type="button" role="radio" aria-checked={marks[s.student_id] === m} onClick={() => setMarks({ ...marks, [s.student_id]: m })}
-                        className={`h-10 rounded-sm text-[13px] font-semibold min-w-0 ${marks[s.student_id] === m ? MARK_ON[m] : 'text-muted'}`}>{MARK_LABEL[m]}</button>
-                    ))}
+              {students.map((s) => {
+                const r = marks[s.student_id]
+                return (
+                  <div key={s.student_id} className="grid grid-cols-[48px_1fr] gap-x-3 gap-y-2 py-3">
+                    <Avatar name={s.student.full_name} photo={s.student.photo} size={48} />
+                    <div className="grid gap-2 min-w-0">
+                      <span className="font-medium leading-snug">{s.student.full_name} <span className="text-sm text-muted">{s.student.class?.name}</span></span>
+                      {notes[s.student_id] && <span className={`text-sm ${notes[s.student_id].sick ? 'text-danger' : 'text-warning'}`}>{notes[s.student_id].sick ? 'Ауырып қалған · ' : ''}{notes[s.student_id].text}</span>}
+                      <div role="radiogroup" aria-label={s.student.full_name} className="grid grid-cols-4 gap-1 bg-surface-2 rounded-md p-1">
+                        {MARKS.map((m) => (
+                          <button key={m} type="button" role="radio" aria-checked={r?.status === m} aria-label={MARK_LABEL[m]} title={MARK_LABEL[m]}
+                            onClick={() => r?.status !== m && put(s.student_id, mark(s.student_id, m))}
+                            className={`h-11 rounded-sm grid place-items-center ${r?.status === m ? MARK_ON[m] : 'text-muted'}`}><Icon n={MARK_ICON[m]} size={20} /></button>
+                        ))}
+                      </div>
+                      {r?.status === 'late' && <Chips label="Қанша минут кешікті" items={LATE_MIN.map((n) => [n, `${n} мин`] as const)} value={r.late_min ?? null} onPick={(v) => put(s.student_id, { ...r, late_min: v })} />}
+                      {r?.status === 'excused' && <Chips label="Себебі" items={EXCUSE} value={r.excuse ?? null} onPick={(v) => put(s.student_id, { ...r, excuse: v })} />}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
             <div className="flex gap-2 flex-wrap">
-              <Button loading={busy} disabled={!dirty} onClick={() => save()}>Сақтау</Button>
-              <Button kind="secondary" disabled={busy} onClick={() => save(true)}>Белгісіздерді «Келді» деп сақтау (рұқсаттылар — «Рұқсатпен»)</Button>
+              <Button loading={busy === 'save'} disabled={!dirty || !!busy} onClick={() => save()}>Сақтау</Button>
+              {a.tg_chat_title && <Button kind="secondary" loading={busy === 'send'} disabled={!!busy || (!dirty && !Object.keys(saved).length)} onClick={send}><Icon n="send" size={18} />Топқа жіберу</Button>}
+              <Button kind="ghost" loading={busy === 'all'} disabled={!!busy} onClick={() => save(true)}>Белгісіздерді «Келді» деп сақтау</Button>
             </div>
+            {a.tg_chat_title && <p className="text-xs text-muted -mt-1">Telegram тобы: {a.tg_chat_title}</p>}
           </Card>
         )}
     </section>
   )
 }
-// shortcut: native confirm() for unsaved journal changes; swap for an in-page dialog if it feels out of place.
+
+/** One choice under a mark (late minutes, excuse); tapping the chosen one clears it. */
+function Chips<T extends string | number>({ label, items, value, onPick }: { label: string; items: readonly (readonly [T, string])[]; value: T | null; onPick: (v: T | null) => void }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
+      {items.map(([v, text]) => (
+        <button key={String(v)} type="button" role="radio" aria-checked={value === v} onClick={() => onPick(value === v ? null : v)}
+          className={`min-h-11 px-3 rounded-full text-sm font-semibold border ${value === v ? 'bg-accent text-on-accent border-transparent' : 'border-input text-muted'}`}>{text}</button>
+      ))}
+    </div>
+  )
+}
+
 const confirmLeave = () => window.confirm('Сақталмаған белгілер жоғалады. Жалғастырасыз ба?')
 
 /* ---------- absence requests ---------- */
@@ -423,20 +460,22 @@ function ActivityCalendar({ a, canEdit, journal, onChange }: { a: ActivityFull; 
             {list.filter((d) => d.startsWith(m)).map((d) => {
               const tm = sessionTime(a, d)
               const x = a.extra.find((e) => e.on_date === d)
+              const ty = sessionType(a, d)
               const marks = (att.data ?? []).filter((r) => r.session_date === d)
               const body = (
                 <>
-                  <span className={`w-11 h-11 rounded-md grid content-center justify-items-center shrink-0 ${d === t ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>
+                  <span className={`w-11 h-11 rounded-md grid content-center justify-items-center shrink-0 ${d === t ? 'bg-accent text-on-accent' : ty?.importance === 3 ? 'bg-danger text-on-accent' : 'bg-surface-2'}`}>
                     <span className="font-bold leading-none tabular-nums">{parse(d).getDate()}</span><span className="text-[10px]">{WD_SHORT[isoDow(d) - 1]}</span>
                   </span>
                   <span className="flex-1 min-w-0">
-                    <span className="block tabular-nums">{tm.start}–{tm.end}{x && <span className="ml-2 text-xs text-accent font-semibold">қосымша</span>}</span>
+                    <span className="flex items-center gap-2 flex-wrap"><span className="tabular-nums">{tm.start}–{tm.end}</span>
+                      {ty && <TypeBadge t={ty} />}{x && !ty && <span className="text-xs text-accent font-semibold">қосымша</span>}</span>
                     <span className="block text-xs text-muted truncate">{x?.note ?? a.place}{journal && d <= t ? (marks.length ? ` · ${rate(marks.map((r) => r.status)) ?? 0}% келді` : ' · журнал толтырылмаған') : ''}</span>
                   </span>
                 </>
               )
               return (
-                <div key={d} className="flex items-center gap-2 pr-2">
+                <div key={d} className={`flex items-center gap-2 pr-2 ${ty?.importance === 3 ? 'bg-danger-soft' : ''}`}>
                   {journal && d <= t
                     ? <button type="button" onClick={() => setOpen(d)} className="flex-1 flex items-center gap-3 px-4 py-2.5 text-left">{body}<Icon n="chev" className="text-muted" /></button>
                     : <div className="flex-1 flex items-center gap-3 px-4 py-2.5">{body}</div>}
@@ -453,24 +492,42 @@ function ActivityCalendar({ a, canEdit, journal, onChange }: { a: ActivityFull; 
   )
 }
 
+const REPEAT: [number, string][] = [[0, 'Бір рет'], [1, 'Күн сайын'], [7, 'Апта сайын'], [14, '2 апта сайын']]
+
 function AddSession({ a, onDone }: { a: ActivityFull; onDone: () => void }) {
-  const [f, setF] = useState({ date: today(), start: hm(a.start_time), end: hm(a.end_time), note: '' })
+  const [f, setF] = useState({ date: today(), start: hm(a.start_time), end: hm(a.end_time), note: '', type: a.default_type_id ?? '', every: 0, until: addDays(today(), 30) })
   const [busy, setBusy] = useState(false)
+  const dates: string[] = []
+  // shortcut: at most 200 dates per add, enough for a school year of weekly sessions
+  for (let d = f.date; d && dates.length < 200 && (d === f.date || (f.every > 0 && d <= f.until)); d = addDays(d, f.every || 1)) dates.push(d)
   const save = async () => {
     if (!f.date || f.end <= f.start) return toast('Күн мен уақытты тексеріңіз')
+    if (f.every && f.until < f.date) return toast('«Қашанға дейін» күні басталу күнінен кейін болуы керек')
     setBusy(true)
-    try { await addSession({ activity_id: a.id, on_date: f.date, start_time: f.start, end_time: f.end, note: f.note.trim() || null }); toast('Сабақ қосылды, қатысушылардың күнтізбесінде шығады'); onDone() }
-    catch (e) { toast(errText(e)) } finally { setBusy(false) }
+    try {
+      await addSessions(dates.map((d) => ({ activity_id: a.id, on_date: d, start_time: f.start, end_time: f.end, note: f.note.trim() || null, type_id: f.type || null })))
+      toast(`${dates.length} сабақ қосылды, қатысушылардың күнтізбесінде шығады`); onDone()
+    } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
     <div className="grid gap-4">
-      <Field label="Күні">{(id) => <input id={id} type="date" value={f.date} min={today()} onChange={(e) => setF({ ...f, date: e.target.value })} className={inputCls} />}</Field>
+      {a.types.length > 0 && <Field label="Түрі" hint="Түрлерді баптауларда қосасыз">{(id, d) => <select id={id} aria-describedby={d} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className={inputCls}>
+        <option value="">Түрсіз</option>
+        {a.types.map((t) => <option key={t.id} value={t.id}>{t.name} · {IMPORTANCE[t.importance].label.toLowerCase()}</option>)}</select>}</Field>}
+      <Field label={f.every ? 'Басталу күні' : 'Күні'}>{(id) => <input id={id} type="date" value={f.date} min={today()} onChange={(e) => setF({ ...f, date: e.target.value })} className={inputCls} />}</Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Басталуы">{(id) => <input id={id} type="time" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} className={inputCls} />}</Field>
         <Field label="Аяқталуы">{(id) => <input id={id} type="time" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} className={inputCls} />}</Field>
       </div>
-      <Field label="Ескерту" hint="Мысалы: қосымша сабақ, басқа кабинет">{(id, d) => <input id={id} aria-describedby={d} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} className={inputCls} />}</Field>
-      <Button block loading={busy} onClick={save}>Қосу</Button>
+      <div role="radiogroup" aria-label="Қайталау" className="grid grid-cols-2 gap-1 bg-surface-2 rounded-md p-1">
+        {REPEAT.map(([n, label]) => (
+          <button key={n} type="button" role="radio" aria-checked={f.every === n} onClick={() => setF({ ...f, every: n })}
+            className={`h-10 rounded-sm text-sm font-semibold ${f.every === n ? 'bg-surface shadow-card' : 'text-muted'}`}>{label}</button>
+        ))}
+      </div>
+      {f.every > 0 && <Field label="Қашанға дейін" hint={`${dates.length} сабақ қосылады`}>{(id, d) => <input id={id} aria-describedby={d} type="date" value={f.until} min={f.date} onChange={(e) => setF({ ...f, until: e.target.value })} className={inputCls} />}</Field>}
+      <Field label="Ескерту" hint="Мысалы: басқа кабинет, лагерь орны">{(id, d) => <input id={id} aria-describedby={d} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} className={inputCls} />}</Field>
+      <Button block loading={busy} onClick={save}>{dates.length > 1 ? `${dates.length} сабақ қосу` : 'Қосу'}</Button>
     </div>
   )
 }

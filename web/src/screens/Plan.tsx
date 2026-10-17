@@ -5,7 +5,7 @@ import { WD_SHORT, addDays, fmtDate, parse, today, weekOf } from '../lib/time'
 import { useMe, isApprover } from '../App'
 import { needsMyDecision } from './Activities'
 import { waitsForMe } from './Leaves'
-import { Button, Card, Empty, ErrorBox, Icon, Skeleton, go, useLoad } from '../components/ui'
+import { Button, Card, Empty, ErrorBox, Icon, Skeleton, TypeBadge, go, useLoad } from '../components/ui'
 import Tasks from '../components/Tasks'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
@@ -62,7 +62,7 @@ export default function Plan() {
             const sel = d === day
             return (
               <button key={d} type="button" aria-pressed={sel} onClick={() => setDay(d)} aria-label={`${fmtDate(d)}, ${items.length} жазба`}
-                className={`grid justify-items-center gap-0.5 rounded-md py-1.5 ${sel ? 'bg-accent text-on-accent' : d === t ? 'text-accent' : ''}`}>
+                className={`grid justify-items-center gap-0.5 rounded-md py-1.5 ${sel ? 'bg-accent text-on-accent' : d === t ? 'text-accent' : ''} ${items.some((x) => x.stype?.importance === 3) ? 'ring-2 ring-danger' : ''}`}>
                 <span className={`text-xs ${sel ? '' : 'text-muted'}`}>{WD_SHORT[i]}</span>
                 <span className="text-lg font-semibold tabular-nums">{parse(d).getDate()}</span>
                 <span className="flex gap-0.5 h-1.5">{[...new Set(items.map((x) => x.color))].slice(0, 3).map((c) => <span key={c} className="size-1.5 rounded-full" style={{ background: sel ? 'var(--on-accent)' : c }} />)}</span>
@@ -90,12 +90,12 @@ export default function Plan() {
                   <span className="grid grid-cols-[52px_1fr] gap-3 py-3">
                     <span className="text-sm tabular-nums text-right pt-0.5">{i.allDay ? 'Күні бойы' : <>{hhmm(i.start)}<br /><span className="text-muted">{hhmm(i.end)}</span></>}</span>
                     <span className="min-w-0 border-l-[3px] pl-3" style={{ borderColor: i.color }}>
-                      <span className="block font-semibold break-words">{i.title}{live && <span className="ml-2 text-xs text-success font-semibold">Қазір</span>}</span>
+                      <span className="block font-semibold break-words">{i.title}{i.stype && <span className="ml-2"><TypeBadge t={i.stype} /></span>}{live && <span className="ml-2 text-xs text-success font-semibold">Қазір</span>}</span>
                       {i.place && <span className="flex items-center gap-1 text-sm text-muted"><Icon n="pin" size={14} />{i.place}</span>}
                     </span>
                   </span>
                 )
-                return <li key={i.key} className={past ? 'opacity-60' : ''}>{i.link ? <a href={`#${i.link}`}>{body}</a> : body}</li>
+                return <li key={i.key} className={`${past ? 'opacity-60' : ''} ${i.stype?.importance === 3 ? 'bg-danger-soft -mx-4 px-4' : ''}`}>{i.link ? <a href={`#${i.link}`}>{body}</a> : body}</li>
               })}
             </ol>
           </Card>
