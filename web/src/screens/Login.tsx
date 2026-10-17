@@ -4,6 +4,7 @@ import { inTelegram, tg } from '../lib/telegram'
 import { Button, Field, inputCls } from '../components/ui'
 import { tx } from '../lib/i18n'
 import { LangChips } from '../components/LangPicker'
+import Register from './Register'
 
 export default function Login() {
   const [iin, setIin] = useState('')
@@ -11,6 +12,7 @@ export default function Login() {
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [auto, setAuto] = useState(inTelegram)
+  const [signup, setSignup] = useState(false)
 
   // inside Telegram: a linked account signs in by itself
   useEffect(() => {
@@ -20,6 +22,7 @@ export default function Login() {
       .catch(() => setAuto(false))
   }, [])
 
+  if (signup) return <Register onBack={() => setSignup(false)} />
   if (auto) return <div className="min-h-dvh grid place-items-center text-muted">{tx('Telegram арқылы кіру…')}</div>
 
   async function submit(e: FormEvent) {
@@ -48,6 +51,7 @@ export default function Login() {
         {inTelegram && <p className="text-sm rounded-md bg-accent-soft text-accent p-3">{tx('Бір рет ЖСН-мен кіріңіз. Telegram аккаунтыңыз байланысады да, келесі жолы өзі кіреді.')}</p>}
         {err && /^\d{12}$/.test(iin) && <p role="alert" className="text-sm text-danger">{err}</p>}
         <Button type="submit" block loading={busy}>{tx('Кіру')}</Button>
+        <Button kind="ghost" onClick={() => setSignup(true)}>{tx('Аккаунтым жоқ — тіркелу')}</Button>
       </form>
     </main>
   )

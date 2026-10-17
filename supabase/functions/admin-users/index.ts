@@ -1,4 +1,4 @@
-// admin-users: creates accounts (staff only) and seeds a demo school once.
+// admin-users: creates accounts (staff only), self sign-up (pending until approved) and seeds a demo school once.
 // Login = ЖСН + password. ЖСН lives only in the auth email, never in profiles.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
@@ -122,6 +122,38 @@ async function createByStaff(req: Request, body: Record<string, string>) {
   }
 }
 
+// sign-up form choices: schools and their classes (names only)
+async function schoolList() {
+  const [{ data: schools }, { data: classes }] = await Promise.all([
+    admin.from("schools").select("id, name").order("name"),
+    admin.from("classes").select("id, name, school_id").order("grade").order("name"),
+  ]);
+  return json({ schools: schools ?? [], classes: classes ?? [] });
+}
+
+// shortcut: no rate limit on sign-up; each request needs a new ЖСН and an approver, add a captcha if spam appears
+async function register(b: Record<string, string>) {
+  const iin = String(b.iin ?? ""), password = String(b.password ?? ""), name = String(b.full_name ?? "").trim(), role = b.role;
+  if (!/^\d{12}$/.test(iin)) return json({ error: "ЖСН 12 саннан тұруы керек" }, 400);
+  if (password.length < 6 || password.length > 72) return json({ error: "Құпия сөз кемінде 6 таңба" }, 400);
+  if (name.length < 2 || name.length > 120) return json({ error: "Аты-жөнін толық жазыңыз" }, 400);
+  if (role !== "student" && role !== "teacher") return json({ error: "Рөл қате" }, 400);
+  const { data: school } = await admin.from("schools").select("id").eq("id", b.school_id ?? "").maybeSingle();
+  if (!school) return json({ error: "Мектепті таңдаңыз" }, 400);
+  let classId: string | null = null;
+  if (role === "student") {
+    const { data: cls } = await admin.from("classes").select("id").eq("id", b.class_id ?? "").eq("school_id", school.id).maybeSingle();
+    if (!cls) return json({ error: "Сыныпты таңдаңыз" }, 400);
+    classId = cls.id;
+  }
+  const { data, error } = await admin.auth.admin.createUser({ email: emailFor(iin), password, email_confirm: true });
+  if (error) return json({ error: error.message.includes("already") ? "Бұл ЖСН-мен пайдаланушы бар" : error.message }, 400);
+  const { error: re } = await admin.from("registrations").insert({ user_id: data.user.id, school_id: school.id, full_name: name, role, class_id: classId,
+    title: role === "teacher" ? (String(b.title ?? "").trim() || null) : null });
+  if (re) { await admin.auth.admin.deleteUser(data.user.id); return json({ error: re.message }, 400); }
+  return json({ ok: true });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -129,5 +161,7 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: "JSON қате" }, 400); }
   if (body.action === "bootstrap") return bootstrap();
   if (body.action === "create") return createByStaff(req, body);
+  if (body.action === "schools") return schoolList();
+  if (body.action === "register") return register(body);
   return json({ error: "Белгісіз әрекет" }, 400);
 });

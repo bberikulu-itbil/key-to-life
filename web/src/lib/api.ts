@@ -115,6 +115,25 @@ export const decideAbsence = (id: string, approve: boolean, note?: string) => rp
 export const markRead = () => rpc('mark_notifications_read', {})
 export const attendanceRate = (student: string) => rpc<number | null>('attendance_rate', { p_student: student })
 
+async function adminUsers<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('admin-users', { body })
+  if (error) {
+    const msg = await (error as { context?: Response }).context?.json?.().catch(() => null)
+    throw new Error(msg?.error ?? errText(error))
+  }
+  return data as T
+}
+
+/* ---------- self sign-up: a pending account until an admin or the class teacher approves ---------- */
+export const signupOptions = () => adminUsers<{ schools: { id: string; name: string }[]; classes: { id: string; name: string; school_id: string }[] }>({ action: 'schools' })
+export const registerAccount = (b: { iin: string; password: string; full_name: string; role: 'student' | 'teacher'; school_id: string; class_id?: string; title?: string }) =>
+  adminUsers<{ ok: boolean }>({ action: 'register', ...b })
+export type Registration = { user_id: string; full_name: string; role: 'student' | 'teacher'; title: string | null; status: 'pending' | 'approved' | 'rejected'; note: string | null; created_at: string; class: { name: string } | null }
+const REG = 'user_id, full_name, role, title, status, note, created_at, class:classes(name)'
+export const myRegistration = (uid: string) => ok(supabase.from('registrations').select(REG).eq('user_id', uid).maybeSingle()) as unknown as Promise<Registration | null>
+export const listRegistrations = () => ok(supabase.from('registrations').select(REG).eq('status', 'pending').order('created_at')) as unknown as Promise<Registration[]>
+export const decideRegistration = (id: string, approve: boolean, note?: string) => rpc('decide_registration', { p_user: id, p_approve: approve, p_note: note ?? null })
+
 export async function addUser(body: { full_name: string; iin: string; role: Role; class_id?: string; title?: string }) {
   const { data, error } = await supabase.functions.invoke('admin-users', { body: { action: 'create', ...body } })
   if (error) {

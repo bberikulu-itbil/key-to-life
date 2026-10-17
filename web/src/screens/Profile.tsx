@@ -64,6 +64,7 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
       {staff && <Section title={tx('Мұғалімге')} links={[
         ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'users', tx('Менің сыныбым'), tx('Оқушылар, суреттер, кім сыртта')] as [string, string, string, string]] : []),
         ...(isApprover(me) ? [['#/activities/review', 'check', tx('Растау күтуде'), tx('Оқушылардың іс-шара ұсыныстары')] as [string, string, string, string]] : []),
+        ...(me.role === 'admin' || myClass.data?.teacher_id === me.id ? [['#/registrations', 'userplus', tx('Тіркелу өтініштері'), tx('Растауды күтетін жаңа аккаунттар')] as [string, string, string, string]] : []),
         ['#/duty', 'users', tx('Кезекшіліктер'), tx('Мұғалімдер мен орынбасарлар')],
         ['#/v/', 'check', tx('QR тексеру'), tx('Рұқсат немесе бронь кодын тексеру')],
         ...(isApprover(me) ? [['#/chats/reports', 'flag', tx('Чат шағымдары')] as [string, string, string]] : []),

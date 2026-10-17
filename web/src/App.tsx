@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { getMe, myChats, setMyLang, supabase, tgLink, unreadCount, type Me } from './lib/api'
+import { getMe, myChats, myRegistration, setMyLang, supabase, tgLink, unreadCount, type Me, type Registration } from './lib/api'
+import Registrations from './screens/Registrations'
+import { Pending } from './screens/Register'
 import { chosen, setLang } from './lib/i18n'
 import { FirstRunLang } from './components/LangPicker'
 import { inTelegram, syncBackButton, tg } from './lib/telegram'
@@ -43,6 +45,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [me, setMe] = useState<Me | null>(null)
   const [err, setErr] = useState('')
+  const [reg, setReg] = useState<Registration | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -51,7 +54,11 @@ export default function App() {
   }, [])
   useEffect(() => {
     if (!session) { setMe(null); return }
-    getMe(session.user.id).then(setMe, (e) => setErr(String(e.message ?? e)))
+    // no profile yet: a self sign-up waiting for approval
+    getMe(session.user.id).then(setMe, async (e) => {
+      const r = await myRegistration(session.user.id).catch(() => null)
+      if (r) setReg(r); else setErr(String(e.message ?? e))
+    })
   }, [session?.user.id])
   // a language picked on another device follows the account; one picked here is saved to it (the bot uses it)
   useEffect(() => {
@@ -60,8 +67,9 @@ export default function App() {
     else if (chosen && me.lang !== chosen) setMyLang(chosen).catch(() => {})
   }, [me])
 
-  if (session === undefined || (session && !me && !err)) return <div className="min-h-dvh grid place-items-center text-muted">{tx('Жүктелуде…')}</div>
+  if (session === undefined || (session && !me && !err && !reg)) return <div className="min-h-dvh grid place-items-center text-muted">{tx('Жүктелуде…')}</div>
   if (!session) return <><Login /><Toaster /></>
+  if (!me && reg) return <Pending name={reg.full_name} status={reg.status} note={reg.note} onCheck={() => location.reload()} onSignOut={() => { setReg(null); supabase.auth.signOut() }} />
   if (!me) return <div className="p-6 text-danger" role="alert">{tx('Профиль табылмады:')}{' '}{err}. <button className="underline" onClick={() => supabase.auth.signOut()}>{tx('Шығу')}</button></div>
   if (!chosen) return me.lang ? null : <><FirstRunLang signedIn /><Toaster /></>
   return <Shell me={me} />
@@ -108,6 +116,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'proposals') screen = <Feed key="proposals" query="" page="proposals" />
   else if (seg === 'menu') screen = <div className="grid gap-3 pb-6"><PageHead title={tx('Асхана')} back /><MenuCard me={me} /></div>
   else if (seg === 'feedback') screen = <Feedback />
+  else if (seg === 'registrations') screen = <Registrations />
   else if (seg === 'surveys' && id === 'new') screen = <SurveyNew />
   else if (seg === 'surveys' && id) screen = <SurveyView key={id} id={id} />
   else if (seg === 'surveys') screen = <Surveys />
