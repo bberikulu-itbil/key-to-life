@@ -53,7 +53,7 @@ export default function Calendars() {
                 <div key={s.key} className="flex items-center gap-3 px-4 min-h-14">
                   <span className="size-3 rounded-full shrink-0" style={{ background: s.color }} aria-hidden />
                   <span className={`flex-1 min-w-0 ${hidden ? 'text-muted line-through' : ''}`}>{s.name}
-                    {s.key === 'activities' && <span className="block text-xs text-muted no-underline">{tx('Жазылған іс-шаралар автоматты түрде')}</span>}
+                    {s.key === 'activities' && <span className="block text-xs text-muted no-underline">{tx('Жазылған бастамалар автоматты түрде')}</span>}
                   </span>
                   <button type="button" role="switch" aria-checked={!hidden} aria-label={`${s.name}: ${hidden ? tx('жасырылған') : tx('көрінеді')}`} onClick={() => toggle(s.key, !hidden)}
                     className={`w-12 h-7 rounded-full p-0.5 transition-colors ${hidden ? 'bg-surface-2 border border-input' : 'bg-accent'}`}>

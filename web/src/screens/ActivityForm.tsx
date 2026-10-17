@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { errText, getActivity, listStaff, submitActivity, updateActivity, type ActivityType } from '../lib/api'
-import { TYPE_LABEL, WD_SHORT, addDays, today } from '../lib/time'
+import { TYPE_GROUPS, TYPE_LABEL, WD_SHORT, addDays, today } from '../lib/time'
 import { useMe } from '../App'
 import { Button, Card, ErrorBox, Field, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
@@ -80,18 +80,18 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
   }
 
   if (!loaded) return <><PageHead title={tx('Өңдеу')} back />{err ? <ErrorBox text={err} /> : <Skeleton />}</>
-  const route = me.role === 'deputy' || me.role === 'admin' ? tx('Сіз орынбасарсыз — іс-шара бірден жарияланады.')
+  const route = me.role === 'deputy' || me.role === 'admin' ? tx('Сіз орынбасарсыз — бастама бірден жарияланады.')
     : me.role === 'student' ? tx('Ұсыныс алдымен сынып жетекшіңізге, содан кейін орынбасарға барады.') : tx('Ұсынысты орынбасар растайды.')
 
   return (
     <form onSubmit={submit} noValidate className="grid gap-4 pb-6">
-      <PageHead title={approved ? tx('Іс-шараны өңдеу') : id ? tx('Ұсынысты өңдеу') : copyOf ? tx('Көшірмесін жасау') : tx('Іс-шара ұсыну')} back />
+      <PageHead title={approved ? tx('Бастаманы өңдеу') : id ? tx('Ұсынысты өңдеу') : copyOf ? tx('Көшірмесін жасау') : tx('Бастама ұсыну')} back />
       <p className="text-sm text-muted -mt-2">{route}</p>
 
       <Card className="grid gap-4">
         <Field label={tx('Түрі')}>
           {(fid) => <select id={fid} value={f.type} onChange={(e) => set('type', e.target.value as ActivityType)} className={inputCls}>
-            {Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}
+            {TYPE_GROUPS.map(([g, types]) => <optgroup key={g} label={g}>{types.map((k) => <option key={k} value={k}>{TYPE_LABEL[k]}</option>)}</optgroup>)}</select>}
         </Field>
         <Field label={tx('Атауы')} error={errors.title}>
           {(fid, d) => <input id={fid} aria-describedby={d} aria-invalid={!!errors.title} maxLength={120} value={f.title} onChange={(e) => set('title', e.target.value)} className={inputCls} placeholder={tx('Мысалы: 3D модельдеу үйірмесі')} />}
@@ -116,7 +116,7 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
               className={`min-h-10 rounded-sm text-sm font-semibold leading-tight ${f.schedule === k ? 'bg-surface shadow-card' : 'text-muted'}`}>{SCHEDULE[k]}</button>
           ))}
         </div>
-        {f.schedule === 'calendar' && <p className="text-sm text-muted">{tx('Іс-шара құрылғаннан кейін Күнтізбе бөлімінде сабақтарды қосасыз: түрі (мысалы Çalışma, Camp, KBO), күні, қайталануы. Төмендегі уақыт — жаңа сабақтың әдепкі уақыты.')}</p>}
+        {f.schedule === 'calendar' && <p className="text-sm text-muted">{tx('Бастама құрылғаннан кейін Күнтізбе бөлімінде сабақтарды қосасыз: түрі (мысалы Çalışma, Camp, KBO), күні, қайталануы. Төмендегі уақыт — жаңа сабақтың әдепкі уақыты.')}</p>}
         {f.schedule === 'once' ? (
           <Field label={tx('Күні')} error={errors.on_date}>{(fid, d) => <input id={fid} aria-describedby={d} type="date" min={t} value={f.on_date} onChange={(e) => set('on_date', e.target.value)} className={inputCls} />}</Field>
         ) : (

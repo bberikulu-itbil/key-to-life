@@ -48,7 +48,7 @@ export default function Tasks({ me, activity, canGive }: { me: Me; activity?: Ac
         {(!activity || canGive) && <button type="button" onClick={() => setAdding(true)} className="text-sm text-accent font-semibold min-h-11 px-1">{activity ? tx('Тапсырма беру') : tx('Қосу')}</button>}
       </div>
       {tasks.loading && !tasks.data ? <Skeleton rows={1} /> : !open.length ? (
-        <Card><p className="text-sm text-muted">{done.length ? tx('Барлығы орындалды.') : me.role === 'student' ? tx('Тапсырма жоқ. Өзіңізге жоспар жазыңыз немесе мұғалім берген тапсырмалар осында шығады.') : tx('Сыныпқа немесе іс-шара қатысушыларына тапсырма беріңіз.')}</p></Card>
+        <Card><p className="text-sm text-muted">{done.length ? tx('Барлығы орындалды.') : me.role === 'student' ? tx('Тапсырма жоқ. Өзіңізге жоспар жазыңыз немесе мұғалім берген тапсырмалар осында шығады.') : tx('Сыныпқа немесе бастама қатысушыларына тапсырма беріңіз.')}</p></Card>
       ) : <Card className="p-0 divide-y divide-line">{open.map(row)}</Card>}
       {done.length > 0 && (
         <>
@@ -98,11 +98,11 @@ function AddTask({ me, activity, onDone }: { me: Me; activity?: ActivityFull; on
           </select>}
         </Field>
       ) : (classes.length > 0 || acts.length > 0) && (
-        <Field label={tx('Кімге')} hint={tx('Сыныпқа немесе іс-шараға берілсе, әр оқушыға хабар барады')}>
+        <Field label={tx('Кімге')} hint={tx('Сыныпқа немесе бастамаға берілсе, әр оқушыға хабар барады')}>
           {(id, d) => <select id={id} aria-describedby={d} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} className={inputCls}>
             <option value="me">{tx('Өзіме')}</option>
             {classes.length > 0 && <optgroup label={tx('Сыныпқа')}>{classes.map((c) => <option key={c.id} value={`c:${c.id}`}>{c.name}</option>)}</optgroup>}
-            {acts.length > 0 && <optgroup label={tx('Іс-шара қатысушыларына')}>{acts.map((a) => <option key={a.id} value={`a:${a.id}`}>{a.title}</option>)}</optgroup>}
+            {acts.length > 0 && <optgroup label={tx('Бастама қатысушыларына')}>{acts.map((a) => <option key={a.id} value={`a:${a.id}`}>{a.title}</option>)}</optgroup>}
           </select>}
         </Field>
       )}

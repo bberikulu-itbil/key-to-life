@@ -39,12 +39,12 @@ export default function Search() {
       <label className="relative">
         <span className="sr-only">{tx('Іздеу')}</span>
         <Icon n="search" className="absolute left-3 top-3.5 text-muted" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder={tx('Іс-шара, адам, кабинет, зат')} className={`${inputCls} pl-10`} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder={tx('Бастама, адам, кабинет, зат')} className={`${inputCls} pl-10`} />
       </label>
       {data.loading && !data.data ? <Skeleton /> : !r ? <p className="text-sm text-muted text-center py-6">{tx('Кемінде 2 әріп жазыңыз')}</p>
         : !total ? <Card><Empty icon="search" title={tx('Ештеңе табылмады')} text={tx('Басқа сөзбен іздеп көріңіз.')} /></Card> : (
           <>
-            <Group title={tx('Іс-шаралар')} n={r.acts.length}>{r.acts.map((a) => (
+            <Group title={tx('Бастамалар')} n={r.acts.length}>{r.acts.map((a) => (
               <Row key={a.id} href={`#/a/${a.id}`} icon="star" title={a.title} sub={`${TYPE_LABEL[a.type]} · ${scheduleLabel(a)} · ${a.place}`} />))}</Group>
             <Group title={tx('Адамдар')} n={r.people.length}>{r.people.map((p) => (
               <button key={p.id} type="button" onClick={() => dm(p.id)} className="w-full flex items-center gap-3 px-4 min-h-14 text-left">

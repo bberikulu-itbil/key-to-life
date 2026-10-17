@@ -3,6 +3,7 @@ import { addComment, createFeedPost, errText, hideComment, likePost, listComment
 import { chatTime } from '../lib/time'
 import { Button, Field, Icon, Skeleton, inputCls, toast, useLoad } from './ui'
 import { tx } from '../lib/i18n'
+import Avatar from './Avatar'
 
 /** Activities this person may write in the name of (supervisor or responsible student). */
 export const ledActivities = (me: Me, list: Activity[]) => list.filter((a) => a.status === 'approved' && !a.archived_at
@@ -11,63 +12,77 @@ export const ledActivities = (me: Me, list: Activity[]) => list.filter((a) => a.
 export const canWriteFeed = (me: Me, led: Activity[]) => me.role !== 'student' || me.parliament || led.length > 0
 
 const likes = (p: Post) => p.votes.filter((v) => v.value === 1).length
-const KIND = (k: string) => (k === 'announcement' ? tx('Хабарландыру') : tx('Жаңалық'))
+export const FEED_KIND: Record<string, string> = { news: tx('Жаңалық'), announcement: tx('Хабарландыру'), project: tx('Жоба'), event: tx('Оқиға') }
 
-/** The name a post is shown under: the activity when written in its name. */
-function Byline({ p }: { p: { kind: string; created_at: string; author: { full_name: string }; activity: { title: string } | null } }) {
+type Who = { kind: string; created_at: string; author: { full_name: string; photo?: string | null }; activity: { title: string } | null }
+/** The face of a post: the activity when written in its name, otherwise the author's photo. */
+const Face = ({ p, size = 40 }: { p: Who; size?: number }) => p.activity
+  ? <span className="rounded-full bg-accent-soft text-accent grid place-items-center shrink-0" style={{ width: size, height: size }}><Icon n="grid" size={size / 2} /></span>
+  : <Avatar name={p.author.full_name} photo={p.author.photo} size={size} />
+
+/** Name · time, then the kind; the real author under an activity's name. */
+function Head({ p, pinned }: { p: Who; pinned?: boolean }) {
   return (
-    <span className="flex items-center gap-3 min-w-0">
-      <span className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={p.activity ? 'grid' : p.kind === 'announcement' ? 'megaphone' : 'user'} /></span>
-      <span className="min-w-0">
-        <span className="block font-semibold truncate">{p.activity?.title ?? p.author.full_name}</span>
-        <span className="block text-xs text-muted truncate">{p.activity ? `${p.author.full_name} · ` : ''}{KIND(p.kind)} · {chatTime(p.created_at)}</span>
+    <span className="block min-w-0">
+      <span className="flex items-baseline gap-1.5 min-w-0">
+        <span className="font-semibold truncate">{p.activity?.title ?? p.author.full_name}</span>
+        <span className="text-sm text-muted shrink-0">{chatTime(p.created_at)}</span>
+        {pinned && <Icon n="star" size={14} className="text-accent self-center" />}
+        <span className="ml-auto text-xs text-muted shrink-0">{FEED_KIND[p.kind]}</span>
       </span>
+      {p.activity && <span className="block text-xs text-muted truncate">{p.author.full_name}</span>}
     </span>
   )
 }
 
 /** The shared post inside a repost. */
 export const Original = ({ o }: { o: NonNullable<Post['orig']> }) => (
-  <span className="block rounded-md border border-line overflow-hidden">
-    <span className="block p-3"><Byline p={o} /></span>
-    {o.photo && <img src={photoUrl(o.photo)} alt="" loading="lazy" className="w-full aspect-[16/9] object-cover bg-surface-2" />}
-    <span className="block p-3 pt-2"><span className="block font-bold leading-snug">{o.title}</span>
-      {o.body && <span className="block mt-1 text-sm text-muted whitespace-pre-line line-clamp-3">{o.body}</span>}</span>
+  <span className="block rounded-lg border border-line p-3">
+    <span className="flex gap-2.5 items-start"><Face p={o} size={28} /><span className="flex-1 min-w-0"><Head p={o} /></span></span>
+    <span className="block font-semibold leading-snug mt-1.5">{o.title}</span>
+    {o.body && <span className="block mt-0.5 text-[15px] whitespace-pre-line line-clamp-3">{o.body}</span>}
+    {o.photo && <img src={photoUrl(o.photo)} alt="" loading="lazy" className="mt-2 w-full max-h-72 rounded-md object-cover bg-surface-2" />}
   </span>
 )
 
+/** A feed row in the Threads shape: face on the left, text and actions on the right, rows split by a hairline. */
 export function FeedCard({ p, me, canRepost, onOpen, onRepost }: { p: Post; me: Me; canRepost: boolean; onOpen: () => void; onRepost: () => void }) {
   const [mine, setMine] = useState(() => p.votes.some((v) => v.user_id === me.id && v.value === 1))
   const n = likes(p) - (p.votes.some((v) => v.user_id === me.id && v.value === 1) ? 1 : 0) + (mine ? 1 : 0)
   const showCount = !p.hide_likes || p.author_id === me.id   // the author still sees the hidden count
   const like = async () => { setMine(!mine); try { await likePost(p.id, !mine) } catch (e) { setMine(mine); toast(errText(e)) } }
   const comments = p.comments[0]?.count ?? 0
+  const repost = p.repost_of && p.orig
   return (
-    <article className="rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] overflow-hidden">
-      <button type="button" onClick={onOpen} className="w-full text-left">
-        {p.repost_of && p.orig && <span className="flex items-center gap-1.5 px-4 pt-3 text-xs text-muted"><Icon n="repeat" size={14} />{tx('{0} бөлісті', p.activity?.title ?? p.author.full_name)} · {chatTime(p.created_at)}</span>}
-        {p.repost_of && p.orig ? (
-          <span className="block p-4 pt-2 grid gap-2">{p.body && <span className="block whitespace-pre-line line-clamp-4">{p.body}</span>}<Original o={p.orig} /></span>
-        ) : (
-          <>
-            <span className="flex items-center gap-2 p-4 pb-2"><span className="flex-1 min-w-0"><Byline p={p} /></span>{p.pinned && <Icon n="star" size={16} className="text-accent" />}</span>
-            {p.photo && <img src={photoUrl(p.photo)} alt="" loading="lazy" className="w-full aspect-[16/9] object-cover bg-surface-2" />}
-            <span className="block p-4 pt-3">
-              <span className="block font-bold leading-snug">{p.title}</span>
-              {p.body && <span className="block mt-1 text-sm text-muted whitespace-pre-line line-clamp-4">{p.body}</span>}
-            </span>
-          </>
-        )}
-      </button>
-      <div className="flex items-center gap-1 px-2 pb-1 border-t border-line">
-        <button type="button" onClick={like} aria-pressed={mine} aria-label={showCount ? tx('Ұнады, {0}', n) : tx('Ұнады')}
-          className={`flex items-center gap-1.5 h-11 px-3 text-sm font-semibold ${mine ? 'text-danger' : 'text-muted'}`}>
-          <Icon n="heart" className={mine ? 'fill-current' : ''} />{showCount && n > 0 ? <span className="tabular-nums">{n}</span> : null}
+    <article className="flex gap-3 py-3">
+      <Face p={p} />
+      <div className="flex-1 min-w-0">
+        <Head p={p} pinned={p.pinned} />
+        <button type="button" onClick={onOpen} className="block w-full text-left mt-0.5">
+          {repost ? (
+            <>
+              <span className="flex items-center gap-1 text-xs text-muted"><Icon n="repeat" size={13} />{tx('Репост')}</span>
+              {p.body && <span className="block text-[15px] whitespace-pre-line line-clamp-6 mt-0.5">{p.body}</span>}
+              <span className="block mt-2"><Original o={p.orig!} /></span>
+            </>
+          ) : (
+            <>
+              <span className="block font-semibold leading-snug">{p.title}</span>
+              {p.body && <span className="block text-[15px] whitespace-pre-line line-clamp-6 mt-0.5">{p.body}</span>}
+              {p.photo && <img src={photoUrl(p.photo)} alt="" loading="lazy" className="mt-2 w-full max-h-80 rounded-lg border border-line object-cover bg-surface-2" />}
+            </>
+          )}
         </button>
-        {!p.comments_off && <button type="button" onClick={onOpen} aria-label={tx('Пікірлер, {0}', comments)} className="flex items-center gap-1.5 h-11 px-3 text-sm font-semibold text-muted">
-          <Icon n="chat" />{comments > 0 && <span className="tabular-nums">{comments}</span>}
-        </button>}
-        {canRepost && p.visibility === 'public' && <button type="button" onClick={onRepost} aria-label={tx('Репост')} className="flex items-center gap-1.5 h-11 px-3 text-sm font-semibold text-muted"><Icon n="repeat" /></button>}
+        <div className="flex items-center -ml-2.5 mt-1">
+          <button type="button" onClick={like} aria-pressed={mine} aria-label={showCount ? tx('Ұнады, {0}', n) : tx('Ұнады')}
+            className={`flex items-center gap-1 h-10 px-2.5 text-sm ${mine ? 'text-danger' : 'text-muted'}`}>
+            <Icon n="heart" size={19} className={mine ? 'fill-current' : ''} />{showCount && n > 0 ? <span className="tabular-nums">{n}</span> : null}
+          </button>
+          {!p.comments_off && <button type="button" onClick={onOpen} aria-label={tx('Пікірлер, {0}', comments)} className="flex items-center gap-1 h-10 px-2.5 text-sm text-muted">
+            <Icon n="chat" size={19} />{comments > 0 && <span className="tabular-nums">{comments}</span>}
+          </button>}
+          {canRepost && p.visibility === 'public' && <button type="button" onClick={onRepost} aria-label={tx('Репост')} className="flex items-center h-10 px-2.5 text-muted"><Icon n="repeat" size={19} /></button>}
+        </div>
       </div>
     </article>
   )

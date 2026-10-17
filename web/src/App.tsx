@@ -154,9 +154,9 @@ function Shell({ me }: { me: Me }) {
       {sheet === 'menu' && (
         <Sheet title={tx('Не істейміз?')} onClose={() => setSheet(null)}>
           <div className="grid grid-cols-2 gap-3">
-            <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе іс-шарадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
+            <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе бастамадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
             <MenuItem icon="grid" title={tx('Броньдау')} text={tx('Кабинет, спортзал, шай бөлмесі')} onClick={() => { setSheet(null); go('/book') }} />
-            <MenuItem icon="file" title={tx('Іс-шара ұсыну')} text={tx('Үйірме, курс, жарыс, турнир немесе іс-шара')} onClick={() => { setSheet(null); go('/a/new') }} />
+            <MenuItem icon="file" title={tx('Бастама ұсыну')} text={tx('Жарыс, олимпиада, үйірме, клуб, команда немесе мектеп іс-шарасы')} onClick={() => { setSheet(null); go('/a/new') }} />
             <MenuItem icon="chat" title={tx('Жаңа хат')} text={me.role === 'student' ? tx('Мұғалімге немесе сыныптасқа') : tx('Оқушыға, әріптеске немесе хабарландыру арнасы')} onClick={() => { setSheet(null); go('/chats') }} />
             {me.role !== 'student' && <MenuItem icon="check" title={tx('QR тексеру')} text={tx('Рұқсат немесе бронь кодын тексеру')} onClick={() => { setSheet(null); go('/v/') }} />}
             {canAddUsers(me) && <MenuItem icon="userplus" title={tx('Пайдаланушы қосу')} text={me.role === 'class_teacher' ? tx('Өз сыныбыңызға оқушы тіркеу') : tx('Оқушы немесе мұғалім тіркеу')} onClick={() => setSheet('adduser')} />}

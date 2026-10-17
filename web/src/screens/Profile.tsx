@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { attendanceRate, errText, listActivities, listClasses, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
+import { attendanceRate, errText, listActivities, uploadStudentPhoto, listClasses, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
 import { openTelegram } from '../lib/telegram'
 import { useMe, canAddUsers, isApprover } from '../App'
 import { Button, Card, Icon, PageHead, toast, useLoad } from '../components/ui'
@@ -34,13 +34,23 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
   }, [me.id])
   const myClass = useLoad(async () => (staff ? (await listClasses()).find((c) => c.teacher_id === me.id || c.tutor_id === me.id) ?? null : null), [me.id])
   const [leaving, setLeaving] = useState(false)
+  const [photo, setPhoto] = useState(me.photo)
+  const [uploading, setUploading] = useState(false)
+  const upload = async (f: File) => {
+    setUploading(true)
+    try { setPhoto(await uploadStudentPhoto(me.id, f)); toast(tx('Сурет сақталды')) } catch (e) { toast(errText(e)) } finally { setUploading(false) }
+  }
 
   return (
     <div className="grid gap-3 pb-6">
       <PageHead title={tx('Профиль')} />
       <Card className="grid gap-4">
         <div className="flex items-center gap-3">
-          <Avatar name={me.full_name} photo={me.photo} size={64} />
+          <label className={`relative shrink-0 cursor-pointer ${uploading ? 'opacity-50' : ''}`} aria-label={photo ? tx('Суретті ауыстыру') : tx('Сурет қосу')}>
+            <Avatar name={me.full_name} photo={photo} size={64} />
+            <span className="absolute -bottom-0.5 -right-0.5 size-6 rounded-full bg-accent text-on-accent grid place-items-center border-2 border-surface"><Icon n="plus" size={14} /></span>
+            <input type="file" accept="image/*" className="sr-only" disabled={uploading} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+          </label>
           <div className="min-w-0 flex-1">
             <p className="text-lg font-bold leading-snug break-words">{me.full_name}</p>
             <p className="text-sm text-muted">{me.title || ROLE[me.role]}{me.class ? ` · ${me.class.name}` : ''}</p>
@@ -49,13 +59,13 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
         </div>
         <div className="grid grid-cols-2 gap-2">
           {!staff && <Stat value={stats.data?.rate == null ? '—' : `${stats.data.rate}%`} label={tx('Қатысу')} />}
-          <Stat value={stats.data ? String(stats.data.acts) : '—'} label={staff ? tx('Мен жетекші') : tx('Іс-шара')} href="#/activities/mine" />
+          <Stat value={stats.data ? String(stats.data.acts) : '—'} label={staff ? tx('Мен жетекші') : tx('Бастама')} href="#/activities/mine" />
           {staff && myClass.data && <Stat value={myClass.data.name} label={tx('Менің сыныбым')} href={`#/class/${myClass.data.id}`} />}
         </div>
       </Card>
 
       <Section title={tx('Менікі')} links={[
-        ['#/activities/mine', 'star', tx('Менің іс-шараларым'), staff ? tx('Жетекшілік ететін және ұсынған') : tx('Жазылған, ұсынған, жауапты')],
+        ['#/activities/mine', 'star', tx('Менің бастамаларым'), staff ? tx('Жетекшілік ететін және ұсынған') : tx('Жазылған, ұсынған, жауапты')],
         ['#/leaves', 'clock', staff ? tx('Рұқсаттар') : tx('Менің рұқсаттарым'), staff ? tx('Шешім күтетіндер және бүгін берілгендер') : undefined],
         ['#/bookings', 'grid', tx('Менің броньдарым')],
         ['#/calendars', 'file', tx('Күнтізбелер'), tx('Жеке, сынып, мектеп · импорт/экспорт')],
@@ -63,7 +73,7 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
       ]} />
       {staff && <Section title={tx('Мұғалімге')} links={[
         ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'users', tx('Менің сыныбым'), tx('Оқушылар, суреттер, кім сыртта')] as [string, string, string, string]] : []),
-        ...(isApprover(me) ? [['#/activities/review', 'check', tx('Растау күтуде'), tx('Оқушылардың іс-шара ұсыныстары')] as [string, string, string, string]] : []),
+        ...(isApprover(me) ? [['#/activities/review', 'check', tx('Растау күтуде'), tx('Оқушылардың бастама ұсыныстары')] as [string, string, string, string]] : []),
         ...(me.role === 'admin' || myClass.data?.teacher_id === me.id ? [['#/registrations', 'userplus', tx('Тіркелу өтініштері'), tx('Растауды күтетін жаңа аккаунттар')] as [string, string, string, string]] : []),
         ['#/duty', 'users', tx('Кезекшіліктер'), tx('Мұғалімдер мен орынбасарлар')],
         ['#/v/', 'check', tx('QR тексеру'), tx('Рұқсат немесе бронь кодын тексеру')],

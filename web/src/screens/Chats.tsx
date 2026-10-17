@@ -6,7 +6,7 @@ import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, She
 import { tx } from '../lib/i18n'
 
 export const KIND_ICON: Record<ChatKind, string> = { activity: 'star', class: 'users', channel: 'megaphone', direct: 'chat' }
-export const KIND_LABEL: Record<ChatKind, string> = { activity: tx('Іс-шара тобы'), class: tx('Сынып чаты'), channel: tx('Арна'), direct: tx('Жеке хат') }
+export const KIND_LABEL: Record<ChatKind, string> = { activity: tx('Бастама тобы'), class: tx('Сынып чаты'), channel: tx('Арна'), direct: tx('Жеке хат') }
 type Filter = 'all' | 'groups' | 'channel' | 'direct'
 
 export default function Chats() {
@@ -41,7 +41,7 @@ export default function Chats() {
               sub={c.last_body ? `${c.last_author && c.kind !== 'direct' ? `${c.last_author.split(' ')[1] ?? c.last_author}: ` : ''}${c.last_body}` : KIND_LABEL[c.kind]}
               badge={c.locked && c.kind !== 'channel' ? tx('Тек мұғалім') : undefined} />
           ))}
-          {!list.length && filter !== 'all' && <li><Empty icon="chat" title={tx('Әзірге жоқ')} text={filter === 'direct' ? tx('Мұғалімге немесе сыныптасқа жеке хат жазыңыз.') : tx('Іс-шараға жазылсаңыз, оның тобы осында шығады.')} /></li>}
+          {!list.length && filter !== 'all' && <li><Empty icon="chat" title={tx('Әзірге жоқ')} text={filter === 'direct' ? tx('Мұғалімге немесе сыныптасқа жеке хат жазыңыз.') : tx('Бастамаға жазылсаңыз, оның тобы осында шығады.')} /></li>}
         </ul>
       )}
 
@@ -116,7 +116,7 @@ function NewChannel() {
     setBusy(true)
     try { go(`/c/${await createChannel(f.title.trim(), f.audience, f.audience === 'class' ? cls : undefined)}`) } catch (e) { toast(errText(e)); setBusy(false) }
   }
-  if (!deputy && !classes.loading && !mine.length) return <p className="text-sm text-muted">{tx('Арнаны сынып жетекшісі өз сыныбына, ал орынбасар бүкіл мектепке ашады. Іс-шара тобында «Тек мұғалім жазады» режимін қосуға болады.')}</p>
+  if (!deputy && !classes.loading && !mine.length) return <p className="text-sm text-muted">{tx('Арнаны сынып жетекшісі өз сыныбына, ал орынбасар бүкіл мектепке ашады. Бастама тобында «Тек мұғалім жазады» режимін қосуға болады.')}</p>
   return (
     <div className="grid gap-4">
       <p className="text-sm text-muted">{tx('Арнаға тек сіз жазасыз. Әр хабарды кім оқығаны көрініп тұрады.')}</p>

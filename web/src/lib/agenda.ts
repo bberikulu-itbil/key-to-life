@@ -42,7 +42,7 @@ export async function loadAgenda(me: Me, from: string, to: string) {
     listHidden(),
   ])
   const sources: Source[] = [
-    { key: 'activities', name: tx('Менің іс-шараларым'), color: ACT_COLOR },
+    { key: 'activities', name: tx('Менің бастамаларым'), color: ACT_COLOR },
     { key: 'timetable', name: tx('Сабақ кестесі'), color: LESSON_COLOR },
     ...calendars.map((c) => ({ key: c.id, name: c.name, color: c.color, cal: c })),
   ]

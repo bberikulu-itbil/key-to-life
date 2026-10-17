@@ -6,11 +6,12 @@ import { tx } from '../lib/i18n'
 
 const TONE: Record<ActivityType, string> = {
   olympiad_prep: 'var(--accent)', club: 'var(--success)', course: 'var(--late)', event: 'var(--warning)',
-  competition: 'var(--danger)', tournament: 'var(--danger)', challenge: 'var(--accent)',
+  competition: 'var(--danger)', tournament: 'var(--danger)', challenge: 'var(--accent)', league: 'var(--danger)',
+  community: 'var(--success)', team: 'var(--late)',
 }
 const SHOW_MS = 6000
 
-/** Open activities this person could still join: the story row on top of Іс-шаралар. */
+/** Open activities this person could still join: the story row on top of Бастамалар. */
 export function storyCandidates(me: Me, list: Activity[]) {
   const t = today()
   return list.filter((a) => a.status === 'approved' && lastDay(a) >= t && a.author_id !== me.id && (

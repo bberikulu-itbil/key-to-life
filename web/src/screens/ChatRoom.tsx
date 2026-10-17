@@ -101,7 +101,7 @@ export default function ChatRoom({ id }: { id: string }) {
       {sheet?.kind === 'info' && (
         <Sheet title={c.title} onClose={() => setSheet(null)}>
           <div className="grid gap-3">
-            {c.activity_id && <Button kind="secondary" onClick={() => go(`/a/${c.activity_id}`)}>{tx('Іс-шара беті')}</Button>}
+            {c.activity_id && <Button kind="secondary" onClick={() => go(`/a/${c.activity_id}`)}>{tx('Бастама беті')}</Button>}
             {c.moderator && c.kind !== 'channel' && (
               <label className="flex items-center gap-3 min-h-14 rounded-md bg-surface-2 px-3">
                 <span className="flex-1"><span className="block font-semibold">{tx('Тек мұғалім жазады')}</span><span className="block text-sm text-muted">{tx('Сабақ уақытында немесе түнде оқушылардың хатын тоқтату')}</span></span>

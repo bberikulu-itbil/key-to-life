@@ -20,7 +20,7 @@ export default function ActivitySettings({ id }: { id: string }) {
   if (loading && !a) return <><PageHead title={tx('Баптаулар')} back /><Skeleton /></>
   if (error || !a) return <><PageHead title={tx('Баптаулар')} back /><ErrorBox text={error ?? tx('Табылмады')} retry={reload} /></>
   const manager = a.supervisor_id === me.id || me.role === 'deputy' || me.role === 'admin'
-  if (!manager) return <><PageHead title={tx('Баптаулар')} back /><Card><p>{tx('Іс-шараны жетекші немесе орынбасар баптайды.')}</p></Card></>
+  if (!manager) return <><PageHead title={tx('Баптаулар')} back /><Card><p>{tx('Бастаманы жетекші немесе орынбасар баптайды.')}</p></Card></>
 
   const act = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); toast(done); reload() } catch (e) { toast(errText(e)) } }
   const curatorIds = a.curators?.map((x) => x.student_id) ?? (a.curator_id ? [a.curator_id] : [])
@@ -82,7 +82,7 @@ export default function ActivitySettings({ id }: { id: string }) {
         <p className="text-sm text-muted tabular-nums">{tx('{0}{1} қатысушы · {2} жауапты{3}', joined.length, a.capacity ? `/${a.capacity}` : '', curatorIds.length, waiting.length ? tx(' · {0} күтуде', waiting.length) : '')}</p>
       </Card>
 
-      <H>{tx('Іс-шара')}</H>
+      <H>{tx('Бастама')}</H>
       <Card className="p-0 divide-y divide-line">
         <Item icon="file" title={tx('Атауы, уақыты, орны')} hint={tx('Сипаттама, жетекші, сыныптар, орын саны')} onClick={() => go(`/a/${a.id}/edit`)} />
         <Item icon="grid" title={tx('Бөлімдер')} hint={tx('{0} бөлім қосулы', a.features.length)} onClick={() => setSheet('modules')} />
@@ -129,7 +129,7 @@ export default function ActivitySettings({ id }: { id: string }) {
       <H>{tx('Қауіпті әрекеттер')}</H>
       <Card className="p-0 divide-y divide-line border-danger-soft">
         {a.status === 'approved' && <Item icon="clock" title={tx('Тоқтату')} hint={tx('Қатысушыларға себебімен хабар барады')} danger onClick={() => setSheet('cancel')} />}
-        <Item icon="x" title={tx('Жою')} hint={tx('Іс-шара барлығынан жасырылады')} danger onClick={() => setSheet('remove')} />
+        <Item icon="x" title={tx('Жою')} hint={tx('Бастама барлығынан жасырылады')} danger onClick={() => setSheet('remove')} />
       </Card>
 
       {sheet === 'modules' && <Sheet title={tx('Бөлімдер')} onClose={() => setSheet(null)}><Modules a={a} onDone={() => { setSheet(null); reload() }} /></Sheet>}
@@ -138,7 +138,7 @@ export default function ActivitySettings({ id }: { id: string }) {
       {sheet === 'types' && <Sheet title={tx('Сабақ түрлері')} onClose={() => { setSheet(null); reload() }}><SessionTypes a={a} onChange={reload} /></Sheet>}
       {sheet === 'add' && <Sheet title={tx('Оқушы қосу')} onClose={() => setSheet(null)}><AddPeople a={a} onAdded={reload} /></Sheet>}
       {sheet === 'cancel' && <Sheet title={tx('Тоқтату')} onClose={() => setSheet(null)}><Confirm label={tx('Себебі')} hint={tx('Қатысушыларға хабар барады')} button={tx('Тоқтату')} min={3}
-        onConfirm={(v) => act(() => cancelActivity(a.id, v), tx('Іс-шара тоқтатылды')).then(() => setSheet(null))} /></Sheet>}
+        onConfirm={(v) => act(() => cancelActivity(a.id, v), tx('Бастама тоқтатылды')).then(() => setSheet(null))} /></Sheet>}
       {sheet === 'remove' && <Sheet title={tx('Жою')} onClose={() => setSheet(null)}><Confirm label={tx('Растау үшін атауын жазыңыз: «{0}»', a.title)} button={tx('Біржола жою')} match={a.title}
         onConfirm={() => removeActivity(a.id).then(() => { toast(tx('Жойылды')); go('/') }, (e) => toast(errText(e)))} /></Sheet>}
     </div>
@@ -204,7 +204,7 @@ function TgGroup({ a, onChange }: { a: ActivityFull; onChange: () => void }) {
       {a.tg_chat_title && <Card className="flex items-center gap-3"><Icon n="send" className="text-accent" /><span className="flex-1 font-semibold">{a.tg_chat_title}</span><Badge tone="ok">{tx('Байланысты')}</Badge></Card>}
       <ol className="grid gap-1.5 text-sm text-muted list-decimal pl-5">
         <li>{tx('Төмендегі батырманы басыңыз — Telegram ашылады.')}</li>
-        <li>{tx('Іс-шараның тобын таңдап, ботты қосыңыз (топта әкімші болуыңыз керек).')}</li>
+        <li>{tx('Бастаманың тобын таңдап, ботты қосыңыз (топта әкімші болуыңыз керек).')}</li>
         <li>{tx('Бот топқа «байланысты» деп жазады. Енді журналдағы «Топқа жіберу» батырмасы түгелдеуді осы топқа жібереді.')}</li>
       </ol>
       <Button block loading={busy} onClick={link}>{a.tg_chat_title ? tx('Басқа топқа ауыстыру') : tx('Топты байланыстыру')}</Button>

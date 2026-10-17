@@ -2,8 +2,18 @@ import type { Activity, ActivityStatus, ActivityType, Mark, SessionType } from '
 import { tx } from './i18n'
 
 export const TYPE_LABEL: Record<ActivityType, string> = {
-  olympiad_prep: tx('Олимпиада'), club: tx('Үйірме'), course: tx('Курс'), event: tx('Іс-шара'), competition: tx('Жарыс'), tournament: tx('Турнир'), challenge: tx('Челлендж'),
+  competition: tx('Жарыс'), league: tx('Лига'), tournament: tx('Турнир'), challenge: tx('Челлендж'),
+  olympiad_prep: tx('Олимпиада'), course: tx('Үйірме'), club: tx('Клуб'),
+  community: tx('Қауымдастық'), team: tx('Команда'),
+  event: tx('Мектеп іс-шарасы'),
 }
+/** Initiatives (бастамалар) in four groups, in this order everywhere. */
+export const TYPE_GROUPS: [string, ActivityType[]][] = [
+  [tx('Сайыстар мен жарыстар'), ['competition', 'league', 'tournament', 'challenge']],
+  [tx('Өзін-өзі дамыту және үйірмелер'), ['olympiad_prep', 'course', 'club']],
+  [tx('Байланыс және қауымдастық'), ['community', 'team']],
+  [tx('Мектеп іс-шаралары'), ['event']],
+]
 export const STATUS_LABEL: Record<ActivityStatus, string> = {
   pending_class_teacher: tx('Сынып жетекшісінде'), pending_deputy: tx('Орынбасарда'), approved: tx('Расталды'), rejected: tx('Қайтарылды'), cancelled: tx('Тоқтатылды'),
 }

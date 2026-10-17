@@ -56,7 +56,7 @@ function Write({ a, me, onDone }: { a: ActivityFull; me: Me; onDone: () => void 
             className={`h-10 rounded-sm text-sm font-semibold ${f.visibility === k ? 'bg-surface shadow-card' : 'text-muted'}`}>{label}</button>
         ))}
       </div>
-      <p className="text-sm text-muted">{f.visibility === 'public' ? tx('Мектептің ортақ лентасында «Жаңалықтар» бөлімінде де шығады.') : tx('Тек осы іс-шараға жазылғандар мен жетекшілер көреді.')}</p>
+      <p className="text-sm text-muted">{f.visibility === 'public' ? tx('Мектептің ортақ лентасында «Жаңалықтар» бөлімінде де шығады.') : tx('Тек осы бастамаға жазылғандар мен жетекшілер көреді.')}</p>
       <Field label={tx('Тақырып')}>{(id) => <input id={id} value={f.title} maxLength={140} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls} placeholder={tx('Мысалы: облыстық олимпиада нәтижесі')} />}</Field>
       <Field label={tx('Мәтін')}>{(id) => <textarea id={id} value={f.body} maxLength={5000} onChange={(e) => setF({ ...f, body: e.target.value })} className={`${inputCls} h-28 py-2`} />}</Field>
       <Field label={tx('Фото')} hint={tx('Міндетті емес')}>{(id, d) => (

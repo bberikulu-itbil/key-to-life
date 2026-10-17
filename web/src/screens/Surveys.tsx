@@ -5,9 +5,9 @@ import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
-const AUD: Record<Survey['audience'], string> = { all: tx('Бүкіл мектеп'), students: tx('Барлық оқушылар'), staff: tx('Мұғалімдер'), class: tx('Сынып'), activity: tx('Іс-шара') }
+const AUD: Record<Survey['audience'], string> = { all: tx('Бүкіл мектеп'), students: tx('Барлық оқушылар'), staff: tx('Мұғалімдер'), class: tx('Сынып'), activity: tx('Бастама') }
 const isOpen = (s: Survey) => !s.closed && (!s.closes_at || new Date(s.closes_at) > new Date())
-const audLabel = (s: Survey) => s.audience === 'class' ? tx('{0} сыныбы', s.class?.name ?? '') : s.audience === 'activity' ? s.activity?.title ?? tx('Іс-шара') : AUD[s.audience]
+const audLabel = (s: Survey) => s.audience === 'class' ? tx('{0} сыныбы', s.class?.name ?? '') : s.audience === 'activity' ? s.activity?.title ?? tx('Бастама') : AUD[s.audience]
 
 /* ---------- list ---------- */
 export default function Surveys() {
@@ -22,7 +22,7 @@ export default function Surveys() {
       <PageHead title={tx('Сауалнамалар')} back right={canCreate ? <Button kind="secondary" onClick={() => go('/surveys/new')}>{tx('Жасау')}</Button> : undefined} />
       <Chips label={tx('Сүзгі')} value={f} onChange={setF} items={[['todo', tx('Жауап күтеді')], ['done', tx('Жауап бердім')], ...(canCreate ? [['mine', tx('Менікі')] as ['mine', string]] : [])]} />
       {list.loading && !list.data ? <Skeleton /> : list.error ? <ErrorBox text={list.error} retry={list.reload} /> : !shown.length ? (
-        <Card><Empty icon="poll" title={f === 'todo' ? tx('Жаңа сауалнама жоқ') : tx('Әзірге бос')} text={f === 'mine' ? tx('Сыныпқа, іс-шараға немесе бүкіл мектепке сауалнама жасаңыз.') : undefined} /></Card>
+        <Card><Empty icon="poll" title={f === 'todo' ? tx('Жаңа сауалнама жоқ') : tx('Әзірге бос')} text={f === 'mine' ? tx('Сыныпқа, бастамаға немесе бүкіл мектепке сауалнама жасаңыз.') : undefined} /></Card>
       ) : shown.map((s) => (
         <a key={s.id} href={`#/surveys/${s.id}`} className="block rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] p-4">
           <div className="flex items-center gap-2 flex-wrap text-xs">
@@ -173,11 +173,11 @@ export function SurveyNew() {
             <option value="students">{tx('Барлық оқушылар')}</option>
             {(deputy || me.role !== 'student') && <option value="staff">{tx('Мұғалімдер')}</option>}
             {classes.length > 0 && <option value="class">{tx('Сынып')}</option>}
-            {acts.length > 0 && <option value="activity">{tx('Іс-шара қатысушылары')}</option>}
+            {acts.length > 0 && <option value="activity">{tx('Бастама қатысушылары')}</option>}
           </select>
         )}</Field>
         {f.audience === 'class' && <Field label={tx('Сынып')}>{(id) => <select id={id} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} className={inputCls}>{classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}</Field>}
-        {f.audience === 'activity' && <Field label={tx('Іс-шара')}>{(id) => <select id={id} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} className={inputCls}>{acts.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}</select>}</Field>}
+        {f.audience === 'activity' && <Field label={tx('Бастама')}>{(id) => <select id={id} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} className={inputCls}>{acts.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}</select>}</Field>}
         <div className="grid grid-cols-2 gap-3 items-end">
           <Field label={tx('Соңғы күні')}>{(id) => <input id={id} type="date" value={f.closes} onChange={(e) => setF({ ...f, closes: e.target.value })} className={inputCls} />}</Field>
           <label className="flex items-center gap-2 min-h-12"><input type="checkbox" checked={f.anonymous} onChange={(e) => setF({ ...f, anonymous: e.target.checked })} className="size-5 accent-[var(--accent)]" />{tx('Анонимді')}</label>

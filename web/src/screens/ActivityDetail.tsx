@@ -28,7 +28,7 @@ export default function ActivityDetail({ id }: { id: string }) {
   const [tab, setTab] = useState<'about' | 'feed' | Feature>('about')
 
   if (loading && !a) return <><PageHead title="" back /><Skeleton rows={4} /></>
-  if (error || !a) return <><PageHead title={tx('Іс-шара')} back /><ErrorBox text={error ?? tx('Табылмады')} retry={reload} /></>
+  if (error || !a) return <><PageHead title={tx('Бастама')} back /><ErrorBox text={error ?? tx('Табылмады')} retry={reload} /></>
 
   const run = async (key: string, fn: () => Promise<unknown>, done: string) => {
     setBusy(key)
@@ -75,7 +75,7 @@ export default function ActivityDetail({ id }: { id: string }) {
         <Row icon="users">{a.audience_grades.length ? tx('{0}-сыныптар', a.audience_grades.join(', ')) : tx('Барлық сыныптар')} · {a.capacity ? tx('{0}/{1} орын', joined.length, a.capacity) : tx('{0} қатысушы', joined.length)}</Row>
       </Card>
       {tabs.length > 1 && (
-        <div role="tablist" aria-label={tx('Іс-шара бөлімдері')} className="flex gap-5 overflow-x-auto -mx-4 px-4 border-b border-line [scrollbar-width:none]">
+        <div role="tablist" aria-label={tx('Бастама бөлімдері')} className="flex gap-5 overflow-x-auto -mx-4 px-4 border-b border-line [scrollbar-width:none]">
           {tabs.map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={shown === k} onClick={() => setTab(k)}
               className={`relative h-11 whitespace-nowrap text-[15px] ${shown === k ? 'font-semibold text-fg' : 'text-muted'}`}>
@@ -181,7 +181,7 @@ const Row = ({ icon, children }: { icon: string; children: React.ReactNode }) =>
 function JoinButton({ a, grade, busy, onJoin }: { a: ActivityFull; grade?: number; busy: boolean; onJoin: () => void }) {
   if (!a.enrollment_open || a.archived_at) return <p className="text-sm text-muted">{tx('Тіркелу жабық. Қосылғыңыз келсе, жетекшіге жазыңыз.')}</p>
   if (a.audience_grades.length && (!grade || !a.audience_grades.includes(grade)))
-    return <p className="text-sm text-muted">{tx('Бұл іс-шара {0}-сыныптарға арналған.', a.audience_grades.join(', '))}</p>
+    return <p className="text-sm text-muted">{tx('Бұл бастама {0}-сыныптарға арналған.', a.audience_grades.join(', '))}</p>
   const full = a.capacity !== null && a.enrollments.filter((e) => !e.waitlisted).length >= a.capacity
   return <Button block loading={busy} onClick={onJoin}>{full ? tx('Күту тізіміне жазылу') : tx('Қатысамын')}</Button>
 }

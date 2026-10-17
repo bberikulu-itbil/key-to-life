@@ -79,7 +79,7 @@ export default function Plan() {
       </div>
       {ag.loading && !ag.data ? <Skeleton rows={2} /> : ag.error ? <ErrorBox text={ag.error} retry={ag.reload} />
         : !ofDay.length ? (
-          <Card><Empty icon="clock" title={tx('Бұл күні жазба жоқ')} text={tx('Іс-шараға жазылсаңыз немесе жеке жоспар қоссаңыз, осында көрінеді.')}
+          <Card><Empty icon="clock" title={tx('Бұл күні жазба жоқ')} text={tx('Бастамаға жазылсаңыз немесе жеке жоспар қоссаңыз, осында көрінеді.')}
             action={<Button kind="secondary" onClick={() => go('/calendars')}>{tx('Жоспар қосу')}</Button>} /></Card>
         ) : (
           <Card className="py-1">
@@ -104,7 +104,7 @@ export default function Plan() {
 
       <Tasks me={me} />
 
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{tx('Менің іс-шараларым')}</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{tx('Менің бастамаларым')}</h2>
       <div className="grid grid-cols-3 gap-2">
         {([['#/my/olympiad', 'star', tx('Олимпиада')], ['#/my/clubs', 'users', tx('Үйірме, курс')], ['#/my/competitions', 'flag', tx('Жарыстар')]] as const).map(([href, icon, label]) => (
           <a key={href} href={href} className="grid justify-items-center gap-1.5 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] py-3 px-1 text-sm font-semibold text-center">

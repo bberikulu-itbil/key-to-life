@@ -11,13 +11,15 @@ import type { Activity } from '../lib/api'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
 import { tx } from '../lib/i18n'
 
-type Tab = 'all' | 'news' | 'announcement'
+type Tab = 'all' | 'news' | 'announcement' | 'project' | 'event'
 type Page = 'lost' | 'events' | 'proposals'
-const TABS: [Tab, string][] = [['all', tx('Барлығы')], ['news', tx('Жаңалықтар')], ['announcement', tx('Хабарландыру')]]
-const PAGE_TITLE: Record<Page, string> = { lost: tx('Lost & Found'), events: tx('Events'), proposals: tx('Ұсыныстар') }
+const TABS: [Tab, string][] = [['all', tx('Барлығы')], ['news', tx('Жаңалықтар')], ['announcement', tx('Хабарландыру')], ['project', tx('Жобалар')], ['event', tx('Оқиғалар')]]
+const SOCIAL: PostKind[] = ['news', 'announcement', 'project', 'event']
+const isSocial = (k: PostKind) => SOCIAL.includes(k)
+const PAGE_TITLE: Record<Page, string> = { lost: tx('Lost & Found'), events: tx('Бастамалар'), proposals: tx('Ұсыныстар') }
 // old notification links (/?t=parliament) still land on the right page
 const LEGACY: Record<string, Page> = { lost: 'lost', upcoming: 'events', parliament: 'proposals' }
-const QUICK: [string, string, string][] = [['list', tx('Асхана'), '/menu'], ['search', tx('Lost & Found'), '/lost'], ['grid', tx('Cabinets'), '/book'], ['star', tx('Events'), '/events'], ['flag', tx('Ұсыныстар'), '/proposals'], ['poll', tx('Сауалнама'), '/surveys']]
+const QUICK: [string, string, string][] = [['list', tx('Асхана'), '/menu'], ['search', tx('Lost & Found'), '/lost'], ['grid', tx('Cabinets'), '/book'], ['star', tx('Бастамалар'), '/events'], ['flag', tx('Ұсыныстар'), '/proposals'], ['poll', tx('Сауалнама'), '/surveys']]
 const PROPOSAL: Record<PostStatus, [string, Tone]> = {
   open: [tx('Жаңа'), 'accent'], considering: [tx('Қаралуда'), 'warn'], accepted: [tx('Қабылданды'), 'ok'], rejected: [tx('Қабылданбады'), 'bad'], resolved: [tx('Жабылды'), 'muted'],
 }
@@ -44,7 +46,7 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   // members-only activity posts live on the activity page, not in the school feed
   const all = (posts.data ?? []).filter((p) => p.visibility === 'public')
   const of = (k: PostKind[]) => all.filter((p) => k.includes(p.kind))
-  const feed = of(tab === 'all' ? ['news', 'announcement'] : [tab])
+  const feed = of(tab === 'all' ? SOCIAL : [tab])
 
   const setTab = (t: Tab) => go(t === 'all' ? '/' : `/?t=${t}`)
 
@@ -73,7 +75,6 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   return (
     <div className="grid grid-cols-1 gap-3 pb-4">
       <header className="flex items-center gap-3 min-h-14">
-        <img src={`${import.meta.env.BASE_URL}logo-192.png`} alt="" className="size-11 rounded-[10px] shrink-0" />
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold">Key To Life</h1>
           <p className="text-sm text-muted truncate">{me.school.name}</p>
@@ -113,17 +114,17 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
 
       {tab === 'all' && <><TodayCard me={me} /><DutyCard /></>}
       {posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} />
-        : feed.length ? <div className="grid gap-3">{feed.map((p) => <FeedCard key={p.id} p={p} me={me} canRepost={writer}
+        : feed.length ? <div className="divide-y divide-line">{feed.map((p) => <FeedCard key={p.id} p={p} me={me} canRepost={writer}
             onOpen={() => setOpen({ kind: 'post', p })} onRepost={() => setOpen({ kind: 'repost', p })} />)}</div>
-        : <Card><Empty icon={tab === 'announcement' ? 'megaphone' : 'file'} title={tab === 'announcement' ? tx('Хабарландыру жоқ') : tx('Жаңалық жоқ')}
-            text={tx('Мұғалімдер мен іс-шара жетекшілері жаңалықтар мен хабарландыруларды осында жариялайды.')} /></Card>}
+        : <Card><Empty icon={tab === 'announcement' ? 'megaphone' : 'file'} title={tx('Әзірге жазба жоқ')}
+            text={tx('Мұғалімдер мен бастама жетекшілері жаңалықтар мен хабарландыруларды осында жариялайды.')} /></Card>}
 
       {sheets}
     </div>
   )
 }
 
-const KIND_TITLE: Record<PostKind, string> = { news: tx('Жаңалық'), announcement: tx('Хабарландыру'), lost: tx('Жоғалды'), found: tx('Табылды'), proposal: tx('Ұсыныс') }
+const KIND_TITLE: Record<PostKind, string> = { news: tx('Жаңалық'), announcement: tx('Хабарландыру'), project: tx('Жоба'), event: tx('Оқиға'), lost: tx('Жоғалды'), found: tx('Табылды'), proposal: tx('Ұсыныс') }
 
 function LostGrid({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void }) {
   return (
@@ -215,7 +216,7 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
   const act = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); toast(done); onChange() } catch (e) { toast(errText(e)) } }
   const dm = async () => { try { go(`/c/${await openDirect(p.author_id)}`) } catch (e) { toast(errText(e)) } }
   const lf = p.kind === 'lost' || p.kind === 'found'
-  const social = p.kind === 'news' || p.kind === 'announcement'
+  const social = isSocial(p.kind)
   const [opts, setOpts] = useState({ hide: p.hide_likes, off: p.comments_off })
   const saveOpts = async (hide: boolean, off: boolean) => {
     setOpts({ hide, off })
@@ -244,7 +245,7 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
         {lf && (p.author_id === me.id || staff) && (p.status === 'open'
           ? <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'resolved'), tx('Белгіленді'))}>{tx('Иесі табылды')}</Button>
           : <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'open'), tx('Қайта ашылды'))}>{tx('Қайта ашу')}</Button>)}
-        {staff && (p.kind === 'news' || p.kind === 'announcement') && <Button kind="secondary" onClick={() => act(() => pinPost(p.id, !p.pinned), tx('Сақталды'))}>{p.pinned ? tx('Маңыздыдан алу') : tx('Маңызды деп бекіту')}</Button>}
+        {staff && social && <Button kind="secondary" onClick={() => act(() => pinPost(p.id, !p.pinned), tx('Сақталды'))}>{p.pinned ? tx('Маңыздыдан алу') : tx('Маңызды деп бекіту')}</Button>}
         {social && (p.author_id === me.id || deputy) && (
           <div className="grid gap-1 rounded-md bg-surface-2 px-3 py-1">
             <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Лайк санын жасыру')}</span>
@@ -265,6 +266,7 @@ function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initia
   const options: [PostKind, string, string, string][] = [
     ...(staff || me.parliament || led.length ? [['news', 'file', tx('Жаңалық'), tx('Фотосымен, лентаның басында')] as [PostKind, string, string, string]] : []),
     ...(staff || led.length ? [['announcement', 'megaphone', tx('Хабарландыру'), tx('Барлығына маңызды ақпарат')] as [PostKind, string, string, string]] : []),
+    ...(staff || me.parliament || led.length ? [['project', 'grid', tx('Жоба'), tx('Оқушылар мен бастамалардың жобалары')], ['event', 'star', tx('Оқиға'), tx('Өткен немесе болатын оқиға, фотосымен')]] as [PostKind, string, string, string][] : []),
     ['lost', 'search', tx('Жоғалған немесе табылған зат'), tx('Lost & Found')],
     ['proposal', 'flag', tx('Ұсыныс'), tx('Парламентке, әкімшілікке немесе мұғалімге')],
   ]
@@ -276,7 +278,7 @@ function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initia
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   // in their own name: staff always, parliament for news; otherwise only in an activity's name
-  const own = staff || (kind === 'news' && me.parliament)
+  const own = staff || (kind !== 'announcement' && me.parliament)
   const [as, setAs] = useState('')
   const asId = own ? as : as || led[0]?.id || ''
   const [extra, setExtra] = useState({ hide: false, off: false })
@@ -291,13 +293,14 @@ function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initia
       ))}
       <button type="button" onClick={() => go('/a/new')} className="flex items-center gap-3 min-h-16 rounded-md px-3 py-2 text-left hover:bg-surface-2">
         <span className="size-10 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="grid" /></span>
-        <span className="flex-1"><span className="block font-semibold">{tx('Іс-шара ұсыну')}</span><span className="block text-sm text-muted">{tx('Үйірме, жарыс, турнир — растаған соң Events бөлімінде шығады')}</span></span><Icon n="chev" className="text-muted" />
+        <span className="flex-1"><span className="block font-semibold">{tx('Бастама ұсыну')}</span><span className="block text-sm text-muted">{tx('Үйірме, жарыс, турнир — растаған соң Бастамалар бөлімінде шығады')}</span></span><Icon n="chev" className="text-muted" />
       </button>
     </div>
   )
 
   const lf = kind === 'lost' || kind === 'found'
-  const photo = lf || kind === 'news' || kind === 'announcement'
+  const social = !!kind && isSocial(kind)
+  const photo = lf || social
   const save = async () => {
     if (f.title.trim().length < 3) return toast(tx('Тақырыпты жазыңыз'))
     if (kind === 'proposal' && f.body.trim().length < 10) return toast(tx('Ұсынысыңызды толығырақ жазыңыз'))
@@ -307,7 +310,7 @@ function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initia
       if (kind === 'proposal') {
         if (to === 'teacher' && !teacher) { setBusy(false); return toast(tx('Мұғалімді таңдаңыз')) }
         await createProposal(to, to === 'teacher' ? teacher : null, f.title, f.body)
-      } else if (kind === 'news' || kind === 'announcement') {
+      } else if (kind === 'news' || kind === 'announcement' || kind === 'project' || kind === 'event') {
         await createFeedPost({ kind, title: f.title, body: f.body, photo: path, activity: asId || null, hideLikes: extra.hide, commentsOff: extra.off })
       } else await createPost(kind, f.title, f.body, path, lf ? f.place : null)
       toast(kind === 'proposal' ? tx('Ұсыныс жіберілді, алушыға хабар кетті') : tx('Жарияланды')); onDone()
@@ -329,7 +332,7 @@ function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initia
             <option value="">{tx('Таңдаңыз')}</option>{(teachers.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}</select>}</Field>}
         </>
       )}
-      {(kind === 'news' || kind === 'announcement') && <AsWho me={me} led={led} value={asId} onChange={setAs} own={own} />}
+      {social && <AsWho me={me} led={led} value={asId} onChange={setAs} own={own} />}
       <Field label={kind === 'proposal' ? tx('Ұсыныс') : lf ? tx('Не?') : tx('Тақырып')}>{(id) => <input id={id} value={f.title} maxLength={140} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls}
         placeholder={kind === 'proposal' ? tx('Асханаға су автоматы қою') : kind === 'lost' ? tx('Көк түсті рюкзак') : kind === 'found' ? tx('Кілт, 2-қабат') : ''} />}</Field>
       {lf && <Field label={kind === 'lost' ? tx('Қай жерде жоғалды') : tx('Қай жерден табылды')}>{(id) => <input id={id} value={f.place} onChange={(e) => setF({ ...f, place: e.target.value })} className={inputCls} placeholder={tx('Спортзал, 3-қабат')} />}</Field>}
@@ -342,7 +345,7 @@ function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initia
           </div>
         )}</Field>
       )}
-      {(kind === 'news' || kind === 'announcement') && (
+      {social && (
         <div className="grid gap-1">
           <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Лайк санын жасыру')}</span>
             <input type="checkbox" checked={extra.hide} onChange={(e) => setExtra({ ...extra, hide: e.target.checked })} className="size-5 accent-[var(--accent)]" /></label>

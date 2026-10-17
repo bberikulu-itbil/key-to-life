@@ -22,7 +22,7 @@ export default function AbsenceForm({ activityId, onDone }: { activityId?: strin
   const [err, setErr] = useState('')
 
   if (loading) return <Skeleton rows={2} />
-  if (!mine.length) return <Empty title={tx('Жазылған іс-шара жоқ')} text={tx('Рұқсат тек өзіңіз қатысатын іс-шараның сабақтарына сұралады.')} />
+  if (!mine.length) return <Empty title={tx('Жазылған бастама жоқ')} text={tx('Рұқсат тек өзіңіз қатысатын бастаманың сабақтарына сұралады.')} />
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -35,7 +35,7 @@ export default function AbsenceForm({ activityId, onDone }: { activityId?: strin
 
   return (
     <form onSubmit={submit} noValidate className="grid gap-4">
-      <Field label={tx('Қай іс-шарадан?')}>
+      <Field label={tx('Қай бастамадан?')}>
         {(id) => <select id={id} value={a?.id} onChange={(e) => { setAct(e.target.value); setDate('') }} className={inputCls}>
           {mine.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}</select>}
       </Field>

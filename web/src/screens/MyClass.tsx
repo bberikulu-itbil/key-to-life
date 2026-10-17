@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { classAttendance, classChatId, classStudents, errText, listClasses, listLeaves, listLessons, listStaff, openDirect, uploadStudentPhoto, type Student } from '../lib/api'
+import { classAttendance, classChatId, classStudents, errText, listClasses, listLeaves, listLessons, listStaff, openDirect, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
 import Avatar from '../components/Avatar'
 import { hm, isoDow, rate, today } from '../lib/time'
 import { useMe } from '../App'
-import { Badge, Card, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
 export default function MyClass({ classId }: { classId?: string }) {
@@ -153,6 +153,7 @@ export default function MyClass({ classId }: { classId?: string }) {
                 </label>
               )}
             </div>
+            {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && <EditStudent key={open.id} s={open} onSaved={(v) => { setOpen({ ...open, ...v }); data.reload() }} />}
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
               <dt className="text-muted">{tx('Олимпиада')}</dt><dd>{open.olympiad ?? '—'}</dd>
               <dt className="text-muted">{tx('Үйірме')}</dt><dd>{open.club ?? '—'}</dd>
@@ -164,6 +165,29 @@ export default function MyClass({ classId }: { classId?: string }) {
           </div>
         </Sheet>
       )}
+    </div>
+  )
+}
+
+/** The class teacher, the tutor or a deputy fix a student's name, olympiad subject and club. */
+function EditStudent({ s, onSaved }: { s: Student; onSaved: (v: { full_name: string; olympiad: string | null; club: string | null }) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [f, setF] = useState({ full_name: s.full_name, olympiad: s.olympiad ?? '', club: s.club ?? '' })
+  const [busy, setBusy] = useState(false)
+  if (!editing) return <Button kind="secondary" onClick={() => setEditing(true)}><Icon n="settings" size={18} />{tx('Мәліметін өзгерту')}</Button>
+  const save = async () => {
+    setBusy(true)
+    try {
+      await updateStudent(s.id, f); toast(tx('Сақталды')); setEditing(false)
+      onSaved({ full_name: f.full_name.trim(), olympiad: f.olympiad.trim() || null, club: f.club.trim() || null })
+    } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <div className="grid gap-3 rounded-md bg-surface-2 p-3">
+      <Field label={tx('Аты-жөні')}>{(id) => <input id={id} value={f.full_name} maxLength={120} onChange={(e) => setF({ ...f, full_name: e.target.value })} className={inputCls} />}</Field>
+      <Field label={tx('Олимпиада')}>{(id) => <input id={id} value={f.olympiad} maxLength={60} onChange={(e) => setF({ ...f, olympiad: e.target.value })} className={inputCls} placeholder={tx('Мысалы: информатика')} />}</Field>
+      <Field label={tx('Үйірме')}>{(id) => <input id={id} value={f.club} maxLength={120} onChange={(e) => setF({ ...f, club: e.target.value })} className={inputCls} />}</Field>
+      <div className="grid grid-cols-2 gap-2"><Button kind="ghost" onClick={() => setEditing(false)}>{tx('Болдырмау')}</Button><Button loading={busy} onClick={save}>{tx('Сақтау')}</Button></div>
     </div>
   )
 }
