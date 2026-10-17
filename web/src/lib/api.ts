@@ -144,8 +144,13 @@ export async function addUser(body: { full_name: string; iin: string; role: Role
 }
 
 /* ---------- booking ---------- */
+export type RoomMode = 'open' | 'request' | 'closed'
+export type RoomAudience = 'all' | 'staff' | 'listed'
 export type Resource = { id: string; group_id: string; name: string; capacity: number | null; manager_id: string; slot_minutes: number
-  open_from: string; open_to: string; active: boolean; manager: { full_name: string } }
+  open_from: string; open_to: string; active: boolean; manager: { full_name: string }
+  title: string | null; mode: RoomMode; audience: RoomAudience; hide_slots: boolean; managers: string[]; viewers: string[] }
+/** A responsible teacher of the room, or a deputy. */
+export const managesRoom = (me: Me, r: Resource) => me.role === 'deputy' || me.role === 'admin' || r.manager_id === me.id || r.managers.includes(me.id)
 export type Group = { id: string; name: string; sort: number }
 export type BookingStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 export type Booking = { id: string; code: string; resource_id: string; user_id: string; on_date: string; start_time: string; end_time: string
@@ -154,7 +159,7 @@ export type Booking = { id: string; code: string; resource_id: string; user_id: 
 
 export const listGroups = () => ok(supabase.from('resource_groups').select('id, name, sort').order('sort').order('name')) as Promise<Group[]>
 export const listResources = () =>
-  ok(supabase.from('resources').select('id, group_id, name, capacity, manager_id, slot_minutes, open_from, open_to, active, manager:profiles!manager_id(full_name)').order('name')) as unknown as Promise<Resource[]>
+  ok(supabase.from('resources').select('id, group_id, name, capacity, manager_id, slot_minutes, open_from, open_to, active, title, mode, audience, hide_slots, managers, viewers, manager:profiles!manager_id(full_name)').order('name')) as unknown as Promise<Resource[]>
 const BOOK = 'id, code, resource_id, user_id, on_date, start_time, end_time, purpose, status, note, created_at, user:profiles!user_id(full_name), resource:resources(name, manager_id, group:resource_groups(name))'
 export const bookingsFor = (resource: string, date: string) =>
   ok(supabase.from('bookings').select(BOOK).eq('resource_id', resource).eq('on_date', date).in('status', ['pending', 'approved'])) as unknown as Promise<Booking[]>
@@ -168,8 +173,8 @@ export const createBooking = (resource: string, date: string, start: string, end
   rpc<string>('create_booking', { p_resource: resource, p_date: date, p_start: start, p_end: end, p_purpose: purpose })
 export const decideBooking = (id: string, approve: boolean, note?: string) => rpc('decide_booking', { p_id: id, p_approve: approve, p_note: note ?? null })
 export const cancelBooking = (id: string) => rpc('cancel_booking', { p_id: id })
-export const updateResource = (id: string, slot: number, from: string, to: string, active: boolean) =>
-  rpc('update_resource', { p_id: id, p_slot: slot, p_from: from, p_to: to, p_active: active })
+export const updateRoom = (id: string, p: { title: string; capacity: string; slot: number; from: string; to: string; active: boolean
+  mode: RoomMode; audience: RoomAudience; hide_slots: boolean; managers: string[]; viewers: string[] }) => rpc('update_room', { p_id: id, p })
 export const createResource = (group: string, name: string, manager: string, capacity: number | null) =>
   rpc<string>('create_resource', { p_group: group, p_name: name, p_manager: manager, p_capacity: capacity })
 
@@ -421,6 +426,8 @@ export async function uploadStudentPhoto(studentId: string, file: File) {
   return path
 }
 
+export const setClassTeacher = (classId: string, teacher: string | null) => rpc('set_class_teacher', { p_class: classId, p_teacher: teacher })
+export const updateStaff = (id: string, fullName: string, title: string) => rpc('update_staff', { p_user: id, p_full_name: fullName, p_title: title })
 export const updateStudent = (id: string, v: { full_name: string; olympiad: string; club: string }) =>
   rpc('update_student', { p_student: id, p_full_name: v.full_name, p_olympiad: v.olympiad, p_club: v.club })
 

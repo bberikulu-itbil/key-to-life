@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { cancelBooking, createResource, decideBooking, errText, listBookings, listGroups, listResources, listStaff, updateResource, type Booking, type Resource } from '../lib/api'
+import { cancelBooking, createResource, decideBooking, errText, listBookings, listGroups, listResources, listStaff, managesRoom, updateRoom, type Booking, type Resource, type RoomAudience, type RoomMode } from '../lib/api'
 import { fmtDate, hm, today } from '../lib/time'
 import { useMe } from '../App'
 import Qr from '../components/Qr'
@@ -13,7 +13,7 @@ export default function Bookings({ tab }: { tab: Tab }) {
   const { me } = useMe()
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const resources = useLoad(listResources, [])
-  const managesAny = deputy || (resources.data ?? []).some((r) => r.manager_id === me.id)
+  const managesAny = deputy || (resources.data ?? []).some((r) => managesRoom(me, r))
   const tabs: [Tab, string][] = [['mine', tx('Менікі')], ...(managesAny ? [['review', tx('Растау')], ['places', tx('Орындар')]] as [Tab, string][] : [])]
 
   return (
@@ -76,11 +76,10 @@ function Mine() {
 
 function Review({ resources }: { resources: Resource[] }) {
   const { me } = useMe()
-  const deputy = me.role === 'deputy' || me.role === 'admin'
   const t = today()
   const { data, error, loading, reload } = useLoad(() => listBookings({ from: t }), [t])
   const [busy, setBusy] = useState('')
-  const mineIds = new Set(resources.filter((r) => deputy || r.manager_id === me.id).map((r) => r.id))
+  const mineIds = new Set(resources.filter((r) => managesRoom(me, r)).map((r) => r.id))
   const list = (data ?? []).filter((b) => mineIds.has(b.resource_id))
   const pending = list.filter((b) => b.status === 'pending')
   const upcoming = list.filter((b) => b.status === 'approved').sort((a, b) => (a.on_date + a.start_time).localeCompare(b.on_date + b.start_time))
@@ -110,23 +109,27 @@ function Places({ resources, reload }: { resources: Resource[]; reload: () => vo
   const { me } = useMe()
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const groups = useLoad(listGroups, [])
-  const mine = resources.filter((r) => deputy || r.manager_id === me.id)
+  const mine = resources.filter((r) => managesRoom(me, r))
   const [edit, setEdit] = useState<Resource | null>(null)
   const [adding, setAdding] = useState(false)
-  const gname = (id: string) => groups.data?.find((g) => g.id === id)?.name ?? ''
   return (
     <div className="grid gap-2">
-      <p className="text-sm text-muted">{tx('Слот ұзақтығы мен ашық сағаттарын өзіңіз баптайсыз. Өзгеріс жаңа броньдарға қолданылады.')}</p>
-      {mine.map((r) => (
-        <button key={r.id} type="button" onClick={() => setEdit(r)} className="text-left">
-          <Card className="flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold break-words">{r.name} {!r.active && <Badge tone="muted">{tx('Жабық')}</Badge>}</p>
-              <p className="text-sm text-muted tabular-nums">{tx('{0} · {1}–{2} · {3} мин · {4}', gname(r.group_id), hm(r.open_from), hm(r.open_to), r.slot_minutes, r.manager.full_name)}</p>
-            </div>
-            <span className="text-accent text-sm font-semibold">{tx('Баптау')}</span>
+      <p className="text-sm text-muted">{tx('Жауапты болған кабинеттеріңіз. Көрінуін, брондау режимін және жауаптыларын осында баптайсыз.')}</p>
+      {(groups.data ?? []).filter((g) => mine.some((r) => r.group_id === g.id)).map((g) => (
+        <section key={g.id} className="grid gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{tx(g.name)}</h2>
+          <Card className="p-0 divide-y divide-line">
+            {mine.filter((r) => r.group_id === g.id).map((r) => (
+              <button key={r.id} type="button" onClick={() => setEdit(r)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left">
+                <span className="flex-1 min-w-0">
+                  <span className="block font-semibold break-words">{r.name}{r.title ? <span className="font-normal text-muted"> · {r.title}</span> : null}</span>
+                  <span className="block text-xs text-muted">{[MODE[r.mode], r.audience !== 'all' && AUDIENCE[r.audience], r.capacity && tx('{0} орын', r.capacity), r.hide_slots && tx('кесте жасырын')].filter(Boolean).join(' · ')}</span>
+                </span>
+                {!r.active && <Badge tone="muted">{tx('Жасырын')}</Badge>}
+              </button>
+            ))}
           </Card>
-        </button>
+        </section>
       ))}
       {deputy && <Button kind="secondary" onClick={() => setAdding(true)}>{tx('Орын қосу')}</Button>}
       {edit && <Sheet title={edit.name} onClose={() => setEdit(null)}><Settings r={edit} onDone={() => { setEdit(null); reload() }} /></Sheet>}
@@ -135,22 +138,53 @@ function Places({ resources, reload }: { resources: Resource[]; reload: () => vo
   )
 }
 
+const MODE: Record<RoomMode, string> = { open: tx('Брондауға ашық'), request: tx('Өтінішпен'), closed: tx('Жабық бөлме') }
+const AUDIENCE: Record<RoomAudience, string> = { all: tx('Барлығына'), staff: tx('Тек мұғалімдерге'), listed: tx('Тек таңдалғандарға') }
+
+/** Everything about a room: who sees it, how it is booked, who is responsible. */
 function Settings({ r, onDone }: { r: Resource; onDone: () => void }) {
-  const [f, setF] = useState({ slot: r.slot_minutes, from: hm(r.open_from), to: hm(r.open_to), active: r.active })
+  const staff = useLoad(listStaff, [])
+  const [f, setF] = useState({ title: r.title ?? '', capacity: r.capacity ? String(r.capacity) : '', slot: r.slot_minutes, from: hm(r.open_from), to: hm(r.open_to),
+    active: r.active, mode: r.mode, audience: r.audience, hide_slots: r.hide_slots,
+    managers: r.managers.length ? r.managers : [r.manager_id], viewers: r.viewers })
   const [busy, setBusy] = useState(false)
+  const toggle = (k: 'managers' | 'viewers', id: string) => setF({ ...f, [k]: f[k].includes(id) ? f[k].filter((x) => x !== id) : [...f[k], id] })
   const save = async () => {
     if (f.to <= f.from) return toast(tx('Жабылу уақыты ашылудан кейін болуы керек'))
+    if (!f.managers.length) return toast(tx('Кемінде бір жауапты керек'))
     setBusy(true)
-    try { await updateResource(r.id, f.slot, f.from, f.to, f.active); toast(tx('Сақталды')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+    try { await updateRoom(r.id, f); toast(tx('Сақталды')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
+  const people = (k: 'managers' | 'viewers') => (
+    <div className="max-h-56 overflow-y-auto rounded-md border border-line divide-y divide-line">
+      {(staff.data ?? []).map((s) => (
+        <label key={s.id} className="flex items-center gap-3 min-h-11 px-3">
+          <input type="checkbox" checked={f[k].includes(s.id)} onChange={() => toggle(k, s.id)} className="size-5 accent-[var(--accent)]" />
+          <span className="flex-1 min-w-0 truncate">{s.full_name}</span>
+        </label>
+      ))}
+    </div>
+  )
   return (
     <div className="grid gap-4">
+      <div className="grid grid-cols-[1fr_auto] gap-3">
+        <Field label={tx('Атауы')}>{(id) => <input id={id} value={f.title} maxLength={80} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls} />}</Field>
+        <Field label={tx('Орын саны')}>{(id) => <input id={id} inputMode="numeric" value={f.capacity} onChange={(e) => setF({ ...f, capacity: e.target.value.replace(/\D/g, '') })} className={`${inputCls} w-24`} />}</Field>
+      </div>
+      <label className="flex items-center gap-3 min-h-11"><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} className="size-5 accent-[var(--accent)]" />{tx('Тізімде көрсету')}</label>
+      <Field label={tx('Брондау режимі')}>{(id) => <select id={id} value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value as RoomMode })} className={inputCls}>
+        <option value="open">{tx('Брондауға ашық — бірден расталады')}</option><option value="request">{tx('Өтінішпен — жауапты мұғалім растайды')}</option><option value="closed">{tx('Жабық бөлме — броньдалмайды')}</option></select>}</Field>
+      <Field label={tx('Кімге көрінеді')}>{(id) => <select id={id} value={f.audience} onChange={(e) => setF({ ...f, audience: e.target.value as RoomAudience })} className={inputCls}>
+        {(Object.keys(AUDIENCE) as RoomAudience[]).map((k) => <option key={k} value={k}>{AUDIENCE[k]}</option>)}</select>}</Field>
+      {f.audience === 'listed' && <div className="grid gap-1.5"><p className="text-sm font-semibold">{tx('Кімдерге көрінеді')}</p>{people('viewers')}</div>}
+      <label className="flex items-start gap-3 min-h-11"><input type="checkbox" checked={f.hide_slots} onChange={(e) => setF({ ...f, hide_slots: e.target.checked })} className="size-5 mt-0.5 accent-[var(--accent)]" />
+        <span>{tx('Бос уақыттарды жасыру')}<span className="block text-sm text-muted">{tx('Басқалар кестені көрмейді, тек қалаған уақытына өтініш жібереді.')}</span></span></label>
       <Field label={tx('Бір слоттың ұзақтығы')}>{(id) => <select id={id} value={f.slot} onChange={(e) => setF({ ...f, slot: +e.target.value })} className={inputCls}>{SLOTS.map((s) => <option key={s} value={s}>{tx('{0} минут', s)}</option>)}</select>}</Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label={tx('Ашылады')}>{(id) => <input id={id} type="time" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} className={inputCls} />}</Field>
         <Field label={tx('Жабылады')}>{(id) => <input id={id} type="time" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} className={inputCls} />}</Field>
       </div>
-      <label className="flex items-center gap-3 min-h-11"><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} className="size-5 accent-[var(--accent)]" />{tx('Броньдауға ашық')}</label>
+      <div className="grid gap-1.5"><p className="text-sm font-semibold">{tx('Жауаптылар')}</p><p className="text-xs text-muted">{tx('Өтініштер бәріне барады, кез келгені растай алады.')}</p>{staff.loading ? <Skeleton rows={1} /> : people('managers')}</div>
       <Button block loading={busy} onClick={save}>{tx('Сақтау')}</Button>
     </div>
   )

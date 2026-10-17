@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { classAttendance, classChatId, classStudents, errText, listClasses, listLeaves, listLessons, listStaff, openDirect, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
+import { classAttendance, classChatId, classStudents, errText, listClasses, listLeaves, listLessons, listStaff, openDirect, setClassTeacher, setTutor, updateStaff, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
 import Avatar from '../components/Avatar'
 import { hm, isoDow, rate, today } from '../lib/time'
 import { useMe } from '../App'
@@ -25,6 +25,7 @@ export default function MyClass({ classId }: { classId?: string }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Student | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [staffOpen, setStaffOpen] = useState(false)
   const upload = async (s: Student, f: File) => {
     setUploading(true)
     try { const photo = await uploadStudentPhoto(s.id, f); setOpen({ ...s, photo }); toast(tx('Сурет сақталды')); data.reload() } catch (e) { toast(errText(e)) } finally { setUploading(false) }
@@ -73,6 +74,7 @@ export default function MyClass({ classId }: { classId?: string }) {
           <dt className="text-muted">{tx('Сынып жетекшісі')}</dt><dd className="font-medium">{name(cls.teacher_id) ?? '—'}</dd>
           <dt className="text-muted">{tx('Тәрбиеші')}</dt><dd className="font-medium">{name(cls.tutor_id) ?? '—'}</dd>
         </dl>
+        {deputy && d && <Button kind="secondary" onClick={() => setStaffOpen(true)}><Icon n="settings" size={18} />{tx('Мұғалімдерді өзгерту')}</Button>}
       </Card>
 
       <div className="grid grid-cols-4 gap-2">
@@ -141,6 +143,9 @@ export default function MyClass({ classId }: { classId?: string }) {
         </>
       )}
 
+      {staffOpen && d && <Sheet title={tx('{0} сыныбының мұғалімдері', cls.name)} onClose={() => setStaffOpen(false)}>
+        <ClassStaff classId={cls.id} teacher={cls.teacher_id} tutor={cls.tutor_id} staff={d.staff} onDone={() => { setStaffOpen(false); classes.reload(); data.reload() }} /></Sheet>}
+
       {open && (
         <Sheet title={open.full_name} onClose={() => setOpen(null)}>
           <div className="grid gap-3">
@@ -187,6 +192,52 @@ function EditStudent({ s, onSaved }: { s: Student; onSaved: (v: { full_name: str
       <Field label={tx('Аты-жөні')}>{(id) => <input id={id} value={f.full_name} maxLength={120} onChange={(e) => setF({ ...f, full_name: e.target.value })} className={inputCls} />}</Field>
       <Field label={tx('Олимпиада')}>{(id) => <input id={id} value={f.olympiad} maxLength={60} onChange={(e) => setF({ ...f, olympiad: e.target.value })} className={inputCls} placeholder={tx('Мысалы: информатика')} />}</Field>
       <Field label={tx('Үйірме')}>{(id) => <input id={id} value={f.club} maxLength={120} onChange={(e) => setF({ ...f, club: e.target.value })} className={inputCls} />}</Field>
+      <div className="grid grid-cols-2 gap-2"><Button kind="ghost" onClick={() => setEditing(false)}>{tx('Болдырмау')}</Button><Button loading={busy} onClick={save}>{tx('Сақтау')}</Button></div>
+    </div>
+  )
+}
+
+type Staff = { id: string; full_name: string; title: string | null }
+/** Admin / deputy: who leads the class, who is its tutor, and the teachers' own names and titles. */
+function ClassStaff({ classId, teacher, tutor, staff, onDone }: { classId: string; teacher: string | null; tutor: string | null; staff: Staff[]; onDone: () => void }) {
+  const [f, setF] = useState({ teacher: teacher ?? '', tutor: tutor ?? '' })
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    setBusy(true)
+    try {
+      if (f.teacher !== (teacher ?? '')) await setClassTeacher(classId, f.teacher || null)
+      if (f.tutor !== (tutor ?? '')) await setTutor(classId, f.tutor || null)
+      toast(tx('Сақталды')); onDone()
+    } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  const pick = (k: 'teacher' | 'tutor', label: string) => (
+    <Field label={label}>{(id) => <select id={id} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} className={inputCls}>
+      <option value="">—</option>{staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}</select>}</Field>
+  )
+  const people = [f.teacher, f.tutor].filter((x, i, a) => x && a.indexOf(x) === i).map((id) => staff.find((s) => s.id === id)).filter(Boolean) as Staff[]
+  return (
+    <div className="grid gap-4">
+      {pick('teacher', tx('Сынып жетекшісі'))}
+      {pick('tutor', tx('Тәрбиеші'))}
+      <Button block loading={busy} onClick={save}>{tx('Сақтау')}</Button>
+      {people.map((s) => <StaffInfo key={s.id} s={s} onSaved={onDone} />)}
+    </div>
+  )
+}
+
+function StaffInfo({ s, onSaved }: { s: Staff; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [f, setF] = useState({ full_name: s.full_name, title: s.title ?? '' })
+  const [busy, setBusy] = useState(false)
+  if (!editing) return <Button kind="ghost" onClick={() => setEditing(true)}>{tx('{0} — мәліметін өзгерту', s.full_name)}</Button>
+  const save = async () => {
+    setBusy(true)
+    try { await updateStaff(s.id, f.full_name, f.title); toast(tx('Сақталды')); onSaved() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <div className="grid gap-3 rounded-md bg-surface-2 p-3">
+      <Field label={tx('Аты-жөні')}>{(id) => <input id={id} value={f.full_name} maxLength={120} onChange={(e) => setF({ ...f, full_name: e.target.value })} className={inputCls} />}</Field>
+      <Field label={tx('Лауазымы / пәні')}>{(id) => <input id={id} value={f.title} maxLength={120} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls} placeholder={tx('Физика пәнінің мұғалімі')} />}</Field>
       <div className="grid grid-cols-2 gap-2"><Button kind="ghost" onClick={() => setEditing(false)}>{tx('Болдырмау')}</Button><Button loading={busy} onClick={save}>{tx('Сақтау')}</Button></div>
     </div>
   )

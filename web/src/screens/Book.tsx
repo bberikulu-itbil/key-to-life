@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { bookingsFor, createBooking, errText, listGroups, listResources, type Booking } from '../lib/api'
+import { bookingsFor, createBooking, errText, listGroups, listResources, managesRoom, type Booking } from '../lib/api'
 import { WD_SHORT, addDays, daySlots, fmtDate, hm, isoDow, parse, pickRange, today } from '../lib/time'
 import Qr from '../components/Qr'
 import { Button, Card, Chips, Empty, ErrorBox, Field, PageHead, Sheet, Skeleton, go, inputCls, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
+import { useMe } from '../App'
 
 const LEGEND = [['bg-surface border border-input', tx('Бос')], ['bg-warning-soft', tx('Растау күтуде')], ['bg-surface-2 text-muted line-through', tx('Бос емес')]] as const
 
 export default function Book({ resource }: { resource?: string }) {
+  const { me } = useMe()
   const groups = useLoad(listGroups, [])
   const resources = useLoad(listResources, [])
   const [group, setGroup] = useState('')
@@ -24,8 +26,11 @@ export default function Book({ resource }: { resource?: string }) {
   useEffect(() => { const x = resources.data?.find((y) => y.id === resource); if (x) { setGroup(x.group_id); setResId(x.id) } }, [resources.data, resource])
 
   const g = group || groups.data?.[0]?.id || ''
-  const inGroup = (resources.data ?? []).filter((r) => r.group_id === g && r.active)
+  // closed rooms (offices) are bookable only by their responsible teachers
+  const inGroup = (resources.data ?? []).filter((r) => r.group_id === g && r.active && (r.mode !== 'closed' || managesRoom(me, r)))
+  const boss = (resources.data ?? []).some((x) => x.id === resId && managesRoom(me, x))
   const r = inGroup.find((x) => x.id === resId)
+  const blind = !!r && r.hide_slots && !boss   // others' bookings are hidden: send a request for the wanted time
 
   const reload = () => { if (r) { setTaken(null); bookingsFor(r.id, date).then(setTaken, (e) => setErr(errText(e))) } }
   useEffect(() => { setSel(null); reload() }, [r?.id, date])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -40,7 +45,7 @@ export default function Book({ resource }: { resource?: string }) {
     setBusy(true); setErr('')
     try {
       const code = await createBooking(r.id, date, slots[sel[0]].start, slots[sel[1]].end, purpose)
-      setDone({ code, pending: true }); setSel(null); setPurpose(''); reload()
+      setDone({ code, pending: r.mode !== 'open' && !boss }); setSel(null); setPurpose(''); reload()
     } catch (e) { setErr(errText(e)); reload() } finally { setBusy(false) }
   }
 
@@ -53,7 +58,7 @@ export default function Book({ resource }: { resource?: string }) {
       <PageHead title={tx('Броньдау')} back right={<Button kind="ghost" onClick={() => go('/bookings')}>{tx('Менің броньдарым')}</Button>} />
 
       <h2 className="text-sm font-semibold">{tx('Аймақ')}</h2>
-      <Chips label={tx('Аймақ')} value={g} onChange={(v) => { setGroup(v); setResId('') }} items={groups.data.map((x) => [x.id, x.name])} />
+      <Chips label={tx('Аймақ')} value={g} onChange={(v) => { setGroup(v); setResId('') }} items={groups.data.map((x) => [x.id, tx(x.name)])} />
 
       <h2 className="text-sm font-semibold mt-1">{tx('Орын')}</h2>
       {!inGroup.length ? <p className="text-sm text-muted">{tx('Бұл аймақта ашық орын жоқ.')}</p> : (
@@ -62,7 +67,8 @@ export default function Book({ resource }: { resource?: string }) {
             <button key={x.id} type="button" role="radio" aria-checked={x.id === resId} onClick={() => setResId(x.id)}
               className={`text-left rounded-md p-3 min-h-16 border ${x.id === resId ? 'border-accent bg-accent-soft' : 'border-line bg-surface'}`}>
               <span className="block font-semibold break-words">{x.name}</span>
-              <span className="block text-xs text-muted tabular-nums">{tx('{0}–{1} · {2} мин{3}', hm(x.open_from), hm(x.open_to), x.slot_minutes, x.capacity ? tx(' · {0} орын', x.capacity) : '')}</span>
+              {x.title && <span className="block text-sm leading-snug break-words">{x.title}</span>}
+              <span className="block text-xs text-muted tabular-nums">{[x.capacity && tx('{0} орын', x.capacity), x.mode === 'request' && tx('Өтінішпен'), x.mode === 'closed' && tx('Жабық бөлме')].filter(Boolean).join(' · ') || tx('{0}–{1}', hm(x.open_from), hm(x.open_to))}</span>
             </button>
           ))}
         </div>
@@ -85,6 +91,7 @@ export default function Book({ resource }: { resource?: string }) {
             <h2 className="text-sm font-semibold">{tx('Уақыт · {0}', fmtDate(date))}</h2>
             <span className="text-xs text-muted">{tx('Бастауын, сосын соңын басыңыз')}</span>
           </div>
+          {blind && <p className="text-sm rounded-md bg-accent-soft text-accent px-3 py-2">{tx('Бұл кабинеттің кестесі жасырын. Қалаған уақытыңызды таңдап өтініш жіберіңіз, жауапты мұғалім шешеді.')}</p>}
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
             {LEGEND.map(([c, l]) => <span key={l} className="flex items-center gap-1.5"><span className={`size-3 rounded-sm ${c}`} />{l}</span>)}
           </div>
@@ -112,7 +119,7 @@ export default function Book({ resource }: { resource?: string }) {
               <Field label={tx('Мақсаты')}>{(id) => <input id={id} value={purpose} maxLength={300} onChange={(e) => setPurpose(e.target.value)} className={inputCls} placeholder={tx('Волейбол жаттығуы, жоба кездесуі…')} />}</Field>
               {err && <p role="alert" className="text-sm text-danger">{err}</p>}
               <Button block loading={busy} onClick={submit}>{tx('Броньдау')}</Button>
-              <p className="text-xs text-muted">{tx('Жауаптысы: {0}. Бронь ол растаған соң жарамды болады.', r.manager.full_name)}</p>
+              <p className="text-xs text-muted">{r.mode === 'open' || boss ? tx('Бронь бірден расталады.') : tx('Бронь жауапты мұғалім растаған соң жарамды болады.')}</p>
             </Card>
           )}
           {!sel && err && <p role="alert" className="text-sm text-danger">{err}</p>}
