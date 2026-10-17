@@ -5,7 +5,7 @@ import { inTelegram, syncBackButton, tg } from './lib/telegram'
 import Feed from './screens/Feed'
 import Search from './screens/Search'
 import Surveys, { SurveyNew, SurveyView } from './screens/Surveys'
-import { Icon, Sheet, Toaster, go, usePath } from './components/ui'
+import { Icon, PageHead, Sheet, Toaster, go, usePath } from './components/ui'
 import Login from './screens/Login'
 import Plan from './screens/Plan'
 import Chats, { Reports } from './screens/Chats'
@@ -27,6 +27,8 @@ import Timetable from './screens/Timetable'
 import MyClass from './screens/MyClass'
 import MyActivities from './screens/MyActivities'
 import AddUser from './screens/AddUser'
+import Feedback from './screens/Feedback'
+import { MenuCard } from './components/HomeWidgets'
 
 const Ctx = createContext<{ me: Me; refreshBadge: () => void }>(null!)
 export const useMe = () => useContext(Ctx)
@@ -94,6 +96,8 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'lost') screen = <Feed key="lost" query="" page="lost" />
   else if (seg === 'events') screen = <Feed key="events" query="" page="events" />
   else if (seg === 'proposals') screen = <Feed key="proposals" query="" page="proposals" />
+  else if (seg === 'menu') screen = <div className="grid gap-3 pb-6"><PageHead title="Асхана" back /><MenuCard me={me} /></div>
+  else if (seg === 'feedback') screen = <Feedback />
   else if (seg === 'surveys' && id === 'new') screen = <SurveyNew />
   else if (seg === 'surveys' && id) screen = <SurveyView key={id} id={id} />
   else if (seg === 'surveys') screen = <Surveys />
@@ -101,7 +105,7 @@ function Shell({ me }: { me: Me }) {
   else screen = <Feed query={path.split('?')[1] ?? ''} />
 
   const tabs = [['/', 'home', 'Home'], ['/plan', 'clock', 'Жоспар'], ['+', 'plus', 'Әрекет'], ['/chats', 'chat', 'Чаттар'], ['/profile', 'user', 'Профиль']] as const
-  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
+  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>

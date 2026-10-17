@@ -1,11 +1,11 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { createPost, createProposal, errText, hidePost, listActivities, listPeople, listPosts, listStaff, openDirect, photoUrl, pinPost, setParliament, setPostStatus, uploadPhoto, votePost,
-  type Activity, type Me, type Post, type PostKind, type PostStatus } from '../lib/api'
-import { TYPE_LABEL, WD_SHORT, chatTime, fmtDate, isoDow, nextSession, parse, sessionTime, today } from '../lib/time'
+  type Me, type Post, type PostKind, type PostStatus } from '../lib/api'
+import { chatTime, fmtDate } from '../lib/time'
 import { useMe } from '../App'
 import Stories, { storyCandidates } from '../components/Stories'
 import Activities from './Activities'
-import { DutyCard, MenuCard, SearchBar, TodayCard } from '../components/HomeWidgets'
+import { DutyCard, TodayCard } from '../components/HomeWidgets'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
 
 type Tab = 'all' | 'news' | 'announcement'
@@ -14,7 +14,7 @@ const TABS: [Tab, string][] = [['all', 'Барлығы'], ['news', 'Жаңалы
 const PAGE_TITLE: Record<Page, string> = { lost: 'Lost & Found', events: 'Events', proposals: 'Ұсыныстар' }
 // old notification links (/?t=parliament) still land on the right page
 const LEGACY: Record<string, Page> = { lost: 'lost', upcoming: 'events', parliament: 'proposals' }
-const QUICK: [string, string, string][] = [['search', 'Lost & Found', '/lost'], ['grid', 'Cabinets', '/book'], ['star', 'Events', '/events'], ['flag', 'Ұсыныстар', '/proposals'], ['poll', 'Сауалнама', '/surveys']]
+const QUICK: [string, string, string][] = [['list', 'Асхана', '/menu'], ['search', 'Lost & Found', '/lost'], ['grid', 'Cabinets', '/book'], ['star', 'Events', '/events'], ['flag', 'Ұсыныстар', '/proposals'], ['poll', 'Сауалнама', '/surveys']]
 const PROPOSAL: Record<PostStatus, [string, Tone]> = {
   open: ['Жаңа', 'accent'], considering: ['Қаралуда', 'warn'], accepted: ['Қабылданды', 'ok'], rejected: ['Қабылданбады', 'bad'], resolved: ['Жабылды', 'muted'],
 }
@@ -39,12 +39,6 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   // members-only activity posts live on the activity page, not in the school feed
   const all = (posts.data ?? []).filter((p) => p.visibility === 'public')
   const of = (k: PostKind[]) => all.filter((p) => k.includes(p.kind))
-
-  const upcoming = useMemo(() => {
-    const t = today()
-    return (acts.data ?? []).filter((a) => a.status === 'approved' && !a.archived_at).map((a) => ({ a, d: nextSession(a, t, 30) }))
-      .filter((x): x is { a: Activity; d: string } => !!x.d).sort((x, y) => (x.d + sessionTime(x.a, x.d).start).localeCompare(y.d + sessionTime(y.a, y.d).start))
-  }, [acts.data])
 
   const setTab = (t: Tab) => go(t === 'all' ? '/' : `/?t=${t}`)
   const section = (title: string, t: Tab | Page | null, body: ReactNode) => (
@@ -82,29 +76,31 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
     <div className="grid gap-3 pb-4">
       <header className="flex items-center gap-2 min-h-14">
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold">Home</h1>
+          <h1 className="text-2xl font-bold">Key To Life</h1>
           <p className="text-sm text-muted truncate">{me.school.name}</p>
         </div>
-        <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label="Жариялау" className="size-11 rounded-full bg-accent text-on-accent grid place-items-center"><Icon n="plus" /></button>
+        <a href="#/search" aria-label="Іздеу" className="size-11 rounded-full bg-accent text-on-accent grid place-items-center"><Icon n="search" /></a>
       </header>
 
-      <SearchBar />
-      {/* all five fit at 320px: hidden off-screen shortcuts were never found */}
-      <nav aria-label="Жылдам әрекеттер" className="grid grid-cols-5 gap-1.5">
+      {/* 3 × 2: six shortcuts stay readable at 320px */}
+      <nav aria-label="Бөлімдер" className="grid grid-cols-3 gap-2">
         {QUICK.map(([icon, label, path]) => (
-          <a key={path} href={`#${path}`} className="min-w-0 grid justify-items-center content-start gap-1.5 rounded-lg py-2 px-0.5 text-[11px] leading-tight font-semibold text-center active:bg-surface-2">
-            <span className="size-12 rounded-2xl bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={22} /></span><span className="break-words">{label}</span>
+          <a key={path} href={`#${path}`} className="min-w-0 flex items-center gap-2 min-h-12 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-2 text-[13px] leading-tight font-semibold active:bg-surface-2">
+            <span className="size-8 rounded-md bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={icon} size={18} /></span><span className="min-w-0 break-words">{label}</span>
           </a>
         ))}
       </nav>
 
-      <div role="tablist" aria-label="Home бөлімдері" className="flex gap-5 overflow-x-auto -mx-4 px-4 border-b border-line [scrollbar-width:none]">
-        {TABS.map(([k, label]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-            className={`relative h-11 whitespace-nowrap text-[15px] ${tab === k ? 'font-semibold text-fg' : 'text-muted'}`}>
-            {label}{tab === k && <span className="absolute inset-x-0 -bottom-px h-[3px] rounded-t-full bg-accent" />}
-          </button>
-        ))}
+      <div className="flex items-end gap-2 border-b border-line">
+        <div role="tablist" aria-label="Лента" className="flex-1 flex gap-5 overflow-x-auto [scrollbar-width:none]">
+          {TABS.map(([k, label]) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+              className={`relative h-11 whitespace-nowrap text-[15px] ${tab === k ? 'font-semibold text-fg' : 'text-muted'}`}>
+              {label}{tab === k && <span className="absolute inset-x-0 -bottom-px h-[3px] rounded-t-full bg-accent" />}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label="Жариялау" className="size-11 grid place-items-center text-accent"><Icon n="plus" /></button>
       </div>
 
       {posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} /> : (
@@ -112,20 +108,12 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
           {tab === 'all' && (
             <>
               <TodayCard me={me} />
-              <MenuCard me={me} />
               <DutyCard />
               {(of(['news', 'announcement']).length > 0) && <Highlights list={of(['news', 'announcement']).slice(0, 6)} onOpen={(p) => setOpen({ kind: 'post', p })} />}
               {acts.data && <Stories me={me} items={storyCandidates(me, acts.data)} onJoined={acts.reload} />}
-              {upcoming.length > 0 && section('Алда болатын', 'events', <Upcoming items={upcoming.slice(0, 10)} />)}
               {section('Мектеп лентасы', 'news', of(['news', 'announcement']).length
                 ? <SocialFeed list={of(['news', 'announcement']).slice(0, 8)} onOpen={(p) => setOpen({ kind: 'post', p })} />
                 : <Card><p className="text-sm text-muted">Жаңалықтар мен хабарландырулар осында көрінеді.</p></Card>)}
-              {section('Lost & Found', 'lost', of(['lost', 'found']).filter((p) => p.status === 'open').length
-                ? <LostGrid list={of(['lost', 'found']).filter((p) => p.status === 'open').slice(0, 4)} onOpen={(p) => setOpen({ kind: 'post', p })} />
-                : <Card><p className="text-sm text-muted">Бірдеңе жоғалтсаңыз немесе тауып алсаңыз, осында жариялаңыз.</p></Card>)}
-              {section('Парламентке ұсыныстар', 'proposals', of(['proposal']).filter((p) => p.addressee !== 'admin' && p.addressee !== 'teacher').length
-                ? <div className="grid gap-2">{[...of(['proposal']).filter((p) => p.addressee !== 'admin' && p.addressee !== 'teacher')].sort((a, b) => votes(b) - votes(a)).slice(0, 3).map((p) => <Proposal key={p.id} p={p} me={me} onChange={posts.reload} onAnswer={() => setOpen({ kind: 'answer', p })} />)}</div>
-                : <Card><p className="text-sm text-muted">Лицейді жақсарту идеяңыз бар ма? Оқушылар парламентіне ұсыныс жазыңыз.</p></Card>)}
             </>
           )}
 
@@ -144,28 +132,6 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
 }
 
 const KIND_TITLE: Record<PostKind, string> = { news: 'Жаңалық', announcement: 'Хабарландыру', lost: 'Жоғалды', found: 'Табылды', proposal: 'Ұсыныс' }
-const MONTH_SHORT = ['қаң', 'ақп', 'нау', 'сәу', 'мам', 'мау', 'шіл', 'там', 'қыр', 'қаз', 'қар', 'жел']
-
-function Upcoming({ items }: { items: { a: Activity; d: string }[] }) {
-  const t = today()
-  return (
-    <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 [scrollbar-width:none]">
-      {items.map(({ a, d }) => (
-        <a key={a.id} href={`#/a/${a.id}`} className="snap-start shrink-0 w-[248px] rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] p-3 grid grid-cols-[52px_1fr] gap-3">
-          <span className={`rounded-md grid content-center justify-items-center h-[60px] ${d === t ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent'}`}>
-            <span className="text-xl font-bold leading-none tabular-nums">{parse(d).getDate()}</span>
-            <span className="text-xs mt-1">{d === t ? 'бүгін' : `${MONTH_SHORT[parse(d).getMonth()]}, ${WD_SHORT[isoDow(d) - 1]}`}</span>
-          </span>
-          <span className="min-w-0">
-            <span className="block text-xs text-accent font-semibold">{TYPE_LABEL[a.type]}</span>
-            <span className="block font-semibold leading-snug line-clamp-2">{a.title}</span>
-            <span className="block text-sm text-muted truncate tabular-nums">{sessionTime(a, d).start} · {a.place}</span>
-          </span>
-        </a>
-      ))}
-    </div>
-  )
-}
 
 function Highlights({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void }) {
   return (

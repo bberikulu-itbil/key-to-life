@@ -425,3 +425,9 @@ export const listMenu = (date: string) => ok(supabase.from('menus').select('meal
 export const saveMenu = (date: string, meal: Meal, items: string) =>
   items.trim() ? ok(supabase.from('menus').upsert({ on_date: date, meal, items: items.trim(), updated_at: new Date().toISOString() }))
     : ok(supabase.from('menus').delete().eq('on_date', date).eq('meal', meal))
+
+/* ---------- suggestions to develop the app ---------- */
+export type Feedback = { id: number; body: string; created_at: string; user_id: string; author: { full_name: string } | null }
+export const sendAppFeedback = (body: string) => rpc('send_app_feedback', { p_body: body })
+export const listAppFeedback = () =>
+  ok(supabase.from('app_feedback').select('id, body, created_at, user_id, author:profiles!user_id(full_name)').order('created_at', { ascending: false }).limit(200)) as unknown as Promise<Feedback[]>

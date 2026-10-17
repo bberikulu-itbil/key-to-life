@@ -130,9 +130,3 @@ export function DutyCard() {
     </Card>
   )
 }
-
-export const SearchBar = () => (
-  <a href="#/search" className="flex items-center gap-2 h-12 rounded-md bg-surface border border-input px-3 text-muted">
-    <Icon n="search" />Іс-шара, адам, кабинет, зат іздеу
-  </a>
-)

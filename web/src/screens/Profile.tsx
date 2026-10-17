@@ -81,6 +81,8 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
           <div className="grid grid-cols-2 gap-2"><Button kind="danger" onClick={() => signOut()}>Шығу</Button><Button kind="secondary" onClick={() => setLeaving(false)}>Жоқ</Button></div>
         </Card>
       ) : <Button kind="ghost" onClick={() => setLeaving(true)}>Шығу</Button>}
+
+      <Section title="Key To Life" links={[['#/feedback', 'flag', 'Қосымшаны дамытуға ұсыныс', 'Идея немесе қате туралы әзірлеушіге жазыңыз']]} />
     </div>
   )
 }
