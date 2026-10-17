@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { acceptWaitlisted, addParticipant, cancelActivity, errText, getActivity, listPeople, removeActivity, removeParticipant, removeSessionType, saveSessionType, setActivityFlags, setCurators, setDefaultSessionType, tgGroupLinkUrl, tgUnlinkGroup, type ActivityFull, type SessionType } from '../lib/api'
-import { IMPORTANCE } from '../lib/time'
+import { acceptWaitlisted, addParticipant, cancelActivity, errText, getActivity, listPeople, removeActivity, removeParticipant, removeSeries, removeSessionType, saveSessionType, updateSeries, setActivityFlags, setCurators, setDefaultSessionType, tgGroupLinkUrl, tgUnlinkGroup, type ActivityFull, type SessionType } from '../lib/api'
+import { IMPORTANCE, WD_SHORT, fmtDate, hm, isoDow, today } from '../lib/time'
 import { openTelegram } from '../lib/telegram'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
@@ -14,6 +14,7 @@ export default function ActivitySettings({ id }: { id: string }) {
   const { me } = useMe()
   const { data: a, error, loading, reload } = useLoad(() => getActivity(id), [id])
   const [sheet, setSheet] = useState<null | 'modules' | 'add' | 'cancel' | 'remove' | 'tg' | 'types'>(null)
+  const [plan, setPlan] = useState<Plan | null>(null)
   const [confirmOut, setConfirmOut] = useState<string | null>(null)
   const [q, setQ] = useState('')
   if (loading && !a) return <><PageHead title={tx('Баптаулар')} back /><Skeleton /></>
@@ -91,6 +92,14 @@ export default function ActivitySettings({ id }: { id: string }) {
           onChange={(v) => act(() => setActivityFlags(a.id, v, null), v ? tx('Тіркелу ашылды') : tx('Тіркелу жабылды'))} /></div>
       </Card>
 
+      {plans(a).length > 0 && <>
+        <H>{tx('Тұрақты жоспарлар')}</H>
+        <Card className="p-0 divide-y divide-line">
+          {plans(a).map((p) => <Item key={p.id} icon="clock" title={`${p.wds.map((w) => WD_SHORT[w - 1]).join(', ')} · ${p.start}–${p.end}`}
+            hint={`${p.type ? `${p.type} · ` : ''}${tx('{0} – {1} · {2} жоспар қалды', fmtDate(p.from), fmtDate(p.to), p.left)}`} onClick={() => setPlan(p)} />)}
+        </Card>
+      </>}
+
       <div className="flex items-center justify-between mt-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">{tx('Қатысушылар')}</h2>
         <div className="flex gap-1">
@@ -124,6 +133,7 @@ export default function ActivitySettings({ id }: { id: string }) {
       </Card>
 
       {sheet === 'modules' && <Sheet title={tx('Бөлімдер')} onClose={() => setSheet(null)}><Modules a={a} onDone={() => { setSheet(null); reload() }} /></Sheet>}
+      {plan && <Sheet title={tx('Тұрақты жоспар')} onClose={() => setPlan(null)}><PlanEdit a={a} p={plan} onDone={() => { setPlan(null); reload() }} /></Sheet>}
       {sheet === 'tg' && <Sheet title={tx('Telegram тобы')} onClose={() => setSheet(null)}><TgGroup a={a} onChange={() => { setSheet(null); reload() }} /></Sheet>}
       {sheet === 'types' && <Sheet title={tx('Сабақ түрлері')} onClose={() => { setSheet(null); reload() }}><SessionTypes a={a} onChange={reload} /></Sheet>}
       {sheet === 'add' && <Sheet title={tx('Оқушы қосу')} onClose={() => setSheet(null)}><AddPeople a={a} onAdded={reload} /></Sheet>}
@@ -251,6 +261,44 @@ function SessionTypes({ a, onChange }: { a: ActivityFull; onChange: () => void }
           <option value="">{tx('Түрсіз')}</option>
           {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>}</Field>
       )}
+    </div>
+  )
+}
+
+type Plan = { id: string; wds: number[]; start: string; end: string; type: string | null; type_id: string | null; note: string | null; from: string; to: string; left: number }
+/** Repeating plans added from the calendar, grouped by series; only ones with sessions still ahead. */
+function plans(a: ActivityFull): Plan[] {
+  const t = today(), by = new Map<string, typeof a.extra>()
+  for (const x of a.extra) if (x.series_id && x.on_date >= t) by.set(x.series_id, [...(by.get(x.series_id) ?? []), x])
+  return [...by].map(([id, xs]) => {
+    xs.sort((p, q) => p.on_date.localeCompare(q.on_date))
+    const f = xs[0]
+    return { id, wds: [...new Set(xs.map((x) => isoDow(x.on_date)))].sort(), start: hm(f.start_time), end: hm(f.end_time), type_id: f.type_id ?? null,
+      type: a.types.find((y) => y.id === f.type_id)?.name ?? null, note: f.note, from: f.on_date, to: xs[xs.length - 1].on_date, left: xs.length }
+  })
+}
+
+function PlanEdit({ a, p, onDone }: { a: ActivityFull; p: Plan; onDone: () => void }) {
+  const [f, setF] = useState({ start: p.start, end: p.end, type: p.type_id ?? '', note: p.note ?? '' })
+  const [busy, setBusy] = useState(false)
+  const [sure, setSure] = useState(false)
+  const run = async (fn: () => Promise<unknown>, done: string) => { setBusy(true); try { await fn(); toast(done); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
+  const save = () => f.end <= f.start ? toast(tx('Аяқталу уақыты басталудан кейін болуы керек'))
+    : run(() => updateSeries(p.id, today(), { start_time: f.start, end_time: f.end, type_id: f.type || null, note: f.note.trim() || null }), tx('Сақталды'))
+  return (
+    <div className="grid gap-4">
+      <p className="text-sm text-muted">{tx('Өзгеріс бүгіннен бастап алдағы {0} жоспарға қолданылады. Өткен жоспарлар мен журнал сақталады.', p.left)}</p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={tx('Басталуы')}>{(id) => <input id={id} type="time" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} className={inputCls} />}</Field>
+        <Field label={tx('Аяқталуы')}>{(id) => <input id={id} type="time" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} className={inputCls} />}</Field>
+      </div>
+      {a.types.length > 0 && <Field label={tx('Түрі')}>{(id) => <select id={id} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className={inputCls}>
+        <option value="">{tx('Түрсіз')}</option>{a.types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>}</Field>}
+      <Field label={tx('Ескерту')}>{(id) => <input id={id} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} className={inputCls} />}</Field>
+      <Button block loading={busy} onClick={save}>{tx('Сақтау')}</Button>
+      {sure
+        ? <div className="grid grid-cols-2 gap-2"><Button kind="danger" loading={busy} onClick={() => run(() => removeSeries(p.id, today()), tx('Жоспар жойылды'))}>{tx('Жою')}</Button><Button kind="ghost" onClick={() => setSure(false)}>{tx('Жоқ')}</Button></div>
+        : <Button kind="ghost" onClick={() => setSure(true)}>{tx('Алдағы {0} жоспарды жою', p.left)}</Button>}
     </div>
   )
 }

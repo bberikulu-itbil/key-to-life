@@ -62,7 +62,7 @@ export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
-const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
+const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id, series_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
 
 export const listActivities = () =>
   ok(supabase.from('activities').select(ACT).order('created_at', { ascending: false })) as unknown as Promise<Activity[]>
@@ -406,13 +406,17 @@ export async function uploadStudentPhoto(studentId: string, file: File) {
   return path
 }
 
-type SessionRow = { activity_id: string; on_date: string; start_time: string; end_time: string; note: string | null; type_id: string | null }
+type SessionRow = { activity_id: string; on_date: string; start_time: string; end_time: string; note: string | null; type_id: string | null; series_id?: string | null }
 // a date already holding a session at that start time is skipped, not an error
 export const addSessions = (rows: SessionRow[]) => ok(supabase.from('activity_sessions').upsert(rows, { onConflict: 'activity_id,on_date,start_time', ignoreDuplicates: true }))
 export const saveSessionType = (t: { id?: string; activity_id: string; name: string; importance: number }) =>
   ok(supabase.from('activity_session_types').upsert(t).select('id, name, importance').single()) as Promise<SessionType>
 export const removeSessionType = (id: string) => ok(supabase.from('activity_session_types').delete().eq('id', id))
 export const setDefaultSessionType = (activity: string, type: string | null) => rpc('set_default_session_type', { p_activity: activity, p_type: type })
+// a repeating plan: change or remove its sessions from `from` on (past ones keep their journal)
+export const updateSeries = (series: string, from: string, v: { start_time: string; end_time: string; type_id: string | null; note: string | null }) =>
+  ok(supabase.from('activity_sessions').update(v).eq('series_id', series).gte('on_date', from))
+export const removeSeries = (series: string, from: string) => ok(supabase.from('activity_sessions').delete().eq('series_id', series).gte('on_date', from))
 export const removeSession = (id: string) => ok(supabase.from('activity_sessions').delete().eq('id', id))
 export const activityAttendance = (activityId: string) =>
   ok(supabase.from('attendance').select('student_id, session_date, status').eq('activity_id', activityId)) as Promise<{ student_id: string; session_date: string; status: Mark }[]>

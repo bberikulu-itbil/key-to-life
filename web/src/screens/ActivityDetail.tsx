@@ -4,7 +4,7 @@ import {
   errText, listLeaves, activityChatId, myAttendance, setActivityFeatures, activityAttendance, addSessions, removeSession, tgSendRollcall, type ActivityFull, type Feature, type Mark, type MarkRow,
 } from '../lib/api'
 import { when } from './Leaves'
-import { IMPORTANCE, MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, addDays, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessionType, sessions, today } from '../lib/time'
+import { IMPORTANCE, MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, addDays, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessionType, sessions, today, planDates } from '../lib/time'
 import Tasks from '../components/Tasks'
 import Avatar from '../components/Avatar'
 import ActivityFeed from '../components/ActivityFeed'
@@ -452,7 +452,7 @@ function ActivityCalendar({ a, canEdit, journal, onChange }: { a: ActivityFull; 
     <section className="grid gap-2">
       <div className="flex items-center gap-2">
         <p className="flex-1 text-sm text-muted">{tx('{0} · барлығы {1} сабақ', scheduleLabel(a), all.length)}</p>
-        {canEdit && <Button kind="secondary" onClick={() => setAdding(true)}>{tx('Сабақ қосу')}</Button>}
+        {canEdit && <Button kind="secondary" onClick={() => setAdding(true)}>{tx('Жоспар қосу')}</Button>}
       </div>
       {past > 0 && <button type="button" onClick={() => setShowPast(!showPast)} className="text-sm text-accent font-semibold text-left min-h-11">{showPast ? tx('Өткендерді жасыру') : tx('Өткен {0} сабақты көрсету', past)}</button>}
       {!list.length ? <Card><p className="text-sm text-muted">{tx('Алда сабақ жоқ.')}</p></Card> : months.map((m) => (
@@ -489,26 +489,28 @@ function ActivityCalendar({ a, canEdit, journal, onChange }: { a: ActivityFull; 
         </div>
       ))}
       {open && <Sheet title={tx('Журнал · {0}', fmtDate(open))} onClose={() => { setOpen(null); att.reload() }}><Journal a={a} fixed={open} /></Sheet>}
-      {adding && <Sheet title={tx('Сабақ қосу')} onClose={() => setAdding(false)}><AddSession a={a} onDone={() => { setAdding(false); onChange() }} /></Sheet>}
+      {adding && <Sheet title={tx('Жоспар қосу')} onClose={() => setAdding(false)}><AddSession a={a} onDone={() => { setAdding(false); onChange() }} /></Sheet>}
     </section>
   )
 }
 
-const REPEAT: [number, string][] = [[0, tx('Бір рет')], [1, tx('Күн сайын')], [7, tx('Апта сайын')], [14, tx('2 апта сайын')]]
+const REPEAT: [0 | 7 | 14, string][] = [[0, tx('Бір рет')], [7, tx('Апта сайын')], [14, tx('2 апта сайын')]]
 
 function AddSession({ a, onDone }: { a: ActivityFull; onDone: () => void }) {
-  const [f, setF] = useState({ date: today(), start: hm(a.start_time), end: hm(a.end_time), note: '', type: a.default_type_id ?? '', every: 0, until: addDays(today(), 30) })
+  const [f, setF] = useState({ date: today(), start: hm(a.start_time), end: hm(a.end_time), note: '', type: a.default_type_id ?? '', every: 0 as 0 | 7 | 14, wds: [isoDow(today())], until: addDays(today(), 60) })
   const [busy, setBusy] = useState(false)
-  const dates: string[] = []
-  // shortcut: at most 200 dates per add, enough for a school year of weekly sessions
-  for (let d = f.date; d && dates.length < 200 && (d === f.date || (f.every > 0 && d <= f.until)); d = addDays(d, f.every || 1)) dates.push(d)
+  const dates = planDates(f.date, f.until, f.every, f.wds)
+  const toggleWd = (w: number) => setF({ ...f, wds: f.wds.includes(w) ? f.wds.filter((x) => x !== w) : [...f.wds, w].sort() })
   const save = async () => {
     if (!f.date || f.end <= f.start) return toast(tx('Күн мен уақытты тексеріңіз'))
     if (f.every && f.until < f.date) return toast(tx('«Қашанға дейін» күні басталу күнінен кейін болуы керек'))
+    if (!dates.length) return toast(tx('Кемінде бір күн таңдаңыз'))
     setBusy(true)
+    // a repeating plan shares one series id, so it can be edited or removed in the activity settings
+    const series_id = f.every ? crypto.randomUUID() : null
     try {
-      await addSessions(dates.map((d) => ({ activity_id: a.id, on_date: d, start_time: f.start, end_time: f.end, note: f.note.trim() || null, type_id: f.type || null })))
-      toast(tx('{0} сабақ қосылды, қатысушылардың күнтізбесінде шығады', dates.length)); onDone()
+      await addSessions(dates.map((d) => ({ activity_id: a.id, on_date: d, start_time: f.start, end_time: f.end, note: f.note.trim() || null, type_id: f.type || null, series_id })))
+      toast(tx('{0} жоспар қосылды, қатысушылардың күнтізбесінде шығады', dates.length)); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
@@ -516,20 +518,31 @@ function AddSession({ a, onDone }: { a: ActivityFull; onDone: () => void }) {
       {a.types.length > 0 && <Field label={tx('Түрі')} hint={tx('Түрлерді баптауларда қосасыз')}>{(id, d) => <select id={id} aria-describedby={d} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className={inputCls}>
         <option value="">{tx('Түрсіз')}</option>
         {a.types.map((t) => <option key={t.id} value={t.id}>{t.name} · {IMPORTANCE[t.importance].label.toLowerCase()}</option>)}</select>}</Field>}
-      <Field label={f.every ? tx('Басталу күні') : tx('Күні')}>{(id) => <input id={id} type="date" value={f.date} min={today()} onChange={(e) => setF({ ...f, date: e.target.value })} className={inputCls} />}</Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label={tx('Басталуы')}>{(id) => <input id={id} type="time" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} className={inputCls} />}</Field>
-        <Field label={tx('Аяқталуы')}>{(id) => <input id={id} type="time" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} className={inputCls} />}</Field>
-      </div>
-      <div role="radiogroup" aria-label={tx('Қайталау')} className="grid grid-cols-2 gap-1 bg-surface-2 rounded-md p-1">
+      <div role="radiogroup" aria-label={tx('Қайталау')} className="grid grid-cols-3 gap-1 bg-surface-2 rounded-md p-1">
         {REPEAT.map(([n, label]) => (
           <button key={n} type="button" role="radio" aria-checked={f.every === n} onClick={() => setF({ ...f, every: n })}
             className={`h-10 rounded-sm text-sm font-semibold ${f.every === n ? 'bg-surface shadow-card' : 'text-muted'}`}>{label}</button>
         ))}
       </div>
-      {f.every > 0 && <Field label={tx('Қашанға дейін')} hint={tx('{0} сабақ қосылады', dates.length)}>{(id, d) => <input id={id} aria-describedby={d} type="date" value={f.until} min={f.date} onChange={(e) => setF({ ...f, until: e.target.value })} className={inputCls} />}</Field>}
+      {f.every > 0 && (
+        <fieldset className="grid gap-1.5">
+          <legend className="text-sm font-semibold mb-1.5">{tx('Апта күндері')}</legend>
+          <div className="grid grid-cols-7 gap-1">
+            {WD_SHORT.map((w, i) => (
+              <button key={w} type="button" aria-pressed={f.wds.includes(i + 1)} onClick={() => toggleWd(i + 1)}
+                className={`h-11 rounded-sm text-sm font-semibold ${f.wds.includes(i + 1) ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{w}</button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <Field label={f.every ? tx('Басталу күні') : tx('Күні')}>{(id) => <input id={id} type="date" value={f.date} min={today()} onChange={(e) => setF({ ...f, date: e.target.value })} className={inputCls} />}</Field>
+      {f.every > 0 && <Field label={tx('Қашанға дейін')} hint={tx('{0} жоспар қосылады', dates.length)}>{(id, d) => <input id={id} aria-describedby={d} type="date" value={f.until} min={f.date} onChange={(e) => setF({ ...f, until: e.target.value })} className={inputCls} />}</Field>}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={tx('Басталуы')}>{(id) => <input id={id} type="time" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} className={inputCls} />}</Field>
+        <Field label={tx('Аяқталуы')}>{(id) => <input id={id} type="time" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} className={inputCls} />}</Field>
+      </div>
       <Field label={tx('Ескерту')} hint={tx('Мысалы: басқа кабинет, лагерь орны')}>{(id, d) => <input id={id} aria-describedby={d} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} className={inputCls} />}</Field>
-      <Button block loading={busy} onClick={save}>{dates.length > 1 ? tx('{0} сабақ қосу', dates.length) : tx('Қосу')}</Button>
+      <Button block loading={busy} onClick={save}>{dates.length > 1 ? tx('{0} жоспар қосу', dates.length) : tx('Қосу')}</Button>
     </div>
   )
 }

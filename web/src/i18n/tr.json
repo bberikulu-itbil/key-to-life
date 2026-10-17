@@ -1143,5 +1143,14 @@
  "Оқушыны сынып жетекшісі немесе әкімші, мұғалімді әкімші растайды.": "Öğrenciyi sınıf öğretmeni veya yönetici, öğretmeni yönetici onaylar.",
  "Расталды — енді кіре алады": "Onaylandı — artık giriş yapabilir",
  "Бас тартылды": "Reddedildi",
- "Тіркелу өтініші": "Kayıt talebi"
+ "Тіркелу өтініші": "Kayıt talebi",
+ "{0} жоспар қосылды, қатысушылардың күнтізбесінде шығады": "{0} plan eklendi, katılımcıların takviminde görünür",
+ "{0} жоспар қосылады": "{0} plan eklenecek",
+ "{0} жоспар қосу": "{0} plan ekle",
+ "Тұрақты жоспарлар": "Düzenli planlar",
+ "{0} – {1} · {2} жоспар қалды": "{0} – {1} · {2} plan kaldı",
+ "Тұрақты жоспар": "Düzenli plan",
+ "Өзгеріс бүгіннен бастап алдағы {0} жоспарға қолданылады. Өткен жоспарлар мен журнал сақталады.": "Değişiklik bugünden itibaren sonraki {0} plana uygulanır. Geçmiş planlar ve yoklama saklanır.",
+ "Жоспар жойылды": "Plan silindi",
+ "Алдағы {0} жоспарды жою": "Sonraki {0} planı sil"
 }

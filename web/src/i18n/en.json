@@ -1143,5 +1143,14 @@
  "Оқушыны сынып жетекшісі немесе әкімші, мұғалімді әкімші растайды.": "A student is approved by the class teacher or the admin, a teacher by the admin.",
  "Расталды — енді кіре алады": "Approved — they can sign in now",
  "Бас тартылды": "Declined",
- "Тіркелу өтініші": "Sign-up request"
+ "Тіркелу өтініші": "Sign-up request",
+ "{0} жоспар қосылды, қатысушылардың күнтізбесінде шығады": "{0} plans added, they appear in participants' calendars",
+ "{0} жоспар қосылады": "{0} plans will be added",
+ "{0} жоспар қосу": "Add {0} plans",
+ "Тұрақты жоспарлар": "Regular plans",
+ "{0} – {1} · {2} жоспар қалды": "{0} – {1} · {2} left",
+ "Тұрақты жоспар": "Regular plan",
+ "Өзгеріс бүгіннен бастап алдағы {0} жоспарға қолданылады. Өткен жоспарлар мен журнал сақталады.": "The change applies from today to the next {0} plans. Past plans and the journal are kept.",
+ "Жоспар жойылды": "Plan removed",
+ "Алдағы {0} жоспарды жою": "Remove the next {0} plans"
 }

@@ -46,7 +46,7 @@ assert.equal(nextSession(once, '2026-10-20'), '2026-10-25')
 assert.equal(nextSession(once, '2026-10-26'), null)
 console.log('nextSession ok')
 
-import { sessionTime, sessionType, scheduleLabel } from './time'
+import { sessionTime, sessionType, scheduleLabel, planDates } from './time'
 const multi = { ...weekly, slots: [{ wd: 1, start: '15:00', end: '16:30' }, { wd: 3, start: '17:00', end: '18:00' }], extra: [{ id: 'x', on_date: '2026-10-17', start_time: '10:00:00', end_time: '12:00:00', note: null }], start_time: '15:00:00', end_time: '16:30:00' }
 assert.ok(isSession(multi, '2026-10-12') && isSession(multi, '2026-10-14') && isSession(multi, '2026-10-17'))   // Mon, Wed, extra Sat
 assert.ok(!isSession(multi, '2026-10-13'))
@@ -65,3 +65,8 @@ console.log('slots+extra ok')
   assert.equal(scheduleLabel(cal as never), 'Күнтізбе бойынша · 1 сабақ')
   console.log('calendar types ok')
 }
+
+assert.deepEqual(planDates('2026-10-19', '2026-10-31', 7, [1, 3]), ['2026-10-19', '2026-10-21', '2026-10-26', '2026-10-28'])
+assert.deepEqual(planDates('2026-10-21', '2026-11-08', 14, [1, 7]), ['2026-10-25', '2026-11-02', '2026-11-08'])
+assert.deepEqual(planDates('2026-10-21', '2026-11-08', 0, [1]), ['2026-10-21'])
+console.log('planDates ok')

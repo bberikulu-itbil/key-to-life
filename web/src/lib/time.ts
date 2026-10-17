@@ -21,7 +21,7 @@ export const fmtDate = (s: string) => { const d = parse(s); return `${d.getDate(
 export const hm = (t: string) => t.slice(0, 5)
 
 export type TimeSlot = { wd: number; start: string; end: string }
-export type Extra = { id: string; on_date: string; start_time: string; end_time: string; note: string | null; type_id?: string | null }
+export type Extra = { id: string; on_date: string; start_time: string; end_time: string; note: string | null; type_id?: string | null; series_id?: string | null }
 type Sched = Pick<Activity, 'schedule' | 'on_date' | 'weekdays' | 'date_from' | 'date_to'> & { slots?: TimeSlot[] | null; extra?: Extra[] }
 
 /** Same rule as is_session() in the database: regular day (per slot when set) in range, or an added extra date. */
@@ -115,4 +115,16 @@ export function chatTime(ts: string, now = new Date()) {
 export function nextSession(a: Sched, from: string, days = 60) {
   const s = sessions(a, from, addDays(from, days))
   return s.length ? s.reduce((m, d) => (d < m ? d : m)) : null
+}
+
+/** Dates of a plan: once (every 0), or on the chosen weekdays every 7 or 14 days from start to until; at most `max`. */
+export function planDates(start: string, until: string, every: 0 | 7 | 14, wds: number[], max = 200) {
+  if (!every) return start ? [start] : []
+  const monday = parse(addDays(start, 1 - isoDow(start))).getTime()
+  const out: string[] = []
+  for (let d = start; d <= until && out.length < max; d = addDays(d, 1)) {
+    const week = Math.floor(Math.round((parse(d).getTime() - monday) / 864e5) / 7)   // 0-based week from the start's week
+    if (wds.includes(isoDow(d)) && (every === 7 || week % 2 === 0)) out.push(d)
+  }
+  return out
 }
