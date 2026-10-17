@@ -317,12 +317,27 @@ export type Post = { id: string; author_id: string; kind: PostKind; title: strin
   status: PostStatus; answer: string | null; pinned: boolean; created_at: string
   activity_id: string | null; visibility: 'public' | 'members'; activity: { title: string } | null
   addressee: 'parliament' | 'admin' | 'teacher' | null; addressee_id: string | null; to: { full_name: string } | null
-  author: { full_name: string; role: Role; class: { name: string } | null }; answerer: { full_name: string } | null; votes: { user_id: string; value: number }[] }
-const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, activity_id, visibility, activity:activities(title), addressee, addressee_id, to:profiles!addressee_id(full_name), author:profiles!author_id(full_name, role, class:classes!class_id(name)), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value)'
+  author: { full_name: string; role: Role; class: { name: string } | null }; answerer: { full_name: string } | null; votes: { user_id: string; value: number }[]
+  hide_likes: boolean; comments_off: boolean; repost_of: string | null; comments: { count: number }[]
+  orig: { id: string; kind: PostKind; title: string; body: string; photo: string | null; created_at: string; author: { full_name: string }; activity: { title: string } | null } | null }
+const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, activity_id, visibility, activity:activities(title), addressee, addressee_id, to:profiles!addressee_id(full_name), author:profiles!author_id(full_name, role, class:classes!class_id(name)), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value), '
+  + 'hide_likes, comments_off, repost_of, comments:post_comments(count), orig:posts!repost_of(id, kind, title, body, photo, created_at, author:profiles!author_id(full_name), activity:activities(title))'
 export const listPosts = () =>
   ok(supabase.from('posts').select(POST).order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(200)) as unknown as Promise<Post[]>
 export const createPost = (kind: PostKind, title: string, body: string, photo?: string | null, place?: string | null) =>
   rpc<string>('create_post', { p_kind: kind, p_title: title, p_body: body, p_photo: photo ?? null, p_place: place ?? null })
+export const getPost = (id: string) => ok(supabase.from('posts').select(POST).eq('id', id).maybeSingle()) as unknown as Promise<Post | null>
+/** News or announcement in the author's own name, or in an activity's name; with `repost` it shares that post. */
+export const createFeedPost = (v: { kind: 'news' | 'announcement'; title: string; body: string; photo?: string | null; activity?: string | null; hideLikes?: boolean; commentsOff?: boolean; repost?: string | null }) =>
+  rpc<string>('create_feed_post', { p_kind: v.kind, p_title: v.title, p_body: v.body, p_photo: v.photo ?? null, p_activity: v.activity ?? null,
+    p_hide_likes: !!v.hideLikes, p_comments_off: !!v.commentsOff, p_repost_of: v.repost ?? null })
+export const likePost = (id: string, on: boolean) => rpc('like_post', { p_id: id, p_on: on })
+export const setPostOptions = (id: string, hideLikes: boolean, commentsOff: boolean) => rpc('set_post_options', { p_id: id, p_hide_likes: hideLikes, p_comments_off: commentsOff })
+export type Comment = { id: string; author_id: string; body: string; created_at: string; author: { full_name: string; class: { name: string } | null } }
+export const listComments = (post: string) =>
+  ok(supabase.from('post_comments').select('id, author_id, body, created_at, author:profiles!author_id(full_name, class:classes!class_id(name))').eq('post_id', post).order('created_at')) as unknown as Promise<Comment[]>
+export const addComment = (post: string, body: string) => rpc<string>('add_comment', { p_post: post, p_body: body })
+export const hideComment = (id: string) => rpc('hide_comment', { p_id: id })
 export const setPostStatus = (id: string, status: PostStatus, answer?: string) => rpc('set_post_status', { p_id: id, p_status: status, p_answer: answer ?? null })
 export const votePost = (id: string, on: boolean) => rpc('vote_post', { p_id: id, p_on: on })
 export const pinPost = (id: string, on: boolean) => rpc('pin_post', { p_id: id, p_on: on })

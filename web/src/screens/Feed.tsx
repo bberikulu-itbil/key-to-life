@@ -1,11 +1,13 @@
-import { useState, type ReactNode } from 'react'
-import { createPost, createProposal, errText, hidePost, listActivities, listPeople, listPosts, listStaff, openDirect, photoUrl, pinPost, setParliament, setPostStatus, uploadPhoto, votePost,
+import { useState } from 'react'
+import { createFeedPost, createPost, createProposal, errText, getPost, hidePost, setPostOptions, listActivities, listPeople, listPosts, listStaff, openDirect, photoUrl, pinPost, setParliament, setPostStatus, uploadPhoto, votePost,
   type Me, type Post, type PostKind, type PostStatus } from '../lib/api'
 import { chatTime, fmtDate } from '../lib/time'
 import { useMe } from '../App'
 import Stories, { storyCandidates } from '../components/Stories'
 import Activities from './Activities'
 import { DutyCard, TodayCard } from '../components/HomeWidgets'
+import { AsWho, Comments, FeedCard, Original, RepostForm, canWriteFeed, ledActivities } from '../components/FeedCard'
+import type { Activity } from '../lib/api'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
 import { tx } from '../lib/i18n'
 
@@ -26,7 +28,7 @@ const canAnswerPost = (me: Me, p: Post) =>
 const TO_LABEL = (p: Post) => (p.addressee === 'admin' ? tx('Әкімшілікке') : p.addressee === 'teacher' ? tx('Мұғалімге: {0}', p.to?.full_name ?? '') : tx('Парламентке'))
 const votes = (p: Post) => p.votes.filter((v) => v.value === 1).length
 
-type Open = null | { kind: 'post'; p: Post } | { kind: 'new'; what: PostKind | null } | { kind: 'answer'; p: Post } | { kind: 'parliament' }
+type Open = null | { kind: 'post'; p: Post } | { kind: 'new'; what: PostKind | null } | { kind: 'answer'; p: Post } | { kind: 'parliament' } | { kind: 'repost'; p: Post }
 
 export default function Feed({ query, page }: { query: string; page?: Page }) {
   const { me } = useMe()
@@ -37,26 +39,21 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   const acts = useLoad(listActivities, [])
   const [open, setOpen] = useState<Open>(null)
   const reload = () => { posts.reload(); setOpen(null) }
+  const led = ledActivities(me, acts.data ?? [])
+  const writer = canWriteFeed(me, led)
   // members-only activity posts live on the activity page, not in the school feed
   const all = (posts.data ?? []).filter((p) => p.visibility === 'public')
   const of = (k: PostKind[]) => all.filter((p) => k.includes(p.kind))
+  const feed = of(tab === 'all' ? ['news', 'announcement'] : [tab])
 
   const setTab = (t: Tab) => go(t === 'all' ? '/' : `/?t=${t}`)
-  const section = (title: string, t: Tab | Page | null, body: ReactNode) => (
-    <section className="grid gap-2">
-      <div className="flex items-baseline justify-between mt-2">
-        <h2 className="text-lg font-bold">{title}</h2>
-        {t && <button type="button" onClick={() => (t in PAGE_TITLE ? go(`/${t}`) : setTab(t as Tab))} className="text-sm text-accent font-semibold min-h-11 px-1">{tx('Барлығы')}</button>}
-      </div>
-      {body}
-    </section>
-  )
 
   const sheets = (
     <>
       {open?.kind === 'post' && <Sheet title={KIND_TITLE[open.p.kind]} onClose={() => setOpen(null)}><PostView p={open.p} me={me} onChange={reload} /></Sheet>}
-      {open?.kind === 'new' && <Sheet title={tx('Жариялау')} onClose={() => setOpen(null)}><NewPost me={me} initial={open.what} onDone={reload} /></Sheet>}
+      {open?.kind === 'new' && <Sheet title={tx('Жариялау')} onClose={() => setOpen(null)}><NewPost me={me} led={led} initial={open.what} onDone={reload} /></Sheet>}
       {open?.kind === 'answer' && <Sheet title={tx('Ұсынысқа жауап')} onClose={() => setOpen(null)}><Answer p={open.p} onDone={reload} /></Sheet>}
+      {open?.kind === 'repost' && <Sheet title={tx('Репост')} onClose={() => setOpen(null)}><RepostForm p={open.p} me={me} led={led} onDone={reload} /></Sheet>}
       {open?.kind === 'parliament' && <Sheet title={tx('Парламент құрамы')} onClose={() => setOpen(null)}><Members /></Sheet>}
     </>
   )
@@ -83,6 +80,14 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
         <a href="#/search" aria-label={tx('Іздеу')} className="size-11 rounded-full bg-accent text-on-accent grid place-items-center"><Icon n="search" /></a>
       </header>
 
+      {/* open competitions, clubs and olympiads to join — above the feed */}
+      {acts.data && storyCandidates(me, acts.data).length > 0 && (
+        <section className="grid gap-2" aria-label={tx('Ашық жарыстар, үйірмелер, олимпиадалар')}>
+          <h2 className="text-sm font-semibold text-muted">{tx('Ашық жарыстар, үйірмелер, олимпиадалар')}</h2>
+          <Stories me={me} items={storyCandidates(me, acts.data)} onJoined={acts.reload} />
+        </section>
+      )}
+
       {/* 3 × 2: six shortcuts stay readable at 320px */}
       <nav aria-label={tx('Бөлімдер')} className="grid grid-cols-3 gap-2">
         {QUICK.map(([icon, label, path]) => (
@@ -104,28 +109,12 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
         <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label={tx('Жариялау')} className="size-11 grid place-items-center text-accent"><Icon n="plus" /></button>
       </div>
 
-      {posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} /> : (
-        <>
-          {tab === 'all' && (
-            <>
-              <TodayCard me={me} />
-              <DutyCard />
-              {(of(['news', 'announcement']).length > 0) && <Highlights list={of(['news', 'announcement']).slice(0, 6)} onOpen={(p) => setOpen({ kind: 'post', p })} />}
-              {acts.data && <Stories me={me} items={storyCandidates(me, acts.data)} onJoined={acts.reload} />}
-              {section(tx('Мектеп лентасы'), 'news', of(['news', 'announcement']).length
-                ? <SocialFeed list={of(['news', 'announcement']).slice(0, 8)} onOpen={(p) => setOpen({ kind: 'post', p })} />
-                : <Card><p className="text-sm text-muted">{tx('Жаңалықтар мен хабарландырулар осында көрінеді.')}</p></Card>)}
-            </>
-          )}
-
-          {tab === 'news' && (of(['news']).length ? <NewsList list={of(['news'])} onOpen={(p) => setOpen({ kind: 'post', p })} />
-            : <Card><Empty icon="file" title={tx('Жаңалық жоқ')} text={tx('Мұғалімдер мен парламент мүшелері лицей жаңалықтарын осында жариялайды.')} /></Card>)}
-
-          {tab === 'announcement' && (of(['announcement']).length ? <div className="grid gap-2">{of(['announcement']).map((p) => <Announcement key={p.id} p={p} onOpen={() => setOpen({ kind: 'post', p })} />)}</div>
-            : <Card><Empty icon="megaphone" title={tx('Хабарландыру жоқ')} /></Card>)}
-
-        </>
-      )}
+      {tab === 'all' && <><TodayCard me={me} /><DutyCard /></>}
+      {posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} />
+        : feed.length ? <div className="grid gap-3">{feed.map((p) => <FeedCard key={p.id} p={p} me={me} canRepost={writer}
+            onOpen={() => setOpen({ kind: 'post', p })} onRepost={() => setOpen({ kind: 'repost', p })} />)}</div>
+        : <Card><Empty icon={tab === 'announcement' ? 'megaphone' : 'file'} title={tab === 'announcement' ? tx('Хабарландыру жоқ') : tx('Жаңалық жоқ')}
+            text={tx('Мұғалімдер мен іс-шара жетекшілері жаңалықтар мен хабарландыруларды осында жариялайды.')} /></Card>}
 
       {sheets}
     </div>
@@ -133,99 +122,6 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
 }
 
 const KIND_TITLE: Record<PostKind, string> = { news: tx('Жаңалық'), announcement: tx('Хабарландыру'), lost: tx('Жоғалды'), found: tx('Табылды'), proposal: tx('Ұсыныс') }
-
-function Highlights({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void }) {
-  return (
-    <section className="grid gap-2" aria-label={tx('Жаңалықтар мен хабарландырулар')}>
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-bold">{tx('Жаңалықтар мен хабарландырулар')}</h2>
-        <span className="text-xs text-muted">{tx('Солға сырғытыңыз')}</span>
-      </div>
-      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 [scrollbar-width:none]">
-        {list.map((p) => (
-          <button key={p.id} type="button" onClick={() => onOpen(p)} className="snap-start shrink-0 w-[280px] min-h-[150px] rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] p-4 text-left grid gap-3">
-            <span className="flex items-start gap-3">
-              <span className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={p.kind === 'announcement' ? 'megaphone' : 'file'} /></span>
-              <span className="min-w-0">
-                <span className="block text-xs text-muted">{p.pinned ? tx('Маңызды · ') : ''}{p.kind === 'announcement' ? tx('Хабарландыру') : tx('Жаңалық')}</span>
-                <span className="block font-semibold leading-snug line-clamp-3">{p.title}</span>
-              </span>
-            </span>
-            {p.body && <span className="text-sm text-muted line-clamp-2">{p.body}</span>}
-          </button>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function SocialFeed({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void }) {
-  return (
-    <div className="grid gap-3">
-      {list.map((p) => (
-        <article key={p.id} className="rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] overflow-hidden">
-          <button type="button" onClick={() => onOpen(p)} className="w-full text-left">
-            <div className="flex items-center gap-3 p-4 pb-2">
-              <span className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={p.kind === 'announcement' ? 'megaphone' : 'file'} /></span>
-              <span className="min-w-0">
-                <span className="block font-semibold truncate">{p.author.full_name}</span>
-                <span className="block text-xs text-muted">{p.kind === 'announcement' ? tx('Хабарландыру') : tx('Жаңалық')} · {chatTime(p.created_at)}</span>
-              </span>
-            </div>
-            {p.photo && <img src={photoUrl(p.photo)} alt="" loading="lazy" className="w-full aspect-[16/9] object-cover bg-surface-2" />}
-            <div className="p-4 pt-3">
-              <h3 className="font-bold leading-snug">{p.title}</h3>
-              {p.body && <p className="mt-1 text-sm text-muted whitespace-pre-line line-clamp-4">{p.body}</p>}
-            </div>
-          </button>
-          <div className="flex items-center gap-4 px-4 pb-3 text-xs text-muted">
-            <span className="flex items-center gap-1"><Icon n={p.pinned ? 'star' : 'file'} size={15} />{p.pinned ? tx('Маңызды') : tx('Лицей жаңалығы')}</span>
-          </div>
-        </article>
-      ))}
-    </div>
-  )
-}
-
-function Announcement({ p, onOpen }: { p: Post; onOpen: () => void }) {
-  return (
-    <button type="button" onClick={onOpen} className={`text-left rounded-lg p-4 flex gap-3 ${p.pinned ? 'bg-accent-soft' : 'bg-surface shadow-card border border-[var(--card-line,transparent)]'}`}>
-      <span className={`size-10 rounded-full grid place-items-center shrink-0 ${p.pinned ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent'}`}><Icon n="megaphone" /></span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2 text-xs text-muted">{p.pinned && <b className="text-accent">{tx('Маңызды')}</b>}<span>{p.author.full_name} · {chatTime(p.created_at)}</span></span>
-        <span className="block font-semibold mt-0.5">{p.title}</span>
-        {p.body && <span className="block text-sm text-muted line-clamp-3 whitespace-pre-line">{p.body}</span>}
-      </span>
-    </button>
-  )
-}
-
-function NewsList({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void }) {
-  const [first, ...rest] = list
-  return (
-    <div className="grid gap-3">
-      <button type="button" onClick={() => onOpen(first)} className="text-left rounded-lg overflow-hidden bg-surface shadow-card border border-[var(--card-line,transparent)]">
-        {first.photo ? <img src={photoUrl(first.photo)} alt="" loading="lazy" className="w-full aspect-[16/9] object-cover bg-surface-2" />
-          : <span className="block aspect-[16/9] bg-accent-soft text-accent grid place-items-center"><Icon n="file" size={40} /></span>}
-        <span className="block p-4">
-          <span className="block text-xs text-muted">{chatTime(first.created_at)} · {first.activity?.title ?? first.author.full_name}</span>
-          <span className="block text-lg font-bold leading-snug mt-1 text-balance">{first.title}</span>
-          {first.body && <span className="block text-sm text-muted line-clamp-2 mt-1">{first.body}</span>}
-        </span>
-      </button>
-      {rest.length > 0 && (
-        <div className={`grid gap-0 bg-surface rounded-lg shadow-card border border-[var(--card-line,transparent)] divide-y divide-line`}>
-          {rest.map((p) => (
-            <button key={p.id} type="button" onClick={() => onOpen(p)} className="flex gap-3 p-3 text-left">
-              <span className="flex-1 min-w-0"><span className="block font-semibold leading-snug line-clamp-2">{p.title}</span><span className="block text-xs text-muted mt-1">{chatTime(p.created_at)} · {p.activity?.title ?? p.author.full_name}</span></span>
-              {p.photo && <img src={photoUrl(p.photo)} alt="" loading="lazy" className="size-16 rounded-md object-cover shrink-0 bg-surface-2" />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 function LostGrid({ list, onOpen }: { list: Post[]; onOpen: (p: Post) => void }) {
   return (
@@ -317,11 +213,26 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
   const act = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); toast(done); onChange() } catch (e) { toast(errText(e)) } }
   const dm = async () => { try { go(`/c/${await openDirect(p.author_id)}`) } catch (e) { toast(errText(e)) } }
   const lf = p.kind === 'lost' || p.kind === 'found'
+  const social = p.kind === 'news' || p.kind === 'announcement'
+  const [opts, setOpts] = useState({ hide: p.hide_likes, off: p.comments_off })
+  const saveOpts = async (hide: boolean, off: boolean) => {
+    setOpts({ hide, off })
+    try { await setPostOptions(p.id, hide, off); onChange() } catch (e) { setOpts(opts); toast(errText(e)) }
+  }
+  if (p.orig) return (
+    <article className="grid gap-3">
+      <p className="text-xs text-muted">{tx('{0} бөлісті', p.activity?.title ?? p.author.full_name)} · {fmtDate(p.created_at.slice(0, 10))}</p>
+      {p.body && <p className="whitespace-pre-line break-words">{p.body}</p>}
+      <Original o={p.orig} />
+      {(p.author_id === me.id || deputy) && <Button kind="danger" onClick={() => act(() => hidePost(p.id), tx('Жойылды'))}>{tx('Жою')}</Button>}
+      <Comments p={{ ...p, comments_off: opts.off }} me={me} />
+    </article>
+  )
   return (
     <article className="grid gap-3">
       {p.photo && <img src={photoUrl(p.photo)} alt="" className="w-full rounded-md object-contain max-h-[60vh] bg-surface-2" />}
       <div>
-        <p className="text-xs text-muted">{p.author.full_name}{p.author.class ? ` · ${p.author.class.name}` : ''} · {fmtDate(p.created_at.slice(0, 10))}</p>
+        <p className="text-xs text-muted">{p.activity ? `${p.activity.title} · ` : ''}{p.author.full_name}{p.author.class ? ` · ${p.author.class.name}` : ''} · {fmtDate(p.created_at.slice(0, 10))}</p>
         <h3 className="text-xl font-bold mt-1 text-balance break-words">{p.title}</h3>
       </div>
       {lf && p.place && <p className="flex items-center gap-1.5 text-sm"><Icon n="pin" size={16} />{p.kind === 'lost' ? tx('Жоғалған жері') : tx('Табылған жері')}: {p.place}</p>}
@@ -332,17 +243,26 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
           ? <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'resolved'), tx('Белгіленді'))}>{tx('Иесі табылды')}</Button>
           : <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'open'), tx('Қайта ашылды'))}>{tx('Қайта ашу')}</Button>)}
         {staff && (p.kind === 'news' || p.kind === 'announcement') && <Button kind="secondary" onClick={() => act(() => pinPost(p.id, !p.pinned), tx('Сақталды'))}>{p.pinned ? tx('Маңыздыдан алу') : tx('Маңызды деп бекіту')}</Button>}
+        {social && (p.author_id === me.id || deputy) && (
+          <div className="grid gap-1 rounded-md bg-surface-2 px-3 py-1">
+            <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Лайк санын жасыру')}</span>
+              <input type="checkbox" checked={opts.hide} onChange={(e) => saveOpts(e.target.checked, opts.off)} className="size-5 accent-[var(--accent)]" /></label>
+            <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Пікірлерді өшіру')}</span>
+              <input type="checkbox" checked={opts.off} onChange={(e) => saveOpts(opts.hide, e.target.checked)} className="size-5 accent-[var(--accent)]" /></label>
+          </div>
+        )}
         {(p.author_id === me.id || deputy || (lf && staff)) && <Button kind="danger" onClick={() => act(() => hidePost(p.id), tx('Жойылды'))}>{tx('Жою')}</Button>}
       </div>
+      {social && <Comments p={{ ...p, comments_off: opts.off }} me={me} />}
     </article>
   )
 }
 
-function NewPost({ me, initial, onDone }: { me: Me; initial: PostKind | null; onDone: () => void }) {
+function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initial: PostKind | null; onDone: () => void }) {
   const staff = me.role !== 'student'
   const options: [PostKind, string, string, string][] = [
-    ...(staff || me.parliament ? [['news', 'file', tx('Жаңалық'), tx('Фотосымен, лентаның басында')] as [PostKind, string, string, string]] : []),
-    ...(staff ? [['announcement', 'megaphone', tx('Хабарландыру'), tx('Барлығына маңызды ақпарат')] as [PostKind, string, string, string]] : []),
+    ...(staff || me.parliament || led.length ? [['news', 'file', tx('Жаңалық'), tx('Фотосымен, лентаның басында')] as [PostKind, string, string, string]] : []),
+    ...(staff || led.length ? [['announcement', 'megaphone', tx('Хабарландыру'), tx('Барлығына маңызды ақпарат')] as [PostKind, string, string, string]] : []),
     ['lost', 'search', tx('Жоғалған немесе табылған зат'), tx('Lost & Found')],
     ['proposal', 'flag', tx('Ұсыныс'), tx('Парламентке, әкімшілікке немесе мұғалімге')],
   ]
@@ -353,6 +273,11 @@ function NewPost({ me, initial, onDone }: { me: Me; initial: PostKind | null; on
   const [f, setF] = useState({ title: '', body: '', place: '' })
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
+  // in their own name: staff always, parliament for news; otherwise only in an activity's name
+  const own = staff || (kind === 'news' && me.parliament)
+  const [as, setAs] = useState('')
+  const asId = own ? as : as || led[0]?.id || ''
+  const [extra, setExtra] = useState({ hide: false, off: false })
 
   if (!kind) return (
     <div className="grid gap-2">
@@ -370,7 +295,7 @@ function NewPost({ me, initial, onDone }: { me: Me; initial: PostKind | null; on
   )
 
   const lf = kind === 'lost' || kind === 'found'
-  const photo = lf || kind === 'news'
+  const photo = lf || kind === 'news' || kind === 'announcement'
   const save = async () => {
     if (f.title.trim().length < 3) return toast(tx('Тақырыпты жазыңыз'))
     if (kind === 'proposal' && f.body.trim().length < 10) return toast(tx('Ұсынысыңызды толығырақ жазыңыз'))
@@ -380,6 +305,8 @@ function NewPost({ me, initial, onDone }: { me: Me; initial: PostKind | null; on
       if (kind === 'proposal') {
         if (to === 'teacher' && !teacher) { setBusy(false); return toast(tx('Мұғалімді таңдаңыз')) }
         await createProposal(to, to === 'teacher' ? teacher : null, f.title, f.body)
+      } else if (kind === 'news' || kind === 'announcement') {
+        await createFeedPost({ kind, title: f.title, body: f.body, photo: path, activity: asId || null, hideLikes: extra.hide, commentsOff: extra.off })
       } else await createPost(kind, f.title, f.body, path, lf ? f.place : null)
       toast(kind === 'proposal' ? tx('Ұсыныс жіберілді, алушыға хабар кетті') : tx('Жарияланды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
@@ -400,6 +327,7 @@ function NewPost({ me, initial, onDone }: { me: Me; initial: PostKind | null; on
             <option value="">{tx('Таңдаңыз')}</option>{(teachers.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}</select>}</Field>}
         </>
       )}
+      {(kind === 'news' || kind === 'announcement') && <AsWho me={me} led={led} value={asId} onChange={setAs} own={own} />}
       <Field label={kind === 'proposal' ? tx('Ұсыныс') : lf ? tx('Не?') : tx('Тақырып')}>{(id) => <input id={id} value={f.title} maxLength={140} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls}
         placeholder={kind === 'proposal' ? tx('Асханаға су автоматы қою') : kind === 'lost' ? tx('Көк түсті рюкзак') : kind === 'found' ? tx('Кілт, 2-қабат') : ''} />}</Field>
       {lf && <Field label={kind === 'lost' ? tx('Қай жерде жоғалды') : tx('Қай жерден табылды')}>{(id) => <input id={id} value={f.place} onChange={(e) => setF({ ...f, place: e.target.value })} className={inputCls} placeholder={tx('Спортзал, 3-қабат')} />}</Field>}
@@ -411,6 +339,14 @@ function NewPost({ me, initial, onDone }: { me: Me; initial: PostKind | null; on
             {file && <img src={URL.createObjectURL(file)} alt={tx('Таңдалған фото')} className="size-14 rounded-md object-cover" />}
           </div>
         )}</Field>
+      )}
+      {(kind === 'news' || kind === 'announcement') && (
+        <div className="grid gap-1">
+          <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Лайк санын жасыру')}</span>
+            <input type="checkbox" checked={extra.hide} onChange={(e) => setExtra({ ...extra, hide: e.target.checked })} className="size-5 accent-[var(--accent)]" /></label>
+          <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Пікірлерді өшіру')}</span>
+            <input type="checkbox" checked={extra.off} onChange={(e) => setExtra({ ...extra, off: e.target.checked })} className="size-5 accent-[var(--accent)]" /></label>
+        </div>
       )}
       <Button block loading={busy} onClick={save}>{kind === 'proposal' ? tx('Ұсыныс жіберу') : tx('Жариялау')}</Button>
     </div>
@@ -451,6 +387,19 @@ function Members() {
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+/** One post on its own page: opened from a «Жаңа пікір» notification. */
+export function PostPage({ id }: { id: string }) {
+  const { me } = useMe()
+  const post = useLoad(() => getPost(id), [id])
+  return (
+    <div className="grid gap-3 pb-6">
+      <PageHead title={post.data ? KIND_TITLE[post.data.kind] : tx('Жазба')} back />
+      {post.loading && !post.data ? <Skeleton /> : post.error ? <ErrorBox text={post.error} retry={post.reload} />
+        : post.data ? <Card><PostView p={post.data} me={me} onChange={post.reload} /></Card> : <Card><Empty icon="file" title={tx('Жазба табылмады')} /></Card>}
     </div>
   )
 }

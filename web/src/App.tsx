@@ -6,7 +6,7 @@ import { Pending } from './screens/Register'
 import { chosen, setLang } from './lib/i18n'
 import { FirstRunLang } from './components/LangPicker'
 import { inTelegram, syncBackButton, tg } from './lib/telegram'
-import Feed from './screens/Feed'
+import Feed, { PostPage } from './screens/Feed'
 import Search from './screens/Search'
 import Surveys, { SurveyNew, SurveyView } from './screens/Surveys'
 import { Icon, PageHead, Sheet, Toaster, go, usePath } from './components/ui'
@@ -114,6 +114,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'lost') screen = <Feed key="lost" query="" page="lost" />
   else if (seg === 'events') screen = <Feed key="events" query="" page="events" />
   else if (seg === 'proposals') screen = <Feed key="proposals" query="" page="proposals" />
+  else if (seg === 'p' && id) screen = <PostPage key={id} id={id} />
   else if (seg === 'menu') screen = <div className="grid gap-3 pb-6"><PageHead title={tx('Асхана')} back /><MenuCard me={me} /></div>
   else if (seg === 'feedback') screen = <Feedback />
   else if (seg === 'registrations') screen = <Registrations />
@@ -124,7 +125,7 @@ function Shell({ me }: { me: Me }) {
   else screen = <Feed query={path.split('?')[1] ?? ''} />
 
   const tabs = [['/', 'home', tx('Home')], ['/plan', 'clock', tx('Жоспар')], ['+', 'plus', tx('Әрекет')], ['/chats', 'chat', tx('Чаттар')], ['/profile', 'user', tx('Профиль')]] as const
-  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
+  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'p', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>
