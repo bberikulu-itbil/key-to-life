@@ -14,7 +14,7 @@ export default function Search() {
   // shortcut: client-side filter over at most a few hundred rows per kind; move to a search RPC when a school passes ~2000 people
   const data = useLoad(async () => {
     const [acts, people, rooms, groups, posts] = await Promise.all([listActivities(), listPeople(), listResources(), listGroups(), listPosts()])
-    return { acts: acts.filter((a) => a.status === 'approved'), people: people.filter((p) => p.id !== me.id), rooms: rooms.filter((r) => r.active), groups, lost: posts.filter((p) => p.kind === 'lost' || p.kind === 'found') }
+    return { acts: acts.filter((a) => a.status === 'approved' && !a.class_plan), people: people.filter((p) => p.id !== me.id), rooms: rooms.filter((r) => r.active), groups, lost: posts.filter((p) => p.kind === 'lost' || p.kind === 'found') }
   }, [me.id])
   const [q, setQ] = useState('')
   const term = q.trim().toLowerCase()

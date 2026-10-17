@@ -5,3 +5,6 @@ html, body, #root { min-height: 100%; }
 
 /* inside Telegram the native BackButton replaces ours */
 .tg .tg-hide { display: none; }
+
+/* Page roots are one-column grids; an auto column grows to its widest child (long titles, edge-to-edge rows) and widens the page. */
+main > .grid { grid-template-columns: minmax(0, 1fr); }

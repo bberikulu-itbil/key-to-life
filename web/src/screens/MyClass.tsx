@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { classAttendance, classChatId, classStudents, errText, listClasses, listLeaves, listLessons, listStaff, openDirect, setClassTeacher, setTutor, updateStaff, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
+import { classAttendance, classChatId, classStudents, errText, listActivities, listBreaks, listClasses, listLeaves, listLessons, listStaff, openDirect, setClassTeacher, setTutor, updateStaff, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
 import Avatar from '../components/Avatar'
-import { hm, isoDow, rate, today } from '../lib/time'
+import { hm, lessonOn, rate, scheduleLabel, today } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
@@ -18,9 +18,9 @@ export default function MyClass({ classId }: { classId?: string }) {
   const data = useLoad(async () => {
     if (!cid) return null
     const now = new Date().toISOString()
-    const [students, lessons, leaves, staff] = await Promise.all([classStudents(cid), listLessons({ classId: cid }), listLeaves({ since: now }), listStaff()])
+    const [students, lessons, leaves, staff, breaks, acts] = await Promise.all([classStudents(cid), listLessons({ classId: cid }), listLeaves({ since: now }), listStaff(), listBreaks(), listActivities()])
     const att = students.length ? await classAttendance(students.map((s) => s.id)) : []
-    return { students, lessons, leaves, staff, att }
+    return { students, lessons, leaves, staff, att, breaks, plans: acts.filter((a) => a.class_plan === cid) }
   }, [cid])
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Student | null>(null)
@@ -36,7 +36,7 @@ export default function MyClass({ classId }: { classId?: string }) {
   const nowMs = Date.now()
   const outNow = (d?.leaves ?? []).filter((l) => ids.has(l.student_id) && l.status === 'approved' && new Date(l.starts_at).getTime() <= nowMs)
   const pending = (d?.leaves ?? []).filter((l) => ids.has(l.student_id) && l.status.startsWith('pending'))
-  const todayLessons = (d?.lessons ?? []).filter((l) => l.weekday === isoDow(today()))
+  const todayLessons = (d?.lessons ?? []).filter((l) => lessonOn(l, today(), d?.breaks ?? []))
   const hmNow = new Date().toTimeString().slice(0, 5)
   const olympiads = useMemo(() => {
     const m = new Map<string, number>()
@@ -93,6 +93,20 @@ export default function MyClass({ classId }: { classId?: string }) {
                 <ul className="text-sm">{outNow.map((l) => <li key={l.id}>{tx('{0} · {1}-ге дейін', l.student.full_name, new Date(l.ends_at).toTimeString().slice(0, 5))}</li>)}</ul></div>}
               {pending.length > 0 && <a href="#/leaves" className="flex items-center gap-2 text-warning font-semibold"><Icon n="clock" size={18} />{pending.length}{' '}{tx('рұқсат сұрауы шешім күтуде')}<Icon n="chev" size={18} /></a>}
             </Card>
+          )}
+
+          {d.plans.length > 0 && (
+            <>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Сынып жоспары')}</h2>
+              <Card className="p-0 divide-y divide-line">
+                {d.plans.map((a) => (
+                  <a key={a.id} href={`#/a/${a.id}`} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="flex-1 min-w-0"><span className="block font-medium truncate">{a.title}</span><span className="block text-xs text-muted truncate">{scheduleLabel(a)}</span></span>
+                    <Icon n="chev" className="text-muted" />
+                  </a>
+                ))}
+              </Card>
+            </>
           )}
 
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Бүгінгі сабақтар · {0}', todayLessons.length)}</h2>

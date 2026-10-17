@@ -42,6 +42,12 @@ export function isSession(a: Sched, d: string) {
   return a.slots?.length ? a.slots.some((s) => s.wd === isoDow(d)) : (a.weekdays ?? []).includes(isoDow(d))
 }
 
+/** Is day d inside a school break? */
+export const inBreak = (d: string, breaks: { from_date: string; to_date: string }[]) => breaks.some((b) => d >= b.from_date && d <= b.to_date)
+/** A timetable lesson takes place on day d: its weekday, inside its term, outside breaks. */
+export const lessonOn = (l: { weekday: number; valid_from: string | null; valid_to: string | null }, d: string, breaks: { from_date: string; to_date: string }[]) =>
+  l.weekday === isoDow(d) && (!l.valid_from || d >= l.valid_from) && (!l.valid_to || d <= l.valid_to) && !inBreak(d, breaks)
+
 /** Start and end of the session on day d. */
 export function sessionTime(a: Sched & { start_time: string; end_time: string }, d: string) {
   const x = a.extra?.find((e) => e.on_date === d)

@@ -16,7 +16,7 @@ export default function MyActivities({ kind }: { kind: string }) {
   const { me } = useMe()
   const k = KINDS[kind] ?? KINDS.clubs
   const data = useLoad(async () => {
-    const acts = (await listActivities()).filter((a) => k.types.includes(a.type))
+    const acts = (await listActivities()).filter((a) => !a.class_plan && k.types.includes(a.type))
     const mine = acts.filter((a) => myActivity(me, a))
     const [att, topics, done] = await Promise.all([
       me.role === 'student' ? myAttendance(me.id) : Promise.resolve([]),

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { attendanceRate, errText, listActivities, uploadStudentPhoto, listClasses, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
+import { attendanceRate, errText, listActivities, listResources, uploadStudentPhoto, listClasses, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
 import { openTelegram } from '../lib/telegram'
 import { useMe, canAddUsers, isApprover } from '../App'
 import { Button, Card, Icon, PageHead, toast, useLoad } from '../components/ui'
@@ -28,9 +28,10 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
   const { me } = useMe()
   const staff = me.role !== 'student'
   const stats = useLoad(async () => {
-    const [rate, acts] = await Promise.all([staff ? Promise.resolve(null) : attendanceRate(me.id), listActivities()])
-    const mine = acts.filter((a) => a.status === 'approved' && (staff ? a.supervisor_id === me.id : a.enrollments.some((e) => e.student_id === me.id && !e.waitlisted)))
-    return { rate, acts: mine.length }
+    const [rate, acts, rooms] = await Promise.all([staff ? Promise.resolve(null) : attendanceRate(me.id), listActivities(), staff ? listResources() : Promise.resolve([])])
+    const mine = acts.filter((a) => !a.class_plan && a.status === 'approved' && (staff ? a.supervisor_id === me.id : a.enrollments.some((e) => e.student_id === me.id && !e.waitlisted)))
+    // rooms this person answers for (a deputy sees all, but only own ones count here)
+    return { rate, acts: mine.length, rooms: rooms.filter((r) => r.manager_id === me.id || r.managers.includes(me.id)).length }
   }, [me.id])
   const myClass = useLoad(async () => (staff ? (await listClasses()).find((c) => c.teacher_id === me.id || c.tutor_id === me.id) ?? null : null), [me.id])
   const [leaving, setLeaving] = useState(false)
@@ -57,10 +58,11 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
             <p className="text-sm text-muted truncate">{me.school.name}{me.parliament ? tx(' · парламент мүшесі') : ''}</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className={`grid gap-2 ${staff ? 'grid-cols-3' : 'grid-cols-2'}`}>
           {!staff && <Stat value={stats.data?.rate == null ? '—' : `${stats.data.rate}%`} label={tx('Қатысу')} />}
-          <Stat value={stats.data ? String(stats.data.acts) : '—'} label={staff ? tx('Мен жетекші') : tx('Бастама')} href="#/activities/mine" />
-          {staff && myClass.data && <Stat value={myClass.data.name} label={tx('Менің сыныбым')} href={`#/class/${myClass.data.id}`} />}
+          <Stat value={stats.data ? String(stats.data.acts) : '—'} label={tx('Бастамаларым')} href="#/activities/mine" />
+          {staff && <Stat value={stats.data ? String(stats.data.rooms) : '—'} label={tx('Орындар')} href="#/bookings/places" />}
+          {staff && <Stat value={myClass.data?.name ?? '—'} label={tx('Сыныбым')} href={myClass.data ? `#/class/${myClass.data.id}` : undefined} />}
         </div>
       </Card>
 

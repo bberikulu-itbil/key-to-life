@@ -95,7 +95,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'a' && path.endsWith('/settings')) screen = <ActivitySettings id={id} />
   else if (seg === 'a' && path.endsWith('/edit')) screen = <ActivityForm id={id} />
   else if (seg === 'a' && id) screen = <ActivityDetail id={id} />
-  else if (seg === 'activities' && (id === 'mine' || id === 'review')) screen = <Activities tab={id} />
+  else if (seg === 'activities' && (id === 'mine' || id === 'review' || id === 'archive')) screen = <Activities tab={id} />
   else if (seg === 'book') screen = <Book key={path} resource={id || undefined} />
   else if (seg === 'search') screen = <Search />
   else if (seg === 'bookings') screen = <Bookings tab={(id as 'mine' | 'review' | 'places') || 'mine'} />

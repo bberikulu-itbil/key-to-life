@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { listActivities, type Activity, type Me } from '../lib/api'
+import { isInitiative, listActivities, type Activity, type Me } from '../lib/api'
 import { TYPE_GROUPS, lastDay, nextSession, today } from '../lib/time'
 import { useMe, isApprover } from '../App'
 import ActivityCard from '../components/ActivityCard'
@@ -7,7 +7,7 @@ import Stories, { storyCandidates } from '../components/Stories'
 import { Button, Chips, Empty, ErrorBox, Icon, PageHead, Skeleton, go, inputCls, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
-type Tab = 'all' | 'mine' | 'review'
+type Tab = 'all' | 'mine' | 'review' | 'archive'
 
 /** Activities waiting for *this* person's decision. */
 export const needsMyDecision = (me: Me, a: Activity) =>
@@ -22,11 +22,15 @@ export default function Activities({ tab, feed, embedded }: { tab: Tab; feed?: b
   const [q, setQ] = useState('')
 
   const list = useMemo(() => {
-    const all = data ?? []
+    const all = (data ?? []).filter(isInitiative)
     const t = today()
+    const involved = (a: Activity) => a.author_id === me.id || a.supervisor_id === me.id || a.enrollments.some((e) => e.student_id === me.id)
+    // archive: returned, stopped, archived or already over
+    const old = (a: Activity) => a.status === 'rejected' || a.status === 'cancelled' || !!a.archived_at || lastDay(a) < t
     let l =
       tab === 'review' ? all.filter((a) => needsMyDecision(me, a))
-      : tab === 'mine' ? all.filter((a) => a.author_id === me.id || a.supervisor_id === me.id || a.enrollments.some((e) => e.student_id === me.id))
+      : tab === 'mine' ? all.filter((a) => involved(a) && !old(a))
+      : tab === 'archive' ? all.filter((a) => involved(a) && old(a))
       : all.filter((a) => a.status === 'approved' && !a.archived_at && lastDay(a) >= t)
           .map((a) => [a, nextSession(a, t, 120) ?? '9999'] as const).sort((x, y) => x[1].localeCompare(y[1])).map(([a]) => a)
     if (group !== 'all') l = l.filter((a) => TYPE_GROUPS[+group][1].includes(a.type))
@@ -34,8 +38,8 @@ export default function Activities({ tab, feed, embedded }: { tab: Tab; feed?: b
     return l
   }, [data, tab, group, q, me])
 
-  const reviewCount = (data ?? []).filter((a) => needsMyDecision(me, a)).length
-  const tabs: [Tab, string][] = [['mine', tx('Менікі')], ...(isApprover(me) ? [['review', tx('Растау{0}', reviewCount ? ` · ${reviewCount}` : '')] as [Tab, string]] : [])]
+  const reviewCount = (data ?? []).filter((a) => isInitiative(a) && needsMyDecision(me, a)).length
+  const tabs: [Tab, string][] = [['mine', tx('Менікі')], ...(isApprover(me) ? [['review', tx('Растау{0}', reviewCount ? ` · ${reviewCount}` : '')] as [Tab, string]] : []), ['archive', tx('Архив')]]
 
   return (
     <div className="grid gap-3 pb-4">
@@ -60,6 +64,7 @@ export default function Activities({ tab, feed, embedded }: { tab: Tab; feed?: b
       {loading && !data ? <Skeleton /> : error ? <ErrorBox text={error} retry={reload} />
         : list.length === 0 ? (
           tab === 'review' ? <Empty icon="check" title={tx('Растайтын өтініш жоқ')} text={tx('Жаңа ұсыныс түскенде осында және хабарламада көресіз.')} />
+          : tab === 'archive' ? <Empty icon="file" title={tx('Архив бос')} text={tx('Аяқталған, тоқтатылған немесе қайтарылған бастамалар осында сақталады.')} />
           : tab === 'mine' ? <Empty title={tx('Әзірге бос')} text={tx('Жазылған, ұсынған немесе жауапты болған бастамаларыңыз осында шығады.')} action={<Button kind="secondary" onClick={() => go('/')}>{tx('Барлығын қарау')}</Button>} />
           : <Empty title={q || group !== 'all' ? tx('Ештеңе табылмады') : tx('Әзірге бастама жоқ')} text={tx('Өз идеяңыз бар ма? Ұсыныңыз — растаған соң барлығына көрінеді.')} action={<Button onClick={() => go('/a/new')}>{tx('Бастама ұсыну')}</Button>} />
         ) : (

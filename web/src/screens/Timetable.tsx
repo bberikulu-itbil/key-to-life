@@ -19,7 +19,8 @@ export default function Timetable({ classId: initial }: { classId?: string }) {
   const [wd, setWd] = useState(isoDow(today()))
   const [adding, setAdding] = useState(false)
   const canEdit = !!classId && (deputy || ownClasses.some((c) => c.id === classId))
-  const day = (lessons.data ?? []).filter((l) => l.weekday === wd)
+  // the weekly grid shows lessons whose term has not ended
+  const day = (lessons.data ?? []).filter((l) => l.weekday === wd && (!l.valid_to || l.valid_to >= today()))
 
   const del = async (id: string) => { try { await removeLesson(id); lessons.reload() } catch (e) { toast(errText(e)) } }
 

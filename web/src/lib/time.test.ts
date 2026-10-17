@@ -1,6 +1,6 @@
 // Run: npx tsx src/lib/time.test.ts
 import assert from 'node:assert/strict'
-import { addDays, isSession, isoDow, rate, sessions, weekOf } from './time'
+import { addDays, isSession, isoDow, lessonOn, rate, sessions, weekOf } from './time'
 
 const weekly = { schedule: 'weekly' as const, on_date: null, weekdays: [1, 3], date_from: '2026-10-01', date_to: '2026-10-31' }
 const once = { schedule: 'once' as const, on_date: '2026-10-25', weekdays: null, date_from: null, date_to: null }
@@ -17,6 +17,14 @@ assert.deepEqual(weekOf('2026-10-16'), ['2026-10-12', '2026-10-13', '2026-10-14'
 assert.equal(rate(['present', 'late', 'absent', 'excused']), 67)
 assert.equal(rate(['excused']), null)
 assert.equal(rate([]), null)
+const lesson = { weekday: 1, valid_from: '2026-10-19', valid_to: '2026-12-30' }
+const autumn = [{ from_date: '2026-10-25', to_date: '2026-11-01' }]
+assert.ok(lessonOn(lesson, '2026-10-19', autumn))     // first Monday of the term
+assert.ok(!lessonOn(lesson, '2026-10-12', autumn))    // before the term
+assert.ok(!lessonOn(lesson, '2026-10-26', autumn))    // Monday in the autumn break
+assert.ok(lessonOn(lesson, '2026-11-02', autumn))     // back after the break
+assert.ok(!lessonOn(lesson, '2027-01-04', autumn))    // after the term
+assert.ok(lessonOn({ weekday: 1, valid_from: null, valid_to: null }, '2027-01-04', []))
 console.log('time.ts ok')
 
 import { daySlots, pickRange } from './time'

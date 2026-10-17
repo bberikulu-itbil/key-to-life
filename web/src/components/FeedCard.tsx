@@ -6,7 +6,7 @@ import { tx } from '../lib/i18n'
 import Avatar from './Avatar'
 
 /** Activities this person may write in the name of (supervisor or responsible student). */
-export const ledActivities = (me: Me, list: Activity[]) => list.filter((a) => a.status === 'approved' && !a.archived_at
+export const ledActivities = (me: Me, list: Activity[]) => list.filter((a) => a.status === 'approved' && !a.archived_at && !a.class_plan
   && (a.supervisor_id === me.id || a.curator_id === me.id || a.curators.some((c) => c.student_id === me.id)))
 /** May write news or announcements: staff and parliament in their own name, leaders in an activity's name. */
 export const canWriteFeed = (me: Me, led: Activity[]) => me.role !== 'student' || me.parliament || led.length > 0

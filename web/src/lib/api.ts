@@ -24,6 +24,7 @@ export type Activity = {
   curators: { student_id: string; student: { full_name: string; photo: string | null; class: { name: string } | null } }[]
   features: Feature[]; enrollment_open: boolean; archived_at: string | null
   slots: TimeSlot[] | null; extra: Extra[]
+  class_plan: string | null   // a class's own plan (Etude): not listed among initiatives
   default_type_id: string | null; types: SessionType[]; tg_chat_title: string | null
   author: { full_name: string; class: { name: string; teacher_id: string | null } | null }
   supervisor: { full_name: string }
@@ -62,8 +63,10 @@ export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
-const ACT = 'id, type, title, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id, series_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
+const ACT = 'id, type, title, class_plan, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id, series_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
 
+/** Initiatives only: class plans (Etude) are not initiatives. */
+export const isInitiative = (a: Activity) => !a.class_plan
 export const listActivities = () =>
   ok(supabase.from('activities').select(ACT).order('created_at', { ascending: false })) as unknown as Promise<Activity[]>
 
@@ -209,7 +212,9 @@ export type CalKind = 'personal' | 'class' | 'school' | 'olympiad'
 export type Calendar = { id: string; kind: CalKind; name: string; color: string; class_id: string | null; owner_id: string | null }
 export type CalEvent = { id: string; calendar_id: string; title: string; starts_at: string; ends_at: string; all_day: boolean; location: string | null; notes: string | null; responsible_name: string | null }
 export type Lesson = { id: string; class_id: string; weekday: number; start_time: string; end_time: string; subject: string; teacher_id: string | null; teacher_name: string | null; room: string | null
-  teacher: { full_name: string } | null; class: { name: string } }
+  valid_from: string | null; valid_to: string | null; teacher: { full_name: string } | null; class: { name: string } }
+export type SchoolBreak = { name: string; from_date: string; to_date: string }
+export const listBreaks = () => ok(supabase.from('school_breaks').select('name, from_date, to_date').order('from_date')) as Promise<SchoolBreak[]>
 
 export const ensureCalendars = () => rpc('ensure_calendars', {})
 export const listCalendars = () => ok(supabase.from('calendars').select('id, kind, name, color, class_id, owner_id').order('kind')) as Promise<Calendar[]>
@@ -236,7 +241,7 @@ export const canEditCalendar = (id: string) => rpc<boolean>('can_edit_calendar',
 
 
 /* ---------- timetable & syllabus ---------- */
-const LESSON = 'id, class_id, weekday, start_time, end_time, subject, teacher_id, teacher_name, room, teacher:profiles!teacher_id(full_name), class:classes(name)'
+const LESSON = 'id, class_id, weekday, start_time, end_time, subject, teacher_id, teacher_name, room, valid_from, valid_to, teacher:profiles!teacher_id(full_name), class:classes(name)'
 export const listLessons = (f: { classId?: string; teacher?: string }) => {
   let q = supabase.from('timetable').select(LESSON).order('weekday').order('start_time')
   if (f.classId) q = q.eq('class_id', f.classId)

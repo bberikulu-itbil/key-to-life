@@ -14,7 +14,7 @@ const SHOW_MS = 6000
 /** Open activities this person could still join: the story row on top of Бастамалар. */
 export function storyCandidates(me: Me, list: Activity[]) {
   const t = today()
-  return list.filter((a) => a.status === 'approved' && lastDay(a) >= t && a.author_id !== me.id && (
+  return list.filter((a) => !a.class_plan && a.status === 'approved' && lastDay(a) >= t && a.author_id !== me.id && (
     me.role !== 'student' || (!a.enrollments.some((e) => e.student_id === me.id)
       && (!a.audience_grades.length || (me.class && a.audience_grades.includes(me.class.grade)))
       && (a.capacity === null || a.enrollments.filter((e) => !e.waitlisted).length < a.capacity)))).slice(0, 15)
