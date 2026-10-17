@@ -183,15 +183,15 @@ export const setCurator = (activity: string, student: string | null) => setCurat
 /* ---------- calendars ---------- */
 export type CalKind = 'personal' | 'class' | 'school' | 'olympiad'
 export type Calendar = { id: string; kind: CalKind; name: string; color: string; class_id: string | null; owner_id: string | null }
-export type CalEvent = { id: string; calendar_id: string; title: string; starts_at: string; ends_at: string; all_day: boolean; location: string | null; notes: string | null }
+export type CalEvent = { id: string; calendar_id: string; title: string; starts_at: string; ends_at: string; all_day: boolean; location: string | null; notes: string | null; responsible_name: string | null }
 export type Lesson = { id: string; class_id: string; weekday: number; start_time: string; end_time: string; subject: string; teacher_id: string | null; teacher_name: string | null; room: string | null
   teacher: { full_name: string } | null; class: { name: string } }
 
 export const ensureCalendars = () => rpc('ensure_calendars', {})
 export const listCalendars = () => ok(supabase.from('calendars').select('id, kind, name, color, class_id, owner_id').order('kind')) as Promise<Calendar[]>
 export const listEvents = (from: string, to: string) =>
-  ok(supabase.from('calendar_events').select('id, calendar_id, title, starts_at, ends_at, all_day, location, notes').lt('starts_at', to).gt('ends_at', from).order('starts_at')) as Promise<CalEvent[]>
-export const addEvents = async (rows: { calendar_id: string; title: string; starts_at: string; ends_at: string; all_day?: boolean; location?: string | null; notes?: string | null; import_uid?: string }[]) => {
+  ok(supabase.from('calendar_events').select('id, calendar_id, title, starts_at, ends_at, all_day, location, notes, responsible_name').lt('starts_at', to).gt('ends_at', from).order('starts_at')) as Promise<CalEvent[]>
+export const addEvents = async (rows: { calendar_id: string; title: string; starts_at: string; ends_at: string; all_day?: boolean; location?: string | null; notes?: string | null; responsible_name?: string | null; import_uid?: string }[]) => {
   const manual = rows.filter((r) => !r.import_uid)
   const imported = rows.filter((r) => !!r.import_uid)
   const [inserted, deduplicated] = await Promise.all([
@@ -209,6 +209,13 @@ export const listHidden = async () => ((await ok(supabase.from('calendar_hidden'
 export const setHidden = (key: string, hidden: boolean) =>
   hidden ? ok(supabase.from('calendar_hidden').upsert({ cal_key: key })) : ok(supabase.from('calendar_hidden').delete().eq('cal_key', key))
 export const canEditCalendar = (id: string) => rpc<boolean>('can_edit_calendar', { p_cal: id })
+
+export type WeekendMealKey = 'fri_dinner' | 'sat_breakfast' | 'sat_lunch' | 'sat_dinner' | 'sun_breakfast' | 'sun_lunch' | 'sun_dinner'
+export type WeekendMeal = { student_id: string; class_id: string; weekend_start: string; meal: WeekendMealKey; will_eat: boolean }
+export const listWeekendMeals = (weekendStart: string) =>
+  ok(supabase.from('weekend_meals').select('student_id, class_id, weekend_start, meal, will_eat').eq('weekend_start', weekendStart)) as Promise<WeekendMeal[]>
+export const setWeekendMeal = (weekendStart: string, meal: WeekendMealKey, willEat: boolean) =>
+  rpc('set_weekend_meal', { p_weekend_start: weekendStart, p_meal: meal, p_will_eat: willEat })
 
 /* ---------- timetable & syllabus ---------- */
 const LESSON = 'id, class_id, weekday, start_time, end_time, subject, teacher_id, teacher_name, room, teacher:profiles!teacher_id(full_name), class:classes(name)'

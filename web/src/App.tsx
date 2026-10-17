@@ -32,6 +32,7 @@ import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
 import { MenuCard } from './components/HomeWidgets'
 import { tx } from './lib/i18n'
+import Weekend from './screens/Weekend'
 
 const Ctx = createContext<{ me: Me; refreshBadge: () => void }>(null!)
 export const useMe = () => useContext(Ctx)
@@ -94,6 +95,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'v') screen = <Verify code={id || undefined} />
   else if (seg === 'duty') screen = <Duty />
   else if (seg === 'calendars') screen = <Calendars />
+  else if (seg === 'weekend') screen = <Weekend />
   else if (seg === 'timetable') screen = <Timetable classId={id} />
   else if (seg === 'class') screen = <MyClass classId={id} />
   else if (seg === 'my') screen = <MyActivities kind={id} />
@@ -144,6 +146,7 @@ function Shell({ me }: { me: Me }) {
           <div className="grid grid-cols-2 gap-3">
             <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе іс-шарадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
             <MenuItem icon="grid" title={tx('Броньдау')} text={tx('Кабинет, спортзал, шай бөлмесі')} onClick={() => { setSheet(null); go('/book') }} />
+            <MenuItem icon="utensils" title="Hafta Sonu" text={tx('Демалыс күндері тамақтануды белгілеу')} onClick={() => { setSheet(null); go('/weekend') }} />
             <MenuItem icon="file" title={tx('Іс-шара ұсыну')} text={tx('Үйірме, курс, жарыс, турнир немесе іс-шара')} onClick={() => { setSheet(null); go('/a/new') }} />
             <MenuItem icon="chat" title={tx('Жаңа хат')} text={me.role === 'student' ? tx('Мұғалімге немесе сыныптасқа') : tx('Оқушыға, әріптеске немесе хабарландыру арнасы')} onClick={() => { setSheet(null); go('/chats') }} />
             {me.role !== 'student' && <MenuItem icon="check" title={tx('QR тексеру')} text={tx('Рұқсат немесе бронь кодын тексеру')} onClick={() => { setSheet(null); go('/v/') }} />}

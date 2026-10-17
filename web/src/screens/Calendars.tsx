@@ -95,7 +95,7 @@ function Row({ i, canDelete, onDeleted }: { i: Item; canDelete: boolean; onDelet
       <span className="w-12 text-sm tabular-nums text-right shrink-0">{i.allDay ? tx('Күні бойы') : hhmm(i.start)}</span>
       <span className="min-w-0 flex-1 border-l-[3px] pl-3" style={{ borderColor: i.color }}>
         <span className="block font-medium break-words">{i.title}{i.stype && <span className="ml-2"><TypeBadge t={i.stype} /></span>}</span>
-        {i.place && <span className="block text-sm text-muted">{i.place}</span>}
+        {i.place && <span className="block text-sm text-muted">{i.place}</span>}{i.responsible && <span className="block text-sm text-muted">{tx('Жауапты: {0}', i.responsible)}</span>}
       </span>
     </span>
   )
