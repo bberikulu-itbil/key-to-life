@@ -22,6 +22,11 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]) {
 
 /* ---------- icons (Lucide-style strokes, drawn here) ---------- */
 const P: Record<string, string> = {
+  code: 'm8 7-5 5 5 5M16 7l5 5-5 5', sigma: 'M18 5H6l6 7-6 7h12', flask: 'M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3',
+  atom: 'M12 12h.01M12 3c3 0 4 4 4 9s-1 9-4 9-4-4-4-9 1-9 4-9zM3.5 7.5c1.5-2.6 5.6-1.5 9.9 1s7.1 5.7 5.6 8.3-5.6 1.5-9.9-1-7.1-5.7-5.6-8.3z',
+  leaf: 'M5 21c0-9 6-15 15-16-1 9-7 15-15 16zM5 21l7-7', globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
+  book: 'M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2zM4 19V5', trophy: 'M8 4h8v5a4 4 0 0 1-8 0zM8 6H4a3 3 0 0 0 4 4M16 6h4a3 3 0 0 1-4 4M12 13v4M8 21h8M10 17h4',
+  ball: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7l4 3-1.5 5h-5L8 10z', music: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
   home: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   plus: 'M12 5v14M5 12h14',

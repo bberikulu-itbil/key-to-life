@@ -7,6 +7,7 @@ import { needsMyDecision } from './Activities'
 import { waitsForMe } from './Leaves'
 import { Button, Card, Empty, ErrorBox, Icon, Skeleton, TypeBadge, go, useLoad } from '../components/ui'
 import Tasks from '../components/Tasks'
+import { Goals, Habits } from '../components/Goals'
 import { tx } from '../lib/i18n'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
@@ -102,7 +103,9 @@ export default function Plan() {
           </Card>
         )}
 
+      <Habits />
       <Tasks me={me} />
+      <Goals me={me} />
 
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{tx('Менің бастамаларым')}</h2>
       <div className="grid grid-cols-3 gap-2">

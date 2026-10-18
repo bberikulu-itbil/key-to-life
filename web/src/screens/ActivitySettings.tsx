@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { acceptWaitlisted, addParticipant, cancelActivity, errText, getActivity, listPeople, removeActivity, removeParticipant, removeSeries, removeSessionType, saveSessionType, updateSeries, setActivityFlags, setCurators, setDefaultSessionType, tgGroupLinkUrl, tgUnlinkGroup, type ActivityFull, type SessionType } from '../lib/api'
-import { IMPORTANCE, WD_SHORT, fmtDate, hm, isoDow, today } from '../lib/time'
+import { acceptWaitlisted, addParticipant, cancelActivity, errText, getActivity, listPeople, removeActivity, removeParticipant, removeSeries, removeSessionType, saveSessionType, updateSeries, setActivityFlags, setCurators, setDefaultSessionType, tgGroupLinkUrl, tgUnlinkGroup, type ActivityFull, type PlanCategory, type SessionType } from '../lib/api'
+import { IMPORTANCE, PLAN_CAT, WD_SHORT, fmtDate, hm, isoDow, today } from '../lib/time'
 import { openTelegram } from '../lib/telegram'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
@@ -218,15 +218,21 @@ const LEVELS = [1, 2, 3] as const
 function SessionTypes({ a, onChange }: { a: ActivityFull; onChange: () => void }) {
   const [types, setTypes] = useState<SessionType[]>(a.types)
   const [def, setDef] = useState(a.default_type_id ?? '')
-  const [f, setF] = useState<{ name: string; importance: 1 | 2 | 3 }>({ name: '', importance: 1 })
+  const [f, setF] = useState<{ name: string; importance: 1 | 2 | 3; category: PlanCategory }>({ name: '', importance: 1, category: 'other' })
   const [busy, setBusy] = useState(false)
   const run = async (fn: () => Promise<unknown>) => { setBusy(true); try { await fn(); onChange() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
   const add = () => run(async () => {
     const name = f.name.trim()
     if (!name) throw new Error(tx('Атауын жазыңыз'))
-    setTypes([...types, await saveSessionType({ activity_id: a.id, name, importance: f.importance })]); setF({ name: '', importance: 1 })
+    setTypes([...types, await saveSessionType({ activity_id: a.id, name, importance: f.importance, category: f.category })]); setF({ name: '', importance: 1, category: 'other' })
   })
-  const level = (t: SessionType, importance: 1 | 2 | 3) => run(async () => { await saveSessionType({ id: t.id, activity_id: a.id, name: t.name, importance }); setTypes(types.map((x) => (x.id === t.id ? { ...x, importance } : x))) })
+  const level = (t: SessionType, importance: 1 | 2 | 3) => run(async () => { await saveSessionType({ id: t.id, activity_id: a.id, name: t.name, importance, category: t.category }); setTypes(types.map((x) => (x.id === t.id ? { ...x, importance } : x))) })
+  const recat = (t: SessionType, category: PlanCategory) => run(async () => { await saveSessionType({ id: t.id, activity_id: a.id, name: t.name, importance: t.importance, category }); setTypes(types.map((x) => (x.id === t.id ? { ...x, category } : x))) })
+  const Cat = ({ value, onPick, label }: { value: PlanCategory; onPick: (v: PlanCategory) => void; label: string }) => (
+    <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value as PlanCategory)} aria-label={label} className={inputCls}>
+      {(Object.keys(PLAN_CAT) as PlanCategory[]).map((k) => <option key={k} value={k}>{tx('Санаты: {0}', PLAN_CAT[k])}</option>)}
+    </select>
+  )
   const remove = (t: SessionType) => run(async () => { await removeSessionType(t.id); setTypes(types.filter((x) => x.id !== t.id)); if (def === t.id) setDef('') })
   const setDefault = (id: string) => run(async () => { await setDefaultSessionType(a.id, id || null); setDef(id) })
   const Level = ({ value, onPick, label }: { value: 1 | 2 | 3; onPick: (v: 1 | 2 | 3) => void; label: string }) => (
@@ -247,6 +253,7 @@ function SessionTypes({ a, onChange }: { a: ActivityFull; onChange: () => void }
               <div className="flex items-center gap-2"><span className="flex-1"><TypeBadge t={t} /></span>
                 <button type="button" disabled={busy} onClick={() => remove(t)} aria-label={tx('{0} түрін өшіру', t.name)} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button></div>
               <Level value={t.importance} onPick={(v) => level(t, v)} label={tx('{0} маңыздылығы', t.name)} />
+              <Cat value={t.category} onPick={(v) => recat(t, v)} label={tx('{0} санаты', t.name)} />
             </li>
           ))}
         </ul>
@@ -254,6 +261,7 @@ function SessionTypes({ a, onChange }: { a: ActivityFull; onChange: () => void }
       <Card className="grid gap-3">
         <Field label={tx('Жаңа түр')}>{(id) => <input id={id} value={f.name} maxLength={40} onChange={(e) => setF({ ...f, name: e.target.value })} className={inputCls} placeholder={tx('Мысалы: Çalışma, Camp, KBO')} />}</Field>
         <Level value={f.importance} onPick={(v) => setF({ ...f, importance: v })} label={tx('Жаңа түрдің маңыздылығы')} />
+        <Cat value={f.category} onPick={(v) => setF({ ...f, category: v })} label={tx('Жаңа түрдің санаты')} />
         <Button kind="secondary" loading={busy} disabled={!f.name.trim()} onClick={add}>{tx('Қосу')}</Button>
       </Card>
       {types.length > 0 && a.schedule === 'weekly' && !!a.weekdays?.length && (

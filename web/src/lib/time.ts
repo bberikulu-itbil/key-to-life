@@ -18,6 +18,8 @@ export const STATUS_LABEL: Record<ActivityStatus, string> = {
   pending_class_teacher: tx('Сынып жетекшісінде'), pending_deputy: tx('Орынбасарда'), approved: tx('Расталды'), rejected: tx('Қайтарылды'), cancelled: tx('Тоқтатылды'),
 }
 export const MARK_LABEL: Record<Mark, string> = { present: tx('Келді'), late: tx('Кешікті'), excused: tx('Себепті'), absent: tx('Келмеді') }
+/** Plan categories for the overview: camps, Çalışma study sessions, olympiad (KBO) stages. */
+export const PLAN_CAT: Record<'camp' | 'calisma' | 'olympiad' | 'other', string> = { camp: tx('Camp'), calisma: tx('Çalışma'), olympiad: tx('КБО / Олимпиада'), other: tx('Басқа') }
 export const WD_SHORT = [tx('Дс'), tx('Сс'), tx('Ср'), tx('Бс'), tx('Жм'), tx('Сн'), tx('Жс')]   // ISO 1..7
 const MONTHS = [tx('қаңтар'), tx('ақпан'), tx('наурыз'), tx('сәуір'), tx('мамыр'), tx('маусым'), tx('шілде'), tx('тамыз'), tx('қыркүйек'), tx('қазан'), tx('қараша'), tx('желтоқсан')]
 
@@ -151,4 +153,22 @@ export function planDates(start: string, until: string, every: 0 | 7 | 14, wds: 
     if (wds.includes(isoDow(d)) && (every === 7 || week % 2 === 0)) out.push(d)
   }
   return out
+}
+
+/** Days in a row ending today, or yesterday when today is not ticked yet. */
+export function streak(done: Set<string>, t: string) {
+  let d = done.has(t) ? t : addDays(t, -1), n = 0
+  while (done.has(d)) { n++; d = addDays(d, -1) }
+  return n
+}
+
+/** Overview by plan category: how many sessions were held and the attendance rate in each. */
+export function byCategory(a: { extra?: Extra[]; types?: SessionType[]; default_type_id?: string | null }, rows: { session_date: string; status: Mark }[]) {
+  const cats = new Map<string, { held: Set<string>; marks: Mark[] }>()
+  for (const r of rows) {
+    const c = sessionType(a, r.session_date)?.category ?? 'other'
+    const v = cats.get(c) ?? { held: new Set(), marks: [] }
+    v.held.add(r.session_date); v.marks.push(r.status); cats.set(c, v)
+  }
+  return [...cats].map(([cat, v]) => ({ cat: cat as keyof typeof PLAN_CAT, held: v.held.size, pct: rate(v.marks) }))
 }

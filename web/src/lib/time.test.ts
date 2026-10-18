@@ -1,6 +1,6 @@
 // Run: npx tsx src/lib/time.test.ts
 import assert from 'node:assert/strict'
-import { addDays, cycleCode, isSession, isoDow, lessonOn, rate, sessions, weekOf } from './time'
+import { addDays, byCategory, cycleCode, streak, isSession, isoDow, lessonOn, rate, sessions, weekOf } from './time'
 
 const weekly = { schedule: 'weekly' as const, on_date: null, weekdays: [1, 3], date_from: '2026-10-01', date_to: '2026-10-31' }
 const once = { schedule: 'once' as const, on_date: '2026-10-25', weekdays: null, date_from: null, date_to: null }
@@ -70,7 +70,7 @@ console.log('slots+extra ok')
 
 // calendar-only activity: no weekdays, sessions only from the calendar; type from the session, else the default
 {
-  const types = [{ id: 't1', name: 'Çalışma', importance: 1 as const }, { id: 't3', name: 'KBO', importance: 3 as const }]
+  const types = [{ id: 't1', name: 'Çalışma', importance: 1 as const, category: 'calisma' as const }, { id: 't3', name: 'KBO', importance: 3 as const, category: 'olympiad' as const }]
   const cal = { schedule: 'weekly' as const, on_date: null, weekdays: null, date_from: '2026-10-01', date_to: '2026-12-31', start_time: '15:00', end_time: '16:30', types, default_type_id: 't1',
     extra: [{ id: 'x', on_date: '2026-11-20', start_time: '09:00', end_time: '13:00', note: null, type_id: 't3' }] }
   assert.ok(!isSession(cal, '2026-10-14') && isSession(cal, '2026-11-20'))
@@ -84,3 +84,16 @@ assert.deepEqual(planDates('2026-10-19', '2026-10-31', 7, [1, 3]), ['2026-10-19'
 assert.deepEqual(planDates('2026-10-21', '2026-11-08', 14, [1, 7]), ['2026-10-25', '2026-11-02', '2026-11-08'])
 assert.deepEqual(planDates('2026-10-21', '2026-11-08', 0, [1]), ['2026-10-21'])
 console.log('planDates ok')
+
+assert.equal(streak(new Set(['2026-10-16', '2026-10-17', '2026-10-18']), '2026-10-18'), 3)
+assert.equal(streak(new Set(['2026-10-16', '2026-10-17']), '2026-10-18'), 2)   // today not ticked yet: the run is still alive
+assert.equal(streak(new Set(['2026-10-15']), '2026-10-18'), 0)
+console.log('streak ok')
+
+{
+  const a = { types: [{ id: 'c', name: 'Camp', importance: 2 as const, category: 'camp' as const }], default_type_id: null, extra: [{ id: 'x', on_date: '2026-10-10', start_time: '', end_time: '', note: null, type_id: 'c' }] }
+  const r = byCategory(a, [{ session_date: '2026-10-10', status: 'present' }, { session_date: '2026-10-10', status: 'absent' }, { session_date: '2026-10-12', status: 'present' }])
+  assert.deepEqual(r.find((x) => x.cat === 'camp'), { cat: 'camp', held: 1, pct: rate(['present', 'absent']) })
+  assert.deepEqual(r.find((x) => x.cat === 'other'), { cat: 'other', held: 1, pct: 100 })
+  console.log('byCategory ok')
+}

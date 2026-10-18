@@ -3,6 +3,7 @@ import { errText, joinActivity, type Activity, type ActivityType, type Me } from
 import { TYPE_LABEL, lastDay, scheduleLabel, today } from '../lib/time'
 import { Button, Icon, go, toast } from './ui'
 import { tx } from '../lib/i18n'
+import { ActivityAvatar } from './ActivityProfile'
 
 const TONE: Record<ActivityType, string> = {
   olympiad_prep: 'var(--accent)', club: 'var(--success)', course: 'var(--late)', event: 'var(--warning)',
@@ -22,7 +23,6 @@ export function storyCandidates(me: Me, list: Activity[]) {
 
 const seenKey = (me: Me) => `ll-stories-seen-${me.id}`
 const readSeen = (me: Me): string[] => { try { return JSON.parse(localStorage.getItem(seenKey(me)) ?? '[]') } catch { return [] } }
-
 export default function Stories({ me, items, onJoined }: { me: Me; items: Activity[]; onJoined: () => void }) {
   const [seen, setSeen] = useState(() => readSeen(me))
   const [open, setOpen] = useState<number | null>(null)
@@ -39,9 +39,11 @@ export default function Stories({ me, items, onJoined }: { me: Me; items: Activi
         {items.map((a, i) => (
           <button key={a.id} type="button" role="listitem" onClick={() => setOpen(i)} className="shrink-0 w-[72px] grid justify-items-center gap-1 text-center">
             <span className="size-[68px] rounded-full p-[3px] grid" style={{ background: seen.includes(a.id) ? 'var(--border)' : TONE[a.type] }}>
-              <span className="rounded-full bg-surface border-2 border-surface grid place-items-center text-[9.5px] font-bold leading-tight tracking-tight px-0.5 overflow-hidden" style={{ color: TONE[a.type] }}>
-                {TYPE_LABEL[a.type]}
-              </span>
+              {a.photo || a.icon ? <span className="rounded-full bg-surface border-2 border-surface grid place-items-center overflow-hidden"><ActivityAvatar a={a} size={56} /></span> : (
+                <span className="rounded-full bg-surface border-2 border-surface grid place-items-center text-[9.5px] font-bold leading-tight tracking-tight px-0.5 overflow-hidden" style={{ color: TONE[a.type] }}>
+                  {TYPE_LABEL[a.type]}
+                </span>
+              )}
             </span>
             <span className="text-xs leading-tight line-clamp-2 break-words w-full">{a.title}</span>
           </button>

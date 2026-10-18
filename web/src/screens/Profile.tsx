@@ -99,6 +99,7 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
       ) : <Button kind="ghost" onClick={() => setLeaving(true)}>{tx('Шығу')}</Button>}
 
       <Section title="Key To Life" links={[['#/feedback', 'flag', tx('Қосымшаны дамытуға ұсыныс'), tx('Идея немесе қате туралы әзірлеушіге жазыңыз')]]} />
+      <p className="text-center text-xs text-muted">{tx('Нұсқа {0}', __APP_VERSION__)}</p>
     </div>
   )
 }

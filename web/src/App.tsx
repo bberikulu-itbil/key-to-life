@@ -33,6 +33,7 @@ import MyActivities from './screens/MyActivities'
 import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
 import { MenuCard } from './components/HomeWidgets'
+import { GoalForm, HabitForm } from './components/Goals'
 import { tx } from './lib/i18n'
 
 const Ctx = createContext<{ me: Me; refreshBadge: () => void }>(null!)
@@ -80,7 +81,9 @@ export default function App() {
 function Shell({ me }: { me: Me }) {
   const path = usePath()
   const [badge, setBadge] = useState(0)
-  const [sheet, setSheet] = useState<null | 'menu' | 'adduser'>(null)
+  const [sheet, setSheet] = useState<null | 'menu' | 'adduser' | 'goal' | 'habit'>(null)
+  const [planKey, setPlanKey] = useState(0)
+  const toPlan = () => { setSheet(null); setPlanKey(planKey + 1); go('/plan') }
   // notifications + unread chat messages; shortcut: polled on navigation, add realtime for the badge if it feels stale
   const refreshBadge = () => { Promise.all([unreadCount(), myChats().catch(() => [])]).then(([n, c]) => setBadge(n + c.reduce((s, x) => s + x.unread, 0))) }
   useEffect(refreshBadge, [path])
@@ -112,7 +115,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'chats') screen = <Chats />
   else if (seg === 'c' && id) screen = <ChatRoom key={id} id={id} />
   else if (seg === 'notifications') screen = <Notifications />
-  else if (seg === 'plan') screen = <Plan />
+  else if (seg === 'plan') screen = <Plan key={planKey} />
   else if (seg === 'lost') screen = <Feed key="lost" query="" page="lost" />
   else if (seg === 'events') screen = <Feed key="events" query="" page="events" />
   else if (seg === 'proposals') screen = <Feed key="proposals" query="" page="proposals" />
@@ -154,6 +157,8 @@ function Shell({ me }: { me: Me }) {
       {sheet === 'menu' && (
         <Sheet title={tx('Не істейміз?')} onClose={() => setSheet(null)}>
           <div className="grid grid-cols-2 gap-3">
+            <MenuItem icon="flag" title={tx('Жаңа жоспар')} text={tx('Мақсат, оның жоспары және күнделікті тапсырмалары')} onClick={() => setSheet('goal')} />
+            <MenuItem icon="check" title={tx('Жаңа әдет')} text={tx('Күн сайын белгілеп, жүйелілігіңізді көресіз')} onClick={() => setSheet('habit')} />
             <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе бастамадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
             <MenuItem icon="grid" title={tx('Броньдау')} text={tx('Кабинет, спортзал, шай бөлмесі')} onClick={() => { setSheet(null); go('/book') }} />
             <MenuItem icon="file" title={tx('Бастама ұсыну')} text={tx('Жарыс, олимпиада, үйірме, клуб, команда немесе мектеп іс-шарасы')} onClick={() => { setSheet(null); go('/a/new') }} />
@@ -163,6 +168,8 @@ function Shell({ me }: { me: Me }) {
           </div>
         </Sheet>
       )}
+      {sheet === 'goal' && <Sheet title={tx('Жаңа жоспар')} onClose={() => setSheet(null)}><GoalForm parent={null} pick onDone={toPlan} /></Sheet>}
+      {sheet === 'habit' && <Sheet title={tx('Жаңа әдет')} onClose={() => setSheet(null)}><HabitForm onDone={toPlan} /></Sheet>}
       {sheet === 'adduser' && <Sheet title={tx('Пайдаланушы қосу')} onClose={() => setSheet(null)}><AddUser /></Sheet>}
       <Toaster />
     </Ctx.Provider>

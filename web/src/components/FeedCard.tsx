@@ -46,7 +46,7 @@ export const Original = ({ o }: { o: NonNullable<Post['orig']> }) => (
 )
 
 /** A feed row in the Threads shape: face on the left, text and actions on the right, rows split by a hairline. */
-export function FeedCard({ p, me, canRepost, onOpen, onRepost }: { p: Post; me: Me; canRepost: boolean; onOpen: () => void; onRepost: () => void }) {
+export function FeedCard({ p, me, canRepost, onOpen, onRepost, onMore }: { p: Post; me: Me; canRepost: boolean; onOpen: () => void; onRepost: () => void; onMore?: () => void }) {
   const [mine, setMine] = useState(() => p.votes.some((v) => v.user_id === me.id && v.value === 1))
   const n = likes(p) - (p.votes.some((v) => v.user_id === me.id && v.value === 1) ? 1 : 0) + (mine ? 1 : 0)
   const showCount = !p.hide_likes || p.author_id === me.id   // the author still sees the hidden count
@@ -82,6 +82,7 @@ export function FeedCard({ p, me, canRepost, onOpen, onRepost }: { p: Post; me: 
             <Icon n="chat" size={19} />{comments > 0 && <span className="tabular-nums">{comments}</span>}
           </button>}
           {canRepost && p.visibility === 'public' && <button type="button" onClick={onRepost} aria-label={tx('Репост')} className="flex items-center h-10 px-2.5 text-muted"><Icon n="repeat" size={19} /></button>}
+          {onMore && (me.role !== 'student' || p.author_id === me.id) && <button type="button" onClick={onMore} aria-label={tx('Жазба баптаулары')} className="ml-auto flex items-center h-10 px-2.5 text-muted"><Icon n="more" size={19} /></button>}
         </div>
       </div>
     </article>

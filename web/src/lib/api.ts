@@ -14,7 +14,8 @@ export type Me = { id: string; full_name: string; role: Role; title: string | nu
   class: { id: string; name: string; grade: number; teacher_id: string | null } | null; school: { name: string } }
 
 /** importance: 1 орташа, 2 маңызды, 3 өте маңызды */
-export type SessionType = { id: string; name: string; importance: 1 | 2 | 3 }
+export type PlanCategory = 'camp' | 'calisma' | 'olympiad' | 'other'
+export type SessionType = { id: string; name: string; importance: 1 | 2 | 3; category: PlanCategory }
 
 export type Activity = {
   id: string; type: ActivityType; title: string; description: string; place: string; status: ActivityStatus
@@ -26,6 +27,7 @@ export type Activity = {
   slots: TimeSlot[] | null; extra: Extra[]
   class_plan: string | null   // a class's own plan (Etude): not listed among initiatives
   default_type_id: string | null; types: SessionType[]; tg_chat_title: string | null
+  photo: string | null; icon: string | null; color: string | null
   author: { full_name: string; class: { name: string; teacher_id: string | null } | null }
   supervisor: { full_name: string }
   enrollments: { student_id: string; waitlisted: boolean }[]
@@ -63,7 +65,7 @@ export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
-const ACT = 'id, type, title, class_plan, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id, series_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
+const ACT = 'id, type, title, class_plan, photo, icon, color, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id, series_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance, category), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
 
 /** Initiatives only: class plans (Etude) are not initiatives. */
 export const isInitiative = (a: Activity) => !a.class_plan
@@ -252,7 +254,7 @@ export const addLesson = (row: { class_id: string; weekday: number; start_time: 
   ok(supabase.from('timetable').insert(row))
 export const removeLesson = (id: string) => ok(supabase.from('timetable').delete().eq('id', id))
 
-export type Topic = { id: string; activity_id: string; sort: number; title: string; body: string | null; problems: string | null }
+export type Topic = { id: string; activity_id: string; sort: number; title: string; body: string | null; problems: string | null; on_date: string | null }
 export const listTopics = (activityIds: string[]) =>
   ok(supabase.from('activity_topics').select('*').in('activity_id', activityIds).order('sort')) as Promise<Topic[]>
 export const addTopic = (row: Omit<Topic, 'id'>) => ok(supabase.from('activity_topics').insert(row))
@@ -311,11 +313,11 @@ export function onMessages(chat: string, cb: () => void) {
 
 /* ---------- tasks ---------- */
 export type Task = { id: string; author_id: string; title: string; notes: string | null; due_on: string | null; class_id: string | null; activity_id: string | null
-  assignee_id: string | null; created_at: string; author: { full_name: string }; assignee: { full_name: string } | null; class: { name: string } | null; activity: { title: string } | null; done: { user_id: string }[] }
+  assignee_id: string | null; goal_id: string | null; topic_id: string | null; created_at: string; author: { full_name: string }; assignee: { full_name: string } | null; class: { name: string } | null; activity: { title: string } | null; done: { user_id: string }[] }
 export const listTasks = () =>
-  ok(supabase.from('tasks').select('id, author_id, title, notes, due_on, class_id, activity_id, assignee_id, created_at, author:profiles!author_id(full_name), assignee:profiles!assignee_id(full_name), class:classes(name), activity:activities(title), done:task_done(user_id)')
+  ok(supabase.from('tasks').select('id, author_id, title, notes, due_on, class_id, activity_id, assignee_id, goal_id, topic_id, created_at, author:profiles!author_id(full_name), assignee:profiles!assignee_id(full_name), class:classes(name), activity:activities(title), done:task_done(user_id)')
     .order('due_on', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false })) as unknown as Promise<Task[]>
-export const addTask = (row: { title: string; notes: string | null; due_on: string | null; class_id: string | null; activity_id: string | null; assignee_id?: string | null }) => ok(supabase.from('tasks').insert(row))
+export const addTask = (row: { title: string; notes: string | null; due_on: string | null; class_id: string | null; activity_id: string | null; assignee_id?: string | null; goal_id?: string | null; topic_id?: string | null }) => ok(supabase.from('tasks').insert(row))
 export const removeTask = (id: string) => ok(supabase.from('tasks').delete().eq('id', id))
 export const setTaskDone = (id: string, done: boolean) =>
   done ? ok(supabase.from('task_done').upsert({ task_id: id })) : ok(supabase.from('task_done').delete().eq('task_id', id))
@@ -439,8 +441,8 @@ export const updateStudent = (id: string, v: { full_name: string; olympiad: stri
 type SessionRow = { activity_id: string; on_date: string; start_time: string; end_time: string; note: string | null; type_id: string | null; series_id?: string | null }
 // a date already holding a session at that start time is skipped, not an error
 export const addSessions = (rows: SessionRow[]) => ok(supabase.from('activity_sessions').upsert(rows, { onConflict: 'activity_id,on_date,start_time', ignoreDuplicates: true }))
-export const saveSessionType = (t: { id?: string; activity_id: string; name: string; importance: number }) =>
-  ok(supabase.from('activity_session_types').upsert(t).select('id, name, importance').single()) as Promise<SessionType>
+export const saveSessionType = (t: { id?: string; activity_id: string; name: string; importance: number; category: PlanCategory }) =>
+  ok(supabase.from('activity_session_types').upsert(t).select('id, name, importance, category').single()) as Promise<SessionType>
 export const removeSessionType = (id: string) => ok(supabase.from('activity_session_types').delete().eq('id', id))
 export const setDefaultSessionType = (activity: string, type: string | null) => rpc('set_default_session_type', { p_activity: activity, p_type: type })
 // a repeating plan: change or remove its sessions from `from` on (past ones keep their journal)
@@ -479,6 +481,32 @@ export const createSurvey = (p: Record<string, unknown>) => rpc<string>('create_
 export const answerSurvey = (id: string, answers: unknown[]) => rpc('answer_survey', { p_id: id, p_answers: answers })
 export const closeSurvey = (id: string, closed: boolean) => rpc('close_survey', { p_id: id, p_closed: closed })
 export const surveyResults = (id: string) => rpc<{ respondent: string | null; class_name: string | null; answers: unknown[]; answered_at: string }[]>('survey_results', { p_id: id })
+
+/* ---------- an initiative's profile ---------- */
+export const setActivityLook = (id: string, photo: string | null, icon: string | null, color: string | null) =>
+  rpc('set_activity_look', { p_id: id, p_photo: photo, p_icon: icon, p_color: color })
+export type Award = { id: string; activity_id: string; year: number; title: string; winners: string | null }
+export const listAwards = (activity: string) => ok(supabase.from('activity_awards').select('id, activity_id, year, title, winners').eq('activity_id', activity).order('year', { ascending: false }).order('created_at')) as Promise<Award[]>
+export const addAward = (row: Omit<Award, 'id'>) => ok(supabase.from('activity_awards').insert(row))
+export const removeAward = (id: string) => ok(supabase.from('activity_awards').delete().eq('id', id))
+export type Highlight = { id: string; activity_id: string; title: string; body: string | null; link: string | null; photo: string | null; sort: number }
+export const listHighlights = (activity: string) => ok(supabase.from('activity_highlights').select('id, activity_id, title, body, link, photo, sort').eq('activity_id', activity).order('sort').order('created_at')) as Promise<Highlight[]>
+export const addHighlight = (row: Omit<Highlight, 'id'>) => ok(supabase.from('activity_highlights').insert(row))
+export const removeHighlight = (id: string) => ok(supabase.from('activity_highlights').delete().eq('id', id))
+
+/* ---------- goals → plans → tasks, habits ---------- */
+export type Goal = { id: string; parent_id: string | null; title: string; due_on: string | null; done_at: string | null; created_at: string }
+export const listGoals = () => ok(supabase.from('goals').select('id, parent_id, title, due_on, done_at, created_at').order('created_at')) as Promise<Goal[]>
+export const addGoal = (row: { title: string; parent_id: string | null; due_on: string | null }) => ok(supabase.from('goals').insert(row))
+export const setGoalDone = (id: string, done: boolean) => ok(supabase.from('goals').update({ done_at: done ? new Date().toISOString() : null }).eq('id', id))
+export const removeGoal = (id: string) => ok(supabase.from('goals').delete().eq('id', id))
+export type Habit = { id: string; title: string; created_at: string; checks: { on_date: string }[] }
+// shortcut: loads every tick of a habit (one row a day); filter the embed by date if a habit runs for years
+export const listHabits = () => ok(supabase.from('habits').select('id, title, created_at, checks:habit_checks(on_date)').is('archived_at', null).order('created_at')) as Promise<Habit[]>
+export const addHabit = (title: string) => ok(supabase.from('habits').insert({ title }))
+export const archiveHabit = (id: string) => ok(supabase.from('habits').update({ archived_at: new Date().toISOString() }).eq('id', id))
+export const checkHabit = (id: string, date: string, on: boolean) =>
+  on ? ok(supabase.from('habit_checks').upsert({ habit_id: id, on_date: date })) : ok(supabase.from('habit_checks').delete().eq('habit_id', id).eq('on_date', date))
 
 /* ---------- canteen menu ---------- */
 export type Meal = 'breakfast' | 'brunch' | 'lunch' | 'snack' | 'dinner' | 'supper'

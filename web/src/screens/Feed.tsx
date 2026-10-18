@@ -5,7 +5,7 @@ import { chatTime, fmtDate } from '../lib/time'
 import { useMe } from '../App'
 import Stories, { storyCandidates } from '../components/Stories'
 import Activities from './Activities'
-import { DutyCard, TodayCard } from '../components/HomeWidgets'
+import { TodayCard } from '../components/HomeWidgets'
 import { AsWho, Comments, FeedCard, Original, RepostForm, canWriteFeed, ledActivities } from '../components/FeedCard'
 import type { Activity } from '../lib/api'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
@@ -30,7 +30,7 @@ const canAnswerPost = (me: Me, p: Post) =>
 const TO_LABEL = (p: Post) => (p.addressee === 'admin' ? tx('Әкімшілікке') : p.addressee === 'teacher' ? tx('Мұғалімге: {0}', p.to?.full_name ?? '') : tx('Парламентке'))
 const votes = (p: Post) => p.votes.filter((v) => v.value === 1).length
 
-type Open = null | { kind: 'post'; p: Post } | { kind: 'new'; what: PostKind | null } | { kind: 'answer'; p: Post } | { kind: 'parliament' } | { kind: 'repost'; p: Post }
+type Open = null | { kind: 'post'; p: Post } | { kind: 'new'; what: PostKind | null } | { kind: 'answer'; p: Post } | { kind: 'parliament' } | { kind: 'repost'; p: Post } | { kind: 'more'; p: Post }
 
 export default function Feed({ query, page }: { query: string; page?: Page }) {
   const { me } = useMe()
@@ -56,6 +56,7 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
       {open?.kind === 'new' && <Sheet title={tx('Жариялау')} onClose={() => setOpen(null)}><NewPost me={me} led={led} initial={open.what} onDone={reload} /></Sheet>}
       {open?.kind === 'answer' && <Sheet title={tx('Ұсынысқа жауап')} onClose={() => setOpen(null)}><Answer p={open.p} onDone={reload} /></Sheet>}
       {open?.kind === 'repost' && <Sheet title={tx('Репост')} onClose={() => setOpen(null)}><RepostForm p={open.p} me={me} led={led} onDone={reload} /></Sheet>}
+      {open?.kind === 'more' && <Sheet title={tx('Жазба баптаулары')} onClose={() => setOpen(null)}><PostOptions p={open.p} me={me} onChange={reload} /></Sheet>}
       {open?.kind === 'parliament' && <Sheet title={tx('Парламент құрамы')} onClose={() => setOpen(null)}><Members /></Sheet>}
     </>
   )
@@ -91,14 +92,15 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
         </>
       )}
 
-      {/* 3 × 2: six shortcuts stay readable at 320px */}
-      <nav aria-label={tx('Бөлімдер')} className="grid grid-cols-3 gap-2">
+      <nav aria-label={tx('Бөлімдер')} className="flex gap-2 overflow-x-auto -mx-4 px-4 [scrollbar-width:none]">
         {QUICK.map(([icon, label, path]) => (
-          <a key={path} href={`#${path}`} className="min-w-0 grid justify-items-center content-center gap-1 min-h-[72px] rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-1 py-2 text-[13px] leading-tight font-semibold text-center active:bg-surface-2">
-            <span className="size-8 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span><span className="min-w-0 max-w-full truncate">{label}</span>
+          <a key={path} href={`#${path}`} className="shrink-0 flex items-center gap-1.5 h-10 rounded-full bg-surface-2 px-3.5 text-sm font-semibold active:bg-surface">
+            <Icon n={icon} size={16} className="text-accent" />{label}
           </a>
         ))}
       </nav>
+
+      {tab === 'all' && <TodayCard me={me} />}
 
       <div className="flex items-end gap-2 border-b border-line">
         <div role="tablist" aria-label={tx('Лента')} className="flex-1 flex gap-5 overflow-x-auto [scrollbar-width:none]">
@@ -112,10 +114,9 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
         <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label={tx('Жариялау')} className="size-11 grid place-items-center text-accent"><Icon n="plus" /></button>
       </div>
 
-      {tab === 'all' && <><TodayCard me={me} /><DutyCard /></>}
       {posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} />
         : feed.length ? <div className="divide-y divide-line">{feed.map((p) => <FeedCard key={p.id} p={p} me={me} canRepost={writer}
-            onOpen={() => setOpen({ kind: 'post', p })} onRepost={() => setOpen({ kind: 'repost', p })} />)}</div>
+            onOpen={() => setOpen({ kind: 'post', p })} onRepost={() => setOpen({ kind: 'repost', p })} onMore={() => setOpen({ kind: 'more', p })} />)}</div>
         : <Card><Empty icon={tab === 'announcement' ? 'megaphone' : 'file'} title={tx('Әзірге жазба жоқ')}
             text={tx('Мұғалімдер мен бастама жетекшілері жаңалықтар мен хабарландыруларды осында жариялайды.')} /></Card>}
 
@@ -217,18 +218,15 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
   const dm = async () => { try { go(`/c/${await openDirect(p.author_id)}`) } catch (e) { toast(errText(e)) } }
   const lf = p.kind === 'lost' || p.kind === 'found'
   const social = isSocial(p.kind)
-  const [opts, setOpts] = useState({ hide: p.hide_likes, off: p.comments_off })
-  const saveOpts = async (hide: boolean, off: boolean) => {
-    setOpts({ hide, off })
-    try { await setPostOptions(p.id, hide, off); onChange() } catch (e) { setOpts(opts); toast(errText(e)) }
-  }
+  const [more, setMore] = useState(false)
   if (p.repost_of && p.orig) return (
     <article className="grid gap-3">
       <p className="text-xs text-muted">{tx('{0} бөлісті', p.activity?.title ?? p.author.full_name)} · {fmtDate(p.created_at.slice(0, 10))}</p>
       {p.body && <p className="whitespace-pre-line break-words">{p.body}</p>}
       <Original o={p.orig} />
-      {(p.author_id === me.id || deputy) && <Button kind="danger" onClick={() => act(() => hidePost(p.id), tx('Жойылды'))}>{tx('Жою')}</Button>}
-      <Comments p={{ ...p, comments_off: opts.off }} me={me} />
+      {hasOptions(me, p) && <MoreToggle on={more} set={setMore} />}
+      {more && <PostOptions p={p} me={me} onChange={onChange} />}
+      <Comments p={p} me={me} />
     </article>
   )
   return (
@@ -238,6 +236,8 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
         <p className="text-xs text-muted">{p.activity ? `${p.activity.title} · ` : ''}{p.author.full_name}{p.author.class ? ` · ${p.author.class.name}` : ''} · {fmtDate(p.created_at.slice(0, 10))}</p>
         <h3 className="text-xl font-bold mt-1 text-balance break-words">{p.title}</h3>
       </div>
+      {social && hasOptions(me, p) && <MoreToggle on={more} set={setMore} />}
+      {social && more && <PostOptions p={p} me={me} onChange={onChange} />}
       {lf && p.place && <p className="flex items-center gap-1.5 text-sm"><Icon n="pin" size={16} />{p.kind === 'lost' ? tx('Жоғалған жері') : tx('Табылған жері')}: {p.place}</p>}
       {p.body && <p className="whitespace-pre-line break-words leading-relaxed">{p.body}</p>}
       <div className="grid gap-2">
@@ -245,19 +245,43 @@ function PostView({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }
         {lf && (p.author_id === me.id || staff) && (p.status === 'open'
           ? <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'resolved'), tx('Белгіленді'))}>{tx('Иесі табылды')}</Button>
           : <Button kind="secondary" onClick={() => act(() => setPostStatus(p.id, 'open'), tx('Қайта ашылды'))}>{tx('Қайта ашу')}</Button>)}
-        {staff && social && <Button kind="secondary" onClick={() => act(() => pinPost(p.id, !p.pinned), tx('Сақталды'))}>{p.pinned ? tx('Маңыздыдан алу') : tx('Маңызды деп бекіту')}</Button>}
-        {social && (p.author_id === me.id || deputy) && (
-          <div className="grid gap-1 rounded-md bg-surface-2 px-3 py-1">
-            <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Лайк санын жасыру')}</span>
-              <input type="checkbox" checked={opts.hide} onChange={(e) => saveOpts(e.target.checked, opts.off)} className="size-5 accent-[var(--accent)]" /></label>
-            <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Пікірлерді өшіру')}</span>
-              <input type="checkbox" checked={opts.off} onChange={(e) => saveOpts(opts.hide, e.target.checked)} className="size-5 accent-[var(--accent)]" /></label>
-          </div>
-        )}
-        {(p.author_id === me.id || deputy || (lf && staff)) && <Button kind="danger" onClick={() => act(() => hidePost(p.id), tx('Жойылды'))}>{tx('Жою')}</Button>}
+        {!social && (p.author_id === me.id || deputy || (lf && staff)) && <Button kind="danger" onClick={() => act(() => hidePost(p.id), tx('Жойылды'))}>{tx('Жою')}</Button>}
       </div>
-      {social && <Comments p={{ ...p, comments_off: opts.off }} me={me} />}
+      {social && <Comments p={p} me={me} />}
     </article>
+  )
+}
+
+/** Who sees the "..." menu of a feed post: staff (pin), the author and deputies (options, delete). */
+const hasOptions = (me: Me, p: Post) => me.role !== 'student' || p.author_id === me.id
+
+const MoreToggle = ({ on, set }: { on: boolean; set: (v: boolean) => void }) => (
+  <button type="button" onClick={() => set(!on)} aria-expanded={on} aria-label={tx('Жазба баптаулары')} className="justify-self-end -mt-2 size-11 grid place-items-center text-muted"><Icon n="more" /></button>
+)
+
+/** The post's settings, kept out of sight behind "...": pin, hide likes, comments off, delete. */
+function PostOptions({ p, me, onChange }: { p: Post; me: Me; onChange: () => void }) {
+  const deputy = me.role === 'deputy' || me.role === 'admin'
+  const own = p.author_id === me.id || deputy
+  const [opts, setOpts] = useState({ hide: p.hide_likes, off: p.comments_off })
+  const act = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); toast(done); onChange() } catch (e) { toast(errText(e)) } }
+  const save = async (hide: boolean, off: boolean) => {
+    setOpts({ hide, off })
+    try { await setPostOptions(p.id, hide, off); onChange() } catch (e) { setOpts(opts); toast(errText(e)) }
+  }
+  return (
+    <div className="grid gap-2">
+      {own && !p.repost_of && (
+        <div className="grid gap-1 rounded-md bg-surface-2 px-3 py-1">
+          <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Лайк санын жасыру')}</span>
+            <input type="checkbox" checked={opts.hide} onChange={(e) => save(e.target.checked, opts.off)} className="size-5 accent-[var(--accent)]" /></label>
+          <label className="flex items-center gap-3 min-h-11"><span className="flex-1">{tx('Пікірлерді өшіру')}</span>
+            <input type="checkbox" checked={opts.off} onChange={(e) => save(opts.hide, e.target.checked)} className="size-5 accent-[var(--accent)]" /></label>
+        </div>
+      )}
+      {me.role !== 'student' && <Button kind="secondary" onClick={() => act(() => pinPost(p.id, !p.pinned), tx('Сақталды'))}>{p.pinned ? tx('Маңыздыдан алу') : tx('Маңызды деп бекіту')}</Button>}
+      {own && <Button kind="danger" onClick={() => act(() => hidePost(p.id), tx('Жойылды'))}>{tx('Жою')}</Button>}
+    </div>
   )
 }
 

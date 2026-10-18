@@ -1,8 +1,8 @@
-import { Fragment, useState, type ReactNode } from 'react'
-import { errText, getMenuCycle, listBreaks, listClasses, listDuty, listMenu, listMenuDuty, listPeople, listStaff, menuImageUrl, listTasks, listTeacherDuty, saveMenu, setMenuDuty, uploadMenuPhoto, type Me, type Meal, type MenuFix } from '../lib/api'
+import { useState, type ReactNode } from 'react'
+import { errText, getMenuCycle, listBreaks, listClasses, listDuty, listMenu, listMenuDuty, listPeople, menuImageUrl, listTasks, saveMenu, setMenuDuty, uploadMenuPhoto, type Me, type Meal, type MenuFix } from '../lib/api'
 import { loadAgenda } from '../lib/agenda'
 import { WD_SHORT, addDays, cycleCode, fmtDate, inBreak, isoDow, today } from '../lib/time'
-import { Button, Card, Chips, Field, Icon, Sheet, Skeleton, TypeBadge, inputCls, toast, useLoad } from './ui'
+import { Button, Card, Chips, Field, Icon, Sheet, Skeleton, inputCls, toast, useLoad } from './ui'
 import { tx } from '../lib/i18n'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
@@ -15,44 +15,49 @@ const Head = ({ icon, title, href, action }: { icon: string; title: string; href
   </div>
 )
 
-/* ---------- today: next items of the day + tasks due soon ---------- */
+/* ---------- today: one compact row of the day's next items, tasks due soon and today's duty ---------- */
+const Chip = ({ href, top, title, sub, color, tone = '' }: { href: string; top: ReactNode; title: string; sub?: string | null; color?: string; tone?: string }) => (
+  <a href={href} className="shrink-0 w-40 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-3 py-2 grid gap-0.5"
+    style={color ? { borderLeft: `3px solid ${color}` } : undefined}>
+    <span className={`text-xs font-semibold tabular-nums ${tone || 'text-muted'}`}>{top}</span>
+    <span className="text-sm font-semibold truncate">{title}</span>
+    {sub && <span className="text-xs text-muted truncate">{sub}</span>}
+  </a>
+)
+
 export function TodayCard({ me }: { me: Me }) {
   const t = today()
+  const wd = isoDow(t)
   const data = useLoad(async () => {
-    const [ag, tasks] = await Promise.all([loadAgenda(me, t, t), listTasks()])
+    const [ag, tasks, roster, classes] = await Promise.all([loadAgenda(me, t, t), listTasks(), listDuty().catch(() => []), listClasses().catch(() => [])])
     const now = new Date()
-    const next = ag.items.filter((i) => !i.allDay && i.end > now).slice(0, 3)
+    const next = ag.items.filter((i) => !i.allDay && i.end > now).slice(0, 4)
     const soon = tasks.filter((x) => !(x.author_id === me.id && (x.class_id || x.activity_id || x.assignee_id)) && !x.done.some((d) => d.user_id === me.id)
       && (!x.due_on || x.due_on <= addDays(t, 2))).slice(0, 3)
-    return { next, soon }
+    const duty = classes.find((c) => c.id === roster.find((r) => r.weekday === wd)?.class_id)?.name
+    return { next, soon, duty }
   }, [me.id, t])
   const d = data.data
+  if (!d) return <Skeleton rows={1} />
+  const empty = !d.next.length && !d.soon.length && !d.duty
   return (
-    <Card className="grid gap-3">
-      <Head icon="clock" title={tx('Бүгін · {0}', fmtDate(t))} href="#/plan" />
-      {!d ? <Skeleton rows={1} /> : !d.next.length && !d.soon.length ? <p className="text-sm text-muted">{tx('Бүгінге жоспар бос. Тапсырма немесе жоспар қосу — Жоспар бетінде.')}</p> : (
-        <ul className="grid gap-1.5">
+    <section aria-label={tx('Бүгін · {0}', fmtDate(t))} className="grid gap-1.5">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold text-muted">{tx('Бүгін · {0}', fmtDate(t))}</h2>
+        <a href="#/plan" className="text-sm text-accent font-semibold">{tx('Жоспар')}</a>
+      </div>
+      {empty ? <p className="text-sm text-muted">{tx('Бүгінге жоспар бос.')}</p> : (
+        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 [scrollbar-width:none]">
           {d.next.map((i) => {
             const live = new Date() >= i.start
-            return (
-              <li key={i.key}><a href={i.link ? `#${i.link}` : '#/plan'} className="flex items-center gap-3 min-h-11">
-                <span className={`w-12 text-sm tabular-nums font-semibold ${live ? 'text-success' : ''}`}>{live ? tx('Қазір') : hhmm(i.start)}</span>
-                <span className="w-1 self-stretch rounded-full" style={{ background: i.color }} />
-                <span className="flex-1 min-w-0"><span className="block truncate font-medium">{i.title}</span>{i.place && <span className="block text-xs text-muted truncate">{i.place}</span>}</span>
-                {i.stype && <TypeBadge t={i.stype} />}
-              </a></li>
-            )
+            return <Chip key={i.key} href={i.link ? `#${i.link}` : '#/plan'} color={i.color} top={live ? tx('Қазір') : hhmm(i.start)} tone={live ? 'text-success' : ''} title={i.title} sub={i.place} />
           })}
-          {d.soon.map((x) => (
-            <li key={x.id}><a href="#/plan" className="flex items-center gap-3 min-h-11">
-              <span className={`w-12 text-xs font-semibold ${x.due_on && x.due_on < t ? 'text-danger' : 'text-warning'}`}>{x.due_on ? (x.due_on < t ? tx('Өтті') : x.due_on === t ? tx('Бүгін') : fmtDate(x.due_on)) : tx('Тапсырма')}</span>
-              <Icon n="check" size={16} className="text-muted" />
-              <span className="flex-1 min-w-0 truncate">{x.title}</span>
-            </a></li>
-          ))}
-        </ul>
+          {d.soon.map((x) => <Chip key={x.id} href="#/plan" top={x.due_on ? (x.due_on < t ? tx('Өтті') : x.due_on === t ? tx('Бүгін') : fmtDate(x.due_on)) : tx('Тапсырма')}
+            tone={x.due_on && x.due_on < t ? 'text-danger' : 'text-warning'} title={x.title} sub={tx('Тапсырма')} />)}
+          {d.duty && <Chip href="#/duty" top={tx('Кезекші сынып')} title={d.duty} sub={tx('Бүгінгі кезекшілер')} />}
+        </div>
       )}
-    </Card>
+    </section>
   )
 }
 
@@ -187,28 +192,5 @@ function MenuDutyEdit({ duties, onDone }: { duties: { weekday: number; students:
       )}
       <Button block loading={busy} onClick={save}>{tx('Сақтау')}</Button>
     </div>
-  )
-}
-
-/* ---------- today's duty ---------- */
-export function DutyCard() {
-  const wd = isoDow(today())
-  const d = useLoad(async () => {
-    const [roster, posts, staff, classes] = await Promise.all([listDuty(), listTeacherDuty(), listStaff(), listClasses()])
-    const r = roster.find((x) => x.weekday === wd)
-    return { deputy: staff.find((s) => s.id === r?.deputy_id)?.full_name, cls: classes.find((c) => c.id === r?.class_id)?.name, posts: posts.filter((p) => p.weekday === wd) }
-  }, [wd])
-  if (d.loading && !d.data) return null
-  const v = d.data
-  if (!v || (!v.deputy && !v.cls && !v.posts.length)) return null
-  return (
-    <Card className="grid gap-2">
-      <Head icon="users" title={tx('Бүгінгі кезекшілер')} href="#/duty" />
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
-        {v.deputy && <><dt className="text-muted">{tx('Орынбасар')}</dt><dd className="font-medium">{v.deputy}</dd></>}
-        {v.cls && <><dt className="text-muted">{tx('Сынып')}</dt><dd className="font-medium">{v.cls}</dd></>}
-        {v.posts.slice(0, 4).map((p) => <Fragment key={p.id}><dt className="text-muted">{p.post}</dt><dd className="font-medium">{p.user.full_name}</dd></Fragment>)}
-      </dl>
-    </Card>
   )
 }

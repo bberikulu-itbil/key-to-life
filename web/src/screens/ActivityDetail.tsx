@@ -4,7 +4,7 @@ import {
   errText, listLeaves, activityChatId, myAttendance, setActivityFeatures, activityAttendance, addSessions, removeSession, tgSendRollcall, type ActivityFull, type Feature, type Mark, type MarkRow,
 } from '../lib/api'
 import { when } from './Leaves'
-import { IMPORTANCE, MARK_LABEL, STATUS_LABEL, TYPE_LABEL, WD_SHORT, addDays, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessionType, sessions, today, planDates } from '../lib/time'
+import { IMPORTANCE, MARK_LABEL, PLAN_CAT, STATUS_LABEL, byCategory, WD_SHORT, addDays, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessionType, sessions, today, planDates } from '../lib/time'
 import Tasks from '../components/Tasks'
 import Avatar from '../components/Avatar'
 import ActivityFeed from '../components/ActivityFeed'
@@ -13,6 +13,7 @@ import { needsMyDecision } from './Activities'
 import { statusTone } from '../components/ActivityCard'
 import AbsenceForm from './AbsenceForm'
 import Syllabus from '../components/Syllabus'
+import { HallOfFame, Highlights, ProfileHeader } from '../components/ActivityProfile'
 import { Badge, Button, Card, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, TypeBadge, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
@@ -26,6 +27,7 @@ export default function ActivityDetail({ id }: { id: string }) {
   const [note, setNote] = useState('')
   const [absence, setAbsence] = useState(false)
   const [tab, setTab] = useState<'about' | 'feed' | Feature>('about')
+  const [awards, setAwards] = useState(0)
 
   if (loading && !a) return <><PageHead title="" back /><Skeleton rows={4} /></>
   if (error || !a) return <><PageHead title={tx('Бастама')} back /><ErrorBox text={error ?? tx('Табылмады')} retry={reload} /></>
@@ -46,8 +48,11 @@ export default function ActivityDetail({ id }: { id: string }) {
   const insider = (!!mine && !mine.waitlisted) || isOwner || curatorIds.includes(me.id)
   // the student in charge takes the roll call too
   const canKeepJournal = isOwner || curatorIds.includes(me.id)
+  // syllabus and tasks in one place: each topic with its own tasks
+  const hub = a.features.includes('syllabus') && a.features.includes('tasks') && insider
   const tabs = a.status === 'approved'
-    ? [['about', tx('Шолу')] as const, ['feed', tx('Лента')] as const, ...TABS.filter(([f]) => a.features.includes(f) && (f !== 'tasks' || insider))]
+    ? [['about', tx('Шолу')] as const, ['feed', tx('Лента')] as const, ...TABS.filter(([f]) => a.features.includes(f) && (f !== 'tasks' || (insider && !hub)))
+        .map(([f, l]): [Feature, string] => [f, f === 'syllabus' && hub ? tx('Оқу') : l])]
     : []
   const chatOn = a.status === 'approved' && a.features.includes('chat') && insider
   const stats = canKeepJournal && a.status === 'approved' && a.features.includes('attendance')
@@ -59,14 +64,13 @@ export default function ActivityDetail({ id }: { id: string }) {
         {chatOn && <ChatButton a={a} />}
         {manager && a.status === 'approved' && <button type="button" onClick={() => go(`/a/${a.id}/settings`)} aria-label={tx('Баптаулар')} className="size-11 grid place-items-center rounded-md text-muted"><Icon n="settings" size={23} /></button>}
       </div>} />
-      <div className="flex gap-2 flex-wrap -mt-2">
-        <Badge tone="accent">{TYPE_LABEL[a.type]}</Badge>
-        <Badge tone={statusTone(a.status)}>{STATUS_LABEL[a.status]}</Badge>
+      <ProfileHeader a={a} me={me} members={joined.length} awards={awards} canEdit={manager && a.status === 'approved'} onChange={reload} badges={<>
+        {a.status !== 'approved' && <Badge tone={statusTone(a.status)}>{STATUS_LABEL[a.status]}</Badge>}
         {ended && a.status === 'approved' && <Badge tone="muted">{tx('Аяқталған')}</Badge>}
         {a.archived_at && <Badge tone="muted">{tx('Архивте')}</Badge>}
         {!a.enrollment_open && a.status === 'approved' && <Badge tone="warn">{tx('Тіркелу жабық')}</Badge>}
-      </div>
-      <h1 className="text-xl font-bold text-balance break-words">{a.title}</h1>
+      </>} />
+      {a.status === 'approved' && <Highlights a={a} me={me} canEdit={manager} />}
 
       <Card className="grid gap-2 text-sm">
         <Row icon="clock">{scheduleLabel(a)}{a.schedule === 'weekly' && <span className="text-muted"> · {fmtDate(a.date_from!)} – {fmtDate(a.date_to!)}</span>}</Row>
@@ -86,11 +90,12 @@ export default function ActivityDetail({ id }: { id: string }) {
       )}
       {shown === 'feed' && <ActivityFeed a={a} me={me} />}
       {shown === 'tasks' && <Tasks me={me} activity={a} canGive={manager || curatorIds.includes(me.id)} />}
-      {shown === 'syllabus' && <Syllabus a={a} me={me} />}
+      {shown === 'syllabus' && <Syllabus a={a} me={me} hub={hub ? { canGive: manager || curatorIds.includes(me.id) } : undefined} />}
+      {shown === 'syllabus' && hub && <Tasks me={me} activity={a} canGive={manager || curatorIds.includes(me.id)} noTopic />}
       {shown === 'schedule' && <ActivityCalendar a={a} canEdit={manager} journal={canKeepJournal && a.features.includes('attendance')} onChange={reload} />}
       {shown === 'about' && (
         <>
-          <p className="whitespace-pre-line break-words">{a.description}</p>
+          <HallOfFame a={a} canEdit={manager && a.status === 'approved'} onCount={setAwards} />
           {stats && <>{isOwner && <Requests activityId={a.id} />}<Journal a={a} /><Analytics a={a} /></>}
           {!canKeepJournal && mine && !mine.waitlisted && a.status === 'approved' && a.features.includes('attendance') && <MyMarks a={a} onAsk={() => setAbsence(true)} />}
 
@@ -190,6 +195,9 @@ function JoinButton({ a, grade, busy, onJoin }: { a: ActivityFull; grade?: numbe
 const MARKS: Mark[] = ['present', 'late', 'excused', 'absent']
 const MARK_ON: Record<Mark, string> = { present: 'bg-success-soft text-success', late: 'bg-late-soft text-late', excused: 'bg-warning-soft text-warning', absent: 'bg-danger-soft text-danger' }
 const MARK_ICON: Record<Mark, string> = { present: 'check', late: 'clock', excused: 'file', absent: 'x' }
+const MARK_RING: Record<Mark, string> = { present: 'var(--success)', late: 'var(--late)', excused: 'var(--warning)', absent: 'var(--danger)' }
+// a tap on a face steps through the marks: келді → келмеді → кешікті → себепті → келді
+const NEXT_MARK: Record<Mark, Mark> = { present: 'absent', absent: 'late', late: 'excused', excused: 'present' }
 const LATE_MIN = [5, 10, 15, 20]
 const EXCUSE: [NonNullable<MarkRow['excuse']>, string][] = [['sick', tx('Ауырып қалды')], ['other', tx('Басқа себеп')]]
 const same = (x?: MarkRow, y?: MarkRow) => x?.status === y?.status && (x?.late_min ?? null) === (y?.late_min ?? null) && (x?.excuse ?? null) === (y?.excuse ?? null)
@@ -252,6 +260,22 @@ function Journal({ a, fixed }: { a: ActivityFull; fixed?: string }) {
             <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted" aria-hidden>
               {MARKS.map((m) => <span key={m} className="inline-flex items-center gap-1"><span className={`size-5 rounded-sm grid place-items-center ${MARK_ON[m]}`}><Icon n={MARK_ICON[m]} size={13} /></span>{MARK_LABEL[m]}</span>)}
             </p>
+            {/* quick roll call: a row of faces like Stories; the ring shows the mark */}
+            <div role="list" aria-label={tx('Жылдам белгілеу')} className="flex gap-3 overflow-x-auto -mx-4 px-4 pb-1 [scrollbar-width:none]">
+              {students.map((s) => {
+                const st = marks[s.student_id]?.status
+                return (
+                  <button key={s.student_id} type="button" role="listitem" onClick={() => put(s.student_id, mark(s.student_id, st ? NEXT_MARK[st] : allowed(s.student_id) ? 'excused' : 'present'))}
+                    aria-label={tx('{0}: {1}', s.student.full_name, st ? MARK_LABEL[st] : tx('белгіленбеген'))} className="shrink-0 w-16 grid justify-items-center gap-1 text-center">
+                    <span className="relative size-16 rounded-full p-[3px]" style={{ background: st ? MARK_RING[st] : 'var(--border)' }}>
+                      <span className="block size-full rounded-full border-2 border-surface overflow-hidden"><Avatar name={s.student.full_name} photo={s.student.photo} size={54} /></span>
+                      {st && <span className={`absolute -bottom-0.5 -right-0.5 size-6 rounded-full grid place-items-center border-2 border-surface ${MARK_ON[st]}`}><Icon n={MARK_ICON[st]} size={12} /></span>}
+                    </span>
+                    <span className="text-xs leading-tight line-clamp-1 w-full">{s.student.full_name.split(' ').slice(0, 2).reverse().join(' ')}</span>
+                  </button>
+                )
+              })}
+            </div>
             <div className="grid divide-y divide-line">
               {students.map((s) => {
                 const r = marks[s.student_id]
@@ -361,10 +385,12 @@ export function Modules({ a, onDone }: { a: ActivityFull; onDone: () => void }) 
 function MyMarks({ a, onAsk }: { a: ActivityFull; onAsk: () => void }) {
   const { me } = useMe()
   const rows = useLoad(async () => (await myAttendance(me.id)).filter((r) => r.activity_id === a.id), [a.id, me.id])
-  const list = rows.data ?? []
+  const [cat, setCat] = useState('all')
+  const list = ofCat(a, rows.data ?? [], cat)
   const r = rate(list.map((x) => x.status))
   return (
     <section className="grid gap-2">
+      <CatFilter a={a} rows={rows.data ?? []} value={cat} onChange={setCat} />
       <Card className="flex items-center gap-3">
         <div className="flex-1"><p className="text-2xl font-bold tabular-nums">{r === null ? '—' : `${r}%`}</p><p className="text-xs text-muted">{tx('қатысу · {0} белгі', list.length)}</p></div>
         {a.features.includes('attendance') && lastDay(a) >= today() && <Button kind="secondary" onClick={onAsk}>{tx('Рұқсат сұрау')}</Button>}
@@ -388,9 +414,30 @@ function ChatButton({ a }: { a: ActivityFull }) {
 }
 
 /* ---------- overview: attendance analytics for the leader ---------- */
+/** Filter chips by plan category, each with its held sessions and attendance rate. */
+function CatFilter({ a, rows, value, onChange }: { a: ActivityFull; rows: { session_date: string; status: Mark }[]; value: string; onChange: (v: string) => void }) {
+  const cats = byCategory(a, rows)
+  if (!a.types.length || cats.every((c) => c.cat === 'other')) return null
+  return (
+    <div role="radiogroup" aria-label={tx('Жоспар түрі')} className="flex gap-2 overflow-x-auto -mx-4 px-4 [scrollbar-width:none]">
+      {[{ cat: 'all', held: new Set(rows.map((r) => r.session_date)).size, pct: rate(rows.map((r) => r.status)) }, ...cats].map((c) => (
+        <button key={c.cat} type="button" role="radio" aria-checked={value === c.cat} onClick={() => onChange(c.cat)}
+          className={`shrink-0 rounded-lg px-3 py-2 text-left ${value === c.cat ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>
+          <span className="block text-sm font-semibold">{c.cat === 'all' ? tx('Барлығы') : PLAN_CAT[c.cat as keyof typeof PLAN_CAT]}</span>
+          <span className={`block text-xs tabular-nums ${value === c.cat ? '' : 'text-muted'}`}>{tx('{0} сабақ · {1}', c.held, c.pct === null ? '—' : `${c.pct}%`)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+const ofCat = <T extends { session_date: string },>(a: ActivityFull, rows: T[], cat: string) =>
+  cat === 'all' ? rows : rows.filter((r) => (sessionType(a, r.session_date)?.category ?? 'other') === cat)
+
 function Analytics({ a }: { a: ActivityFull }) {
   const att = useLoad(() => activityAttendance(a.id), [a.id])
-  const rows = att.data ?? []
+  const [cat, setCat] = useState('all')
+  const all = att.data ?? []
+  const rows = ofCat(a, all, cat)
   const held = new Set(rows.map((r) => r.session_date)).size
   const overall = rate(rows.map((r) => r.status))
   const people = a.enrollments.filter((e) => !e.waitlisted).map((e) => {
@@ -400,6 +447,7 @@ function Analytics({ a }: { a: ActivityFull }) {
   const last = [...new Set(rows.map((r) => r.session_date))].sort().slice(-8)
   return (
     <section className="grid gap-2">
+      <CatFilter a={a} rows={all} value={cat} onChange={setCat} />
       <div className="grid grid-cols-3 gap-2">
         <Card className="py-3"><p className="text-2xl font-bold tabular-nums">{overall === null ? '—' : `${overall}%`}</p><p className="text-xs text-muted">{tx('орташа қатысу')}</p></Card>
         <Card className="py-3"><p className="text-2xl font-bold tabular-nums">{held}</p><p className="text-xs text-muted">{tx('белгіленген сабақ')}</p></Card>

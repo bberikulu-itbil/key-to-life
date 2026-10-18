@@ -1,6 +1,7 @@
 import type { Activity } from '../lib/api'
 import { STATUS_LABEL, TYPE_LABEL, scheduleLabel } from '../lib/time'
 import { Badge, Icon, type Tone } from './ui'
+import { ActivityAvatar } from './ActivityProfile'
 import { tx } from '../lib/i18n'
 
 export const statusTone = (s: Activity['status']): Tone =>
@@ -11,6 +12,7 @@ export default function ActivityCard({ a, showStatus }: { a: Activity; showStatu
   return (
     <a href={`#/a/${a.id}`} className="block bg-surface rounded-lg shadow-card border border-[var(--card-line,transparent)] p-4 active:bg-surface-2">
       <div className="flex items-center gap-2 flex-wrap">
+        <ActivityAvatar a={a} size={32} />
         <Badge tone="accent">{TYPE_LABEL[a.type]}</Badge>
         {showStatus && a.status !== 'approved' && <Badge tone={statusTone(a.status)}>{STATUS_LABEL[a.status]}</Badge>}
       </div>

@@ -7,12 +7,12 @@ import { tx } from '../lib/i18n'
 const source = (t: Task, me: Me) =>
   t.assignee ? (t.author_id === me.id ? tx('Жеке · {0}', t.assignee.full_name) : tx('{0} · сізге жеке', t.author.full_name)) : t.class ? tx('{0} сыныбына · {1}', t.class.name, t.author.full_name) : t.activity ? `${t.activity.title} · ${t.author.full_name}` : t.author_id === me.id ? tx('Жеке') : t.author.full_name
 
-export default function Tasks({ me, activity, canGive }: { me: Me; activity?: ActivityFull; canGive?: boolean }) {
+export default function Tasks({ me, activity, canGive, noTopic }: { me: Me; activity?: ActivityFull; canGive?: boolean; noTopic?: boolean }) {
   const tasks = useLoad(listTasks, [])
   const [adding, setAdding] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const t = today()
-  const all = (tasks.data ?? []).filter((x) => !activity || x.activity_id === activity.id)
+  const all = (tasks.data ?? []).filter((x) => (!activity || x.activity_id === activity.id) && (!noTopic || !x.topic_id))
   const isDone = (x: Task) => x.done.some((d) => d.user_id === me.id)
   // tasks I gave to a class/activity are tracked by count, not ticked by me
   const given = (x: Task) => x.author_id === me.id && !!(x.class_id || x.activity_id || x.assignee_id)
@@ -63,7 +63,7 @@ export default function Tasks({ me, activity, canGive }: { me: Me; activity?: Ac
   )
 }
 
-function AddTask({ me, activity, onDone }: { me: Me; activity?: ActivityFull; onDone: () => void }) {
+export function AddTask({ me, activity, topic, onDone }: { me: Me; activity?: ActivityFull; topic?: string; onDone: () => void }) {
   const staff = me.role !== 'student'
   // shortcut: lists every class to staff; the database refuses classes they do not teach (can_assign)
   const targets = useLoad(async () => {
@@ -79,7 +79,7 @@ function AddTask({ me, activity, onDone }: { me: Me; activity?: ActivityFull; on
     setBusy(true)
     try {
       await addTask({ title: f.title.trim(), notes: f.notes.trim() || null, due_on: f.due || null, class_id: kind === 'c' ? id : null,
-        activity_id: kind === 'a' ? id : kind === 'p' ? activity?.id ?? null : null, assignee_id: kind === 'p' ? id : null })
+        activity_id: kind === 'a' ? id : kind === 'p' ? activity?.id ?? null : null, assignee_id: kind === 'p' ? id : null, topic_id: topic ?? null })
       toast(kind === 'me' ? tx('Қосылды') : tx('Тапсырма берілді, оқушыларға хабар кетті')); onDone()
     } catch (e) { toast(errText(e).includes('row-level') ? tx('Бұл сыныпқа тапсырма бере алмайсыз') : errText(e)) } finally { setBusy(false) }
   }
