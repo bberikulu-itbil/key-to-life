@@ -1,6 +1,6 @@
 // Run: npx tsx src/lib/time.test.ts
 import assert from 'node:assert/strict'
-import { addDays, isSession, isoDow, lessonOn, rate, sessions, weekOf } from './time'
+import { addDays, cycleCode, isSession, isoDow, lessonOn, rate, sessions, weekOf } from './time'
 
 const weekly = { schedule: 'weekly' as const, on_date: null, weekdays: [1, 3], date_from: '2026-10-01', date_to: '2026-10-31' }
 const once = { schedule: 'once' as const, on_date: '2026-10-25', weekdays: null, date_from: null, date_to: null }
@@ -25,6 +25,12 @@ assert.ok(!lessonOn(lesson, '2026-10-26', autumn))    // Monday in the autumn br
 assert.ok(lessonOn(lesson, '2026-11-02', autumn))     // back after the break
 assert.ok(!lessonOn(lesson, '2027-01-04', autumn))    // after the term
 assert.ok(lessonOn({ weekday: 1, valid_from: null, valid_to: null }, '2027-01-04', []))
+assert.equal(cycleCode('2026-10-12', '2026-10-12'), 'A1')   // week A Monday
+assert.equal(cycleCode('2026-10-16', '2026-10-12'), 'A5')
+assert.equal(cycleCode('2026-10-09', '2026-10-12'), 'B5')   // the week before is B
+assert.equal(cycleCode('2026-10-21', '2026-10-12'), 'B3')
+assert.equal(cycleCode('2026-09-30', '2026-10-12'), 'A3')   // same as 14.10 in the posts
+assert.equal(cycleCode('2026-10-18', '2026-10-12'), null)   // Sunday
 console.log('time.ts ok')
 
 import { daySlots, pickRange } from './time'

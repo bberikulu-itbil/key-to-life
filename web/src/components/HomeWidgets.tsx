@@ -1,7 +1,7 @@
 import { Fragment, useState, type ReactNode } from 'react'
-import { errText, listClasses, listDuty, listMenu, listStaff, listTasks, listTeacherDuty, saveMenu, type Me, type Meal } from '../lib/api'
+import { errText, getMenuCycle, listBreaks, listClasses, listDuty, listMenu, listStaff, menuImageUrl, listTasks, listTeacherDuty, saveMenu, type Me, type Meal } from '../lib/api'
 import { loadAgenda } from '../lib/agenda'
-import { addDays, fmtDate, isoDow, today } from '../lib/time'
+import { addDays, cycleCode, fmtDate, inBreak, isoDow, today } from '../lib/time'
 import { Button, Card, Field, Icon, Sheet, Skeleton, TypeBadge, inputCls, toast, useLoad } from './ui'
 import { tx } from '../lib/i18n'
 
@@ -62,7 +62,12 @@ const MEALS: [Meal, string, string][] = [['breakfast', tx('Таңғы ас'), '1
 export function MenuCard({ me }: { me: Me }) {
   const [day, setDay] = useState(today())
   const menu = useLoad(() => listMenu(day), [day])
+  const cycle = useLoad(() => Promise.all([getMenuCycle(), listBreaks()]), [])
   const [editing, setEditing] = useState(false)
+  // no menu typed in for the day: the picture of that day in the canteen's 10-day cycle (not in breaks)
+  const [cyc, breaks] = cycle.data ?? [null, []]
+  const code = cyc?.weekA && !inBreak(day, breaks) ? cycleCode(day, cyc.weekA) : null
+  const planned = code ? cyc?.days.find((d) => d.day_code === code && d.image) : undefined
   const items = Object.fromEntries((menu.data ?? []).map((m) => [m.meal, m.items])) as Partial<Record<Meal, string>>
   const shown = MEALS.filter(([m]) => m !== 'snack' || items.snack)
   const nowHm = new Date().toTimeString().slice(0, 5)
@@ -75,7 +80,12 @@ export function MenuCard({ me }: { me: Me }) {
         <span className="flex-1 text-center text-sm font-semibold">{day === today() ? tx('Бүгін') : day === addDays(today(), 1) ? tx('Ертең') : fmtDate(day)}</span>
         <button type="button" onClick={() => setDay(addDays(day, 1))} aria-label={tx('Келесі күн')} className="size-11 grid place-items-center"><Icon n="chev" /></button>
       </div>
-      {menu.loading && !menu.data ? <Skeleton rows={1} /> : !menu.data?.length ? <p className="text-sm text-muted">{tx('Бұл күнге мәзір әлі енгізілмеген.')}</p> : (
+      {menu.loading && !menu.data ? <Skeleton rows={1} /> : !menu.data?.length ? (planned ? (
+        <figure className="grid gap-1.5">
+          <img src={menuImageUrl(planned.image!)} alt={tx('{0} — ас мәзірі', planned.title)} loading="lazy" className="w-full rounded-md border border-line bg-surface-2" />
+          <figcaption className="text-xs text-muted">{tx('Болжамды мәзір: асхана 10 күндік циклмен қайталайды, кейде бір-екі тағам ауысады.')}</figcaption>
+        </figure>
+      ) : <p className="text-sm text-muted">{tx('Бұл күнге мәзір әлі енгізілмеген.')}</p>) : (
         <div className="grid gap-2">
           {shown.map(([m, label]) => (
             <div key={m} className={`rounded-md px-3 py-2 ${current === m ? 'bg-accent-soft' : 'bg-surface-2'}`}>

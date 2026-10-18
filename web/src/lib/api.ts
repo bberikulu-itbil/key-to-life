@@ -482,6 +482,16 @@ export const surveyResults = (id: string) => rpc<{ respondent: string | null; cl
 
 /* ---------- canteen menu ---------- */
 export type Meal = 'breakfast' | 'lunch' | 'snack' | 'dinner'
+export type MenuDay = { day_code: string; title: string; image: string | null }
+/** The canteen's repeating 10-day menu: pictures per day and the Monday that starts week A. */
+export const getMenuCycle = async () => {
+  const [days, anchor] = await Promise.all([
+    ok(supabase.from('menu_cycle').select('day_code, title, image')) as Promise<MenuDay[]>,
+    ok(supabase.from('menu_cycle_anchor').select('week_a').maybeSingle()) as Promise<{ week_a: string } | null>,
+  ])
+  return { days, weekA: anchor?.week_a ?? null }
+}
+export const menuImageUrl = (path: string) => supabase.storage.from('menu').getPublicUrl(path).data.publicUrl
 export const listMenu = (date: string) => ok(supabase.from('menus').select('meal, items').eq('on_date', date)) as Promise<{ meal: Meal; items: string }[]>
 export const saveMenu = (date: string, meal: Meal, items: string) =>
   items.trim() ? ok(supabase.from('menus').upsert({ on_date: date, meal, items: items.trim(), updated_at: new Date().toISOString() }))

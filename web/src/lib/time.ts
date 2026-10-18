@@ -42,6 +42,14 @@ export function isSession(a: Sched, d: string) {
   return a.slots?.length ? a.slots.some((s) => s.wd === isoDow(d)) : (a.weekdays ?? []).includes(isoDow(d))
 }
 
+/** The canteen's 10-day cycle: 'A1'…'B5' for a school day, counted in weeks from a Monday of week A; null on weekends. */
+export function cycleCode(d: string, weekA: string) {
+  const dow = isoDow(d)
+  if (dow > 5) return null
+  const weeks = Math.round((parse(addDays(d, 1 - dow)).getTime() - parse(weekA).getTime()) / (7 * 86400000))
+  return `${weeks % 2 === 0 ? 'A' : 'B'}${dow}`
+}
+
 /** Is day d inside a school break? */
 export const inBreak = (d: string, breaks: { from_date: string; to_date: string }[]) => breaks.some((b) => d >= b.from_date && d <= b.to_date)
 /** A timetable lesson takes place on day d: its weekday, inside its term, outside breaks. */

@@ -24,7 +24,7 @@ Talk to the owner in Kazakh.
 2. Before a PR: `cd web && npm ci && npm run build && npm run lint` and the tests:
    `npx tsx src/lib/time.test.ts && TZ=Asia/Almaty npx tsx src/lib/ics.test.ts &&
    npx tsx ../supabase/functions/telegram/initdata.test.ts && npx tsx ../supabase/functions/telegram/rollcall.test.ts`
-3. Migrations: take the next free number (check `supabase/migrations/` on `main` first; last used: 0041).
+3. Migrations: take the next free number (check `supabase/migrations/` on `main` first; last used: 0042).
    Never edit a migration that was already applied; add a new one.
    SQL with `delete`/`drop` is run by the owner by hand in the Supabase SQL Editor — say so in the PR.
 4. Keep changes small; reuse existing helpers (`lib/api.ts`, `components/ui.tsx`, `lib/time.ts`).
