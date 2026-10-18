@@ -356,15 +356,15 @@ export const setParliament = (user: string, on: boolean) => rpc('set_parliament'
 export const photoUrl = (path: string) => supabase.storage.from('posts').getPublicUrl(path).data.publicUrl
 
 /** Shrinks a photo to 1280px JPEG and stores it under the user's own folder. */
-export async function uploadPhoto(userId: string, file: File) {
+export async function uploadPhoto(folder: string, file: File, bucket = 'posts') {
   const img = await createImageBitmap(file)
   const k = Math.min(1, 1280 / Math.max(img.width, img.height))
   const c = document.createElement('canvas')
   c.width = Math.round(img.width * k); c.height = Math.round(img.height * k)
   c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
   const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error(tx('Фотоны өңдеу мүмкін болмады')))), 'image/jpeg', 0.82))
-  const path = `${userId}/${crypto.randomUUID()}.jpg`
-  const { error } = await supabase.storage.from('posts').upload(path, blob, { contentType: 'image/jpeg' })
+  const path = `${folder}/${crypto.randomUUID()}.jpg`
+  const { error } = await supabase.storage.from(bucket).upload(path, blob, { contentType: 'image/jpeg' })
   if (error) throw new Error(errText(error))
   return path
 }
@@ -481,21 +481,26 @@ export const closeSurvey = (id: string, closed: boolean) => rpc('close_survey', 
 export const surveyResults = (id: string) => rpc<{ respondent: string | null; class_name: string | null; answers: unknown[]; answered_at: string }[]>('survey_results', { p_id: id })
 
 /* ---------- canteen menu ---------- */
-export type Meal = 'breakfast' | 'lunch' | 'snack' | 'dinner'
-export type MenuDay = { day_code: string; title: string; image: string | null }
-/** The canteen's repeating 10-day menu: pictures per day and the Monday that starts week A. */
+export type Meal = 'breakfast' | 'brunch' | 'lunch' | 'snack' | 'dinner' | 'supper'
+export type MenuDay = { day_code: string; title: string; image: string | null; items: Partial<Record<Meal, string>> }
+/** The canteen's repeating 10-day menu: dishes and pictures per day and the Monday that starts week A. */
 export const getMenuCycle = async () => {
   const [days, anchor] = await Promise.all([
-    ok(supabase.from('menu_cycle').select('day_code, title, image')) as Promise<MenuDay[]>,
+    ok(supabase.from('menu_cycle').select('day_code, title, image, items')) as Promise<MenuDay[]>,
     ok(supabase.from('menu_cycle_anchor').select('week_a').maybeSingle()) as Promise<{ week_a: string } | null>,
   ])
   return { days, weekA: anchor?.week_a ?? null }
 }
 export const menuImageUrl = (path: string) => supabase.storage.from('menu').getPublicUrl(path).data.publicUrl
-export const listMenu = (date: string) => ok(supabase.from('menus').select('meal, items').eq('on_date', date)) as Promise<{ meal: Meal; items: string }[]>
-export const saveMenu = (date: string, meal: Meal, items: string) =>
-  items.trim() ? ok(supabase.from('menus').upsert({ on_date: date, meal, items: items.trim(), updated_at: new Date().toISOString() }))
+export type MenuFix = { meal: Meal; items: string; photo: string | null }
+export const listMenu = (date: string) => ok(supabase.from('menus').select('meal, items, photo').eq('on_date', date)) as Promise<MenuFix[]>
+/** A correction of one meal for the day; empty text and no photo returns it to the cycle. */
+export const saveMenu = (date: string, meal: Meal, items: string, photo: string | null) =>
+  items.trim() || photo ? ok(supabase.from('menus').upsert({ on_date: date, meal, items: items.trim(), photo, updated_at: new Date().toISOString() }))
     : ok(supabase.from('menus').delete().eq('on_date', date).eq('meal', meal))
+export const uploadMenuPhoto = (date: string, file: File) => uploadPhoto(`day/${date}`, file, 'menu')
+export const listMenuDuty = () => ok(supabase.from('menu_duty').select('weekday, students')) as Promise<{ weekday: number; students: string[] }[]>
+export const setMenuDuty = (weekday: number, students: string[]) => rpc('set_menu_duty', { p_weekday: weekday, p_students: students })
 
 /* ---------- suggestions to develop the app ---------- */
 export type Feedback = { id: number; body: string; created_at: string; user_id: string; author: { full_name: string } | null }

@@ -1277,5 +1277,20 @@
  "Сыныбым": "Sınıfım",
  "Күзгі демалыс": "Sonbahar tatili",
  "{0} — ас мәзірі": "{0} — yemek menüsü",
- "Болжамды мәзір: асхана 10 күндік циклмен қайталайды, кейде бір-екі тағам ауысады.": "Tahmini menü: yemekhane 10 günlük döngüyle tekrarlar, bazen bir iki yemek değişir."
+ "Болжамды мәзір: асхана 10 күндік циклмен қайталайды, кейде бір-екі тағам ауысады.": "Tahmini menü: yemekhane 10 günlük döngüyle tekrarlar, bazen bir iki yemek değişir.",
+ "Таңнан кейін": "Kuşluk ikramı",
+ "Түстен кейін": "İkindi ikramı",
+ "Кешкіден кейін": "Gece ikramı",
+ "Кезекшілер": "Nöbetçiler",
+ " · түзетілді": " · düzeltildi",
+ "{0}: түзету": "{0}: düzelt",
+ "Болжамды мәзір: асхана 10 күндік циклмен қайталайды. Тамақ басқа болса, кезекші оқушылар түзетеді.": "Tahmini menü: yemekhane 10 günlük döngüyü tekrarlar. Yemek farklıysa nöbetçi öğrenciler düzeltir.",
+ "Мәзір кезекшілері": "Menü nöbetçileri",
+ "Тағамдар": "Yemekler",
+ "Асханада берілгені кестедегіден басқа болса, түзетіңіз": "Yemekhanede farklı bir şey verildiyse düzeltin",
+ "Кестедегіге қайтару": "Programa geri dön",
+ "Бір күнге 5 оқушыдан артық емес": "Günde en fazla 5 öğrenci",
+ "Кезекші оқушы тек өз күнінде, сол күннің мәзірін түзете алады.": "Nöbetçi öğrenci yalnızca kendi gününde o günün menüsünü düzeltebilir.",
+ "Атын жазып іздеңіз": "Aramak için isim yazın",
+ "Мәзір кезекшілерін орынбасар немесе әкімші белгілейді": "Menü nöbetçilerini müdür yardımcısı veya yönetici atar"
 }

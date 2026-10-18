@@ -1,8 +1,8 @@
 import { Fragment, useState, type ReactNode } from 'react'
-import { errText, getMenuCycle, listBreaks, listClasses, listDuty, listMenu, listStaff, menuImageUrl, listTasks, listTeacherDuty, saveMenu, type Me, type Meal } from '../lib/api'
+import { errText, getMenuCycle, listBreaks, listClasses, listDuty, listMenu, listMenuDuty, listPeople, listStaff, menuImageUrl, listTasks, listTeacherDuty, saveMenu, setMenuDuty, uploadMenuPhoto, type Me, type Meal, type MenuFix } from '../lib/api'
 import { loadAgenda } from '../lib/agenda'
-import { addDays, cycleCode, fmtDate, inBreak, isoDow, today } from '../lib/time'
-import { Button, Card, Field, Icon, Sheet, Skeleton, TypeBadge, inputCls, toast, useLoad } from './ui'
+import { WD_SHORT, addDays, cycleCode, fmtDate, inBreak, isoDow, today } from '../lib/time'
+import { Button, Card, Chips, Field, Icon, Sheet, Skeleton, TypeBadge, inputCls, toast, useLoad } from './ui'
 import { tx } from '../lib/i18n'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
@@ -57,63 +57,134 @@ export function TodayCard({ me }: { me: Me }) {
 }
 
 /* ---------- canteen menu ---------- */
-const MEALS: [Meal, string, string][] = [['breakfast', tx('Таңғы ас'), '10:00'], ['lunch', tx('Түскі ас'), '15:00'], ['snack', tx('Бесін ас'), '17:30'], ['dinner', tx('Кешкі ас'), '24:00']]
+// meal, label, served until (for "now"), cell in the cycle composite picture (1080×1440, 4 photos of 488×380)
+const MEALS: [Meal, string, string, number | null][] = [
+  ['breakfast', tx('Таңғы ас'), '09:00', null], ['brunch', tx('Таңнан кейін'), '11:30', 0], ['lunch', tx('Түскі ас'), '15:00', 1],
+  ['snack', tx('Түстен кейін'), '17:00', null], ['dinner', tx('Кешкі ас'), '20:00', 2], ['supper', tx('Кешкіден кейін'), '24:00', 3]]
+const CELL_POS = ['6.757% 22.64%', '93.24% 22.64%', '6.757% 74.91%', '93.24% 74.91%']
+const isStaff = (me: Me) => me.role !== 'student'
+
+/** One photo cut out of the day's composite picture. */
+const CyclePhoto = ({ image, cell }: { image: string; cell: number }) => (
+  <span role="img" aria-hidden className="block w-full aspect-[488/380] rounded-sm bg-surface-2 bg-no-repeat"
+    style={{ backgroundImage: `url(${menuImageUrl(image)})`, backgroundSize: '221.31% auto', backgroundPosition: CELL_POS[cell] }} />
+)
 
 export function MenuCard({ me }: { me: Me }) {
   const [day, setDay] = useState(today())
   const menu = useLoad(() => listMenu(day), [day])
-  const cycle = useLoad(() => Promise.all([getMenuCycle(), listBreaks()]), [])
-  const [editing, setEditing] = useState(false)
-  // no menu typed in for the day: the picture of that day in the canteen's 10-day cycle (not in breaks)
-  const [cyc, breaks] = cycle.data ?? [null, []]
+  const cycle = useLoad(() => Promise.all([getMenuCycle(), listBreaks(), listMenuDuty()]), [])
+  const [editing, setEditing] = useState<Meal | null>(null)
+  const [duty, setDuty] = useState(false)
+  const [cyc, breaks, duties] = cycle.data ?? [null, [], []]
   const code = cyc?.weekA && !inBreak(day, breaks) ? cycleCode(day, cyc.weekA) : null
-  const planned = code ? cyc?.days.find((d) => d.day_code === code && d.image) : undefined
-  const items = Object.fromEntries((menu.data ?? []).map((m) => [m.meal, m.items])) as Partial<Record<Meal, string>>
-  const shown = MEALS.filter(([m]) => m !== 'snack' || items.snack)
+  const planned = code ? cyc?.days.find((d) => d.day_code === code) : undefined
+  const fixes = Object.fromEntries((menu.data ?? []).map((m) => [m.meal, m])) as Partial<Record<Meal, MenuFix>>
+  // staff any day; the day's duty students only today (the database checks the same)
+  const canEdit = isStaff(me) || (day === today() && duties.some((d) => d.weekday === isoDow(day) && d.students.includes(me.id)))
   const nowHm = new Date().toTimeString().slice(0, 5)
-  const current = day === today() ? MEALS.find(([m, , until]) => items[m] && nowHm < until)?.[0] : undefined
+  const shown = MEALS.filter(([m]) => fixes[m]?.items || fixes[m]?.photo || planned?.items[m])
+  const current = day === today() ? shown.find(([, , until]) => nowHm < until)?.[0] : undefined
   return (
     <Card className="grid gap-3">
-      <Head icon="list" title={tx('Асхана мәзірі')} action={me.role !== 'student' ? <Button kind="ghost" onClick={() => setEditing(true)}>{tx('Өзгерту')}</Button> : undefined} />
+      <Head icon="list" title={tx('Асхана мәзірі')} action={me.role === 'deputy' || me.role === 'admin'
+        ? <Button kind="ghost" onClick={() => setDuty(true)}>{tx('Кезекшілер')}</Button> : undefined} />
       <div className="flex items-center gap-1">
         <button type="button" onClick={() => setDay(addDays(day, -1))} aria-label={tx('Алдыңғы күн')} className="size-11 grid place-items-center"><Icon n="back" /></button>
         <span className="flex-1 text-center text-sm font-semibold">{day === today() ? tx('Бүгін') : day === addDays(today(), 1) ? tx('Ертең') : fmtDate(day)}</span>
         <button type="button" onClick={() => setDay(addDays(day, 1))} aria-label={tx('Келесі күн')} className="size-11 grid place-items-center"><Icon n="chev" /></button>
       </div>
-      {menu.loading && !menu.data ? <Skeleton rows={1} /> : !menu.data?.length ? (planned ? (
-        <figure className="grid gap-1.5">
-          <img src={menuImageUrl(planned.image!)} alt={tx('{0} — ас мәзірі', planned.title)} loading="lazy" className="w-full rounded-md border border-line bg-surface-2" />
-          <figcaption className="text-xs text-muted">{tx('Болжамды мәзір: асхана 10 күндік циклмен қайталайды, кейде бір-екі тағам ауысады.')}</figcaption>
-        </figure>
-      ) : <p className="text-sm text-muted">{tx('Бұл күнге мәзір әлі енгізілмеген.')}</p>) : (
-        <div className="grid gap-2">
-          {shown.map(([m, label]) => (
-            <div key={m} className={`rounded-md px-3 py-2 ${current === m ? 'bg-accent-soft' : 'bg-surface-2'}`}>
-              <p className="text-xs font-semibold text-muted">{label}{current === m ? tx(' · қазір') : ''}</p>
-              <p className="whitespace-pre-line">{items[m] ?? '—'}</p>
-            </div>
-          ))}
-        </div>
+      {(menu.loading && !menu.data) || (cycle.loading && !cycle.data) ? <Skeleton rows={2} /> : !shown.length ? (
+        <p className="text-sm text-muted">{tx('Бұл күнге мәзір әлі енгізілмеген.')}</p>
+      ) : (
+        <ul className="grid gap-2">
+          {shown.map(([m, label, , cell]) => {
+            const fix = fixes[m]
+            const text = fix?.items || planned?.items[m] || '—'
+            const body = (
+              <>
+                <span className="w-24 shrink-0">
+                  {fix?.photo ? <img src={menuImageUrl(fix.photo)} alt="" loading="lazy" className="w-full aspect-[488/380] rounded-sm object-cover bg-surface-2" />
+                    : cell !== null && planned?.image ? <CyclePhoto image={planned.image} cell={cell} />
+                    : <span className="grid w-full aspect-[488/380] place-items-center rounded-sm bg-surface text-muted"><Icon n="list" size={18} /></span>}
+                </span>
+                <span className="flex-1 min-w-0 text-left">
+                  <span className="block text-xs font-semibold text-muted">{label}{current === m ? tx(' · қазір') : ''}{fix ? tx(' · түзетілді') : ''}</span>
+                  <span className="block whitespace-pre-line text-[15px] leading-snug">{text}</span>
+                </span>
+                {canEdit && <Icon n="chev" size={16} className="text-muted shrink-0 self-center" />}
+              </>
+            )
+            const cls = `flex gap-3 rounded-md p-2 w-full ${current === m ? 'bg-accent-soft' : 'bg-surface-2'}`
+            return <li key={m}>{canEdit
+              ? <button type="button" onClick={() => setEditing(m)} aria-label={tx('{0}: түзету', label)} className={cls}>{body}</button>
+              : <div className={cls}>{body}</div>}</li>
+          })}
+        </ul>
       )}
-      {editing && <Sheet title={tx('Мәзір · {0}', fmtDate(day))} onClose={() => setEditing(false)}><MenuEdit day={day} items={items} onDone={() => { setEditing(false); menu.reload() }} /></Sheet>}
+      {!fixesAny(fixes) && planned && <p className="text-xs text-muted">{tx('Болжамды мәзір: асхана 10 күндік циклмен қайталайды. Тамақ басқа болса, кезекші оқушылар түзетеді.')}</p>}
+      {editing && <Sheet title={`${MEALS.find(([m]) => m === editing)![1]} · ${fmtDate(day)}`} onClose={() => setEditing(null)}>
+        <MealEdit day={day} meal={editing} fix={fixes[editing]} planned={planned?.items[editing] ?? ''} onDone={() => { setEditing(null); menu.reload() }} />
+      </Sheet>}
+      {duty && <Sheet title={tx('Мәзір кезекшілері')} onClose={() => setDuty(false)}><MenuDutyEdit duties={duties} onDone={() => { setDuty(false); cycle.reload() }} /></Sheet>}
     </Card>
   )
 }
+const fixesAny = (f: Partial<Record<Meal, MenuFix>>) => Object.keys(f).length > 0
 
-function MenuEdit({ day, items, onDone }: { day: string; items: Partial<Record<Meal, string>>; onDone: () => void }) {
-  const [f, setF] = useState<Partial<Record<Meal, string>>>(items)
+function MealEdit({ day, meal, fix, planned, onDone }: { day: string; meal: Meal; fix?: MenuFix; planned: string; onDone: () => void }) {
+  const [text, setText] = useState(fix?.items || planned)
+  const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
+  const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); toast(tx('Мәзір сақталды')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
+  // unchanged text is stored empty, so the cycle text keeps showing
+  const save = () => run(async () => saveMenu(day, meal, text.trim() === planned.trim() ? '' : text, file ? await uploadMenuPhoto(day, file) : fix?.photo ?? null))
+  return (
+    <div className="grid gap-4">
+      <Field label={tx('Тағамдар')} hint={tx('Асханада берілгені кестедегіден басқа болса, түзетіңіз')}>{(id, d) => (
+        <textarea id={id} aria-describedby={d} value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} className={`${inputCls} h-24 py-2`} />)}</Field>
+      <Field label={tx('Фото')} hint={tx('Міндетті емес')}>{(id, d) => (
+        <input id={id} aria-describedby={d} type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />)}</Field>
+      <Button block loading={busy} onClick={save}>{tx('Сақтау')}</Button>
+      {fix && <Button block kind="ghost" disabled={busy} onClick={() => run(() => saveMenu(day, meal, '', null))}>{tx('Кестедегіге қайтару')}</Button>}
+    </div>
+  )
+}
+
+/** Deputy or admin: up to 5 students a weekday who correct that day's menu. */
+function MenuDutyEdit({ duties, onDone }: { duties: { weekday: number; students: string[] }[]; onDone: () => void }) {
+  const people = useLoad(listPeople, [])
+  const [wd, setWd] = useState(String(Math.min(isoDow(today()), 6)))
+  const [sel, setSel] = useState<Record<string, string[]>>(() => Object.fromEntries(duties.map((d) => [String(d.weekday), d.students])))
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const cur = sel[wd] ?? []
+  const toggle = (id: string) => cur.includes(id) ? setSel({ ...sel, [wd]: cur.filter((x) => x !== id) })
+    : cur.length >= 5 ? toast(tx('Бір күнге 5 оқушыдан артық емес')) : setSel({ ...sel, [wd]: [...cur, id] })
+  const students = (people.data ?? []).filter((p) => p.role === 'student')
+  const list = students.filter((p) => cur.includes(p.id) || (q.trim().length > 1 && p.full_name.toLowerCase().includes(q.trim().toLowerCase())))
   const save = async () => {
     setBusy(true)
-    try { await Promise.all(MEALS.filter(([m]) => (f[m] ?? '') !== (items[m] ?? '')).map(([m]) => saveMenu(day, m, f[m] ?? ''))); toast(tx('Мәзір сақталды')); onDone() }
+    try { await Promise.all(Object.entries(sel).map(([w, ids]) => setMenuDuty(Number(w), ids))); toast(tx('Сақталды')); onDone() }
     catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
     <div className="grid gap-4">
-      {MEALS.map(([m, label]) => (
-        <Field key={m} label={label} hint={m === 'snack' ? tx('Міндетті емес') : undefined}>{(id, d) => <textarea id={id} aria-describedby={d} value={f[m] ?? ''} onChange={(e) => setF({ ...f, [m]: e.target.value })}
-          className={`${inputCls} h-20 py-2`} placeholder={tx('Әр тағамды жаңа жолдан')} />}</Field>
-      ))}
+      <Chips label={tx('Апта күні')} value={wd} onChange={setWd} items={WD_SHORT.slice(0, 6).map((l, i) => [String(i + 1), `${l}${sel[String(i + 1)]?.length ? ` · ${sel[String(i + 1)].length}` : ''}`])} />
+      <p className="text-xs text-muted">{tx('Кезекші оқушы тек өз күнінде, сол күннің мәзірін түзете алады.')}</p>
+      <input value={q} onChange={(e) => setQ(e.target.value)} aria-label={tx('Оқушыны іздеу')} placeholder={tx('Оқушыны іздеу')} className={inputCls} />
+      {people.loading ? <Skeleton rows={1} /> : (
+        <div className="max-h-64 overflow-y-auto rounded-md border border-line divide-y divide-line">
+          {list.map((p) => (
+            <label key={p.id} className="flex items-center gap-3 min-h-11 px-3">
+              <input type="checkbox" checked={cur.includes(p.id)} onChange={() => toggle(p.id)} className="size-5 accent-[var(--accent)]" />
+              <span className="flex-1 min-w-0 truncate">{p.full_name}</span>
+              {p.class && <span className="text-xs text-muted">{p.class.name}</span>}
+            </label>
+          ))}
+          {!list.length && <p className="px-3 py-2 text-sm text-muted">{tx('Атын жазып іздеңіз')}</p>}
+        </div>
+      )}
       <Button block loading={busy} onClick={save}>{tx('Сақтау')}</Button>
     </div>
   )

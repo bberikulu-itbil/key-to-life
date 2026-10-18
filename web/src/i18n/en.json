@@ -1277,5 +1277,20 @@
  "Сыныбым": "My class",
  "Күзгі демалыс": "Autumn break",
  "{0} — ас мәзірі": "{0} — menu",
- "Болжамды мәзір: асхана 10 күндік циклмен қайталайды, кейде бір-екі тағам ауысады.": "Expected menu: the canteen repeats a 10-day cycle; one or two dishes sometimes change."
+ "Болжамды мәзір: асхана 10 күндік циклмен қайталайды, кейде бір-екі тағам ауысады.": "Expected menu: the canteen repeats a 10-day cycle; one or two dishes sometimes change.",
+ "Таңнан кейін": "Mid-morning snack",
+ "Түстен кейін": "Afternoon snack",
+ "Кешкіден кейін": "Late snack",
+ "Кезекшілер": "On duty",
+ " · түзетілді": " · corrected",
+ "{0}: түзету": "{0}: correct",
+ "Болжамды мәзір: асхана 10 күндік циклмен қайталайды. Тамақ басқа болса, кезекші оқушылар түзетеді.": "Expected menu: the canteen repeats a 10-day cycle. If the food differs, students on duty correct it.",
+ "Мәзір кезекшілері": "Menu duty students",
+ "Тағамдар": "Dishes",
+ "Асханада берілгені кестедегіден басқа болса, түзетіңіз": "Correct it if the canteen served something else",
+ "Кестедегіге қайтару": "Back to the schedule",
+ "Бір күнге 5 оқушыдан артық емес": "No more than 5 students a day",
+ "Кезекші оқушы тек өз күнінде, сол күннің мәзірін түзете алады.": "A duty student can correct only that day's menu, on their own day.",
+ "Атын жазып іздеңіз": "Type a name to search",
+ "Мәзір кезекшілерін орынбасар немесе әкімші белгілейді": "Menu duty is assigned by a deputy or an admin"
 }
