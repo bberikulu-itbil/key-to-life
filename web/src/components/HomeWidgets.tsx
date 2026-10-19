@@ -1,11 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { errText, getMenuCycle, listBreaks, listClasses, listDuty, listMenu, listMenuDuty, listPeople, menuImageUrl, listTasks, saveMenu, setMenuDuty, uploadMenuPhoto, type Me, type Meal, type MenuFix } from '../lib/api'
-import { loadAgenda } from '../lib/agenda'
+import { errText, getMenuCycle, listBreaks, listMenu, listMenuDuty, listPeople, menuImageUrl, saveMenu, setMenuDuty, uploadMenuPhoto, type Me, type Meal, type MenuFix } from '../lib/api'
 import { WD_SHORT, addDays, cycleCode, fmtDate, inBreak, isoDow, today } from '../lib/time'
 import { Button, Card, Chips, Field, Icon, Sheet, Skeleton, inputCls, toast, useLoad } from './ui'
 import { tx } from '../lib/i18n'
 
-const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
 const Head = ({ icon, title, href, action }: { icon: string; title: string; href?: string; action?: ReactNode }) => (
   <div className="flex items-center gap-2">
     <span className="size-8 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span>
@@ -14,52 +12,6 @@ const Head = ({ icon, title, href, action }: { icon: string; title: string; href
     {href && <a href={href} className="text-sm text-accent font-semibold min-h-11 grid place-items-center px-1">{tx('Барлығы')}</a>}
   </div>
 )
-
-/* ---------- today: one compact row of the day's next items, tasks due soon and today's duty ---------- */
-const Chip = ({ href, top, title, sub, color, tone = '' }: { href: string; top: ReactNode; title: string; sub?: string | null; color?: string; tone?: string }) => (
-  <a href={href} className="shrink-0 w-40 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-3 py-2 grid gap-0.5"
-    style={color ? { borderLeft: `3px solid ${color}` } : undefined}>
-    <span className={`text-xs font-semibold tabular-nums ${tone || 'text-muted'}`}>{top}</span>
-    <span className="text-sm font-semibold truncate">{title}</span>
-    {sub && <span className="text-xs text-muted truncate">{sub}</span>}
-  </a>
-)
-
-export function TodayCard({ me }: { me: Me }) {
-  const t = today()
-  const wd = isoDow(t)
-  const data = useLoad(async () => {
-    const [ag, tasks, roster, classes] = await Promise.all([loadAgenda(me, t, t), listTasks(), listDuty().catch(() => []), listClasses().catch(() => [])])
-    const now = new Date()
-    const next = ag.items.filter((i) => !i.allDay && i.end > now).slice(0, 4)
-    const soon = tasks.filter((x) => !(x.author_id === me.id && (x.class_id || x.activity_id || x.assignee_id)) && !x.done.some((d) => d.user_id === me.id)
-      && (!x.due_on || x.due_on <= addDays(t, 2))).slice(0, 3)
-    const duty = classes.find((c) => c.id === roster.find((r) => r.weekday === wd)?.class_id)?.name
-    return { next, soon, duty }
-  }, [me.id, t])
-  const d = data.data
-  if (!d) return <Skeleton rows={1} />
-  const empty = !d.next.length && !d.soon.length && !d.duty
-  return (
-    <section aria-label={tx('Бүгін · {0}', fmtDate(t))} className="grid gap-1.5">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold text-muted">{tx('Бүгін · {0}', fmtDate(t))}</h2>
-        <a href="#/plan" className="text-sm text-accent font-semibold">{tx('Жоспар')}</a>
-      </div>
-      {empty ? <p className="text-sm text-muted">{tx('Бүгінге жоспар бос.')}</p> : (
-        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 [scrollbar-width:none]">
-          {d.next.map((i) => {
-            const live = new Date() >= i.start
-            return <Chip key={i.key} href={i.link ? `#${i.link}` : '#/plan'} color={i.color} top={live ? tx('Қазір') : hhmm(i.start)} tone={live ? 'text-success' : ''} title={i.title} sub={i.place} />
-          })}
-          {d.soon.map((x) => <Chip key={x.id} href="#/plan" top={x.due_on ? (x.due_on < t ? tx('Өтті') : x.due_on === t ? tx('Бүгін') : fmtDate(x.due_on)) : tx('Тапсырма')}
-            tone={x.due_on && x.due_on < t ? 'text-danger' : 'text-warning'} title={x.title} sub={tx('Тапсырма')} />)}
-          {d.duty && <Chip href="#/duty" top={tx('Кезекші сынып')} title={d.duty} sub={tx('Бүгінгі кезекшілер')} />}
-        </div>
-      )}
-    </section>
-  )
-}
 
 /* ---------- canteen menu ---------- */
 // meal, label, served until (for "now"), cell in the cycle composite picture (1080×1440, 4 photos of 488×380)

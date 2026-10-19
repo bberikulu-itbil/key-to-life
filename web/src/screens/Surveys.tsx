@@ -9,6 +9,16 @@ const AUD: Record<Survey['audience'], string> = { all: tx('Бүкіл мекте
 const isOpen = (s: Survey) => !s.closed && (!s.closes_at || new Date(s.closes_at) > new Date())
 const audLabel = (s: Survey) => s.audience === 'class' ? tx('{0} сыныбы', s.class?.name ?? '') : s.audience === 'activity' ? s.activity?.title ?? tx('Бастама') : AUD[s.audience]
 
+/** Сауалнама holds both: surveys and proposals to the parliament, the administration or a teacher. */
+export const VoiceTabs = ({ at }: { at: 'surveys' | 'proposals' }) => (
+  <nav aria-label={tx('Сауалнама')} className="grid grid-cols-2 gap-1 bg-surface-2 rounded-md p-1">
+    {([['surveys', tx('Сауалнамалар')], ['proposals', tx('Ұсыныстар')]] as const).map(([k, label]) => (
+      <a key={k} href={`#/${k}`} aria-current={at === k ? 'page' : undefined} onClick={(e) => { if (at !== k) { e.preventDefault(); location.replace(`#/${k}`) } }}
+        className={`h-10 rounded-sm text-sm font-semibold grid place-items-center ${at === k ? 'bg-surface shadow-card' : 'text-muted'}`}>{label}</a>
+    ))}
+  </nav>
+)
+
 /* ---------- list ---------- */
 export default function Surveys() {
   const { me } = useMe()
@@ -19,7 +29,8 @@ export default function Surveys() {
   const shown = all.filter((s) => f === 'mine' ? s.author_id === me.id : f === 'todo' ? s.author_id !== me.id && isOpen(s) && !s.mine.length : s.author_id !== me.id && (s.mine.length > 0 || !isOpen(s)))
   return (
     <div className="grid gap-3 pb-4">
-      <PageHead title={tx('Сауалнамалар')} back right={canCreate ? <Button kind="secondary" onClick={() => go('/surveys/new')}>{tx('Жасау')}</Button> : undefined} />
+      <PageHead title={tx('Сауалнама')} back right={canCreate ? <Button kind="secondary" onClick={() => go('/surveys/new')}>{tx('Жасау')}</Button> : undefined} />
+      <VoiceTabs at="surveys" />
       <Chips label={tx('Сүзгі')} value={f} onChange={setF} items={[['todo', tx('Жауап күтеді')], ['done', tx('Жауап бердім')], ...(canCreate ? [['mine', tx('Менікі')] as ['mine', string]] : [])]} />
       {list.loading && !list.data ? <Skeleton /> : list.error ? <ErrorBox text={list.error} retry={list.reload} /> : !shown.length ? (
         <Card><Empty icon="poll" title={f === 'todo' ? tx('Жаңа сауалнама жоқ') : tx('Әзірге бос')} text={f === 'mine' ? tx('Сыныпқа, бастамаға немесе бүкіл мектепке сауалнама жасаңыз.') : undefined} /></Card>

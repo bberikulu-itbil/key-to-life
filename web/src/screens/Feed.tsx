@@ -5,7 +5,7 @@ import { chatTime, fmtDate } from '../lib/time'
 import { useMe } from '../App'
 import Stories, { storyCandidates } from '../components/Stories'
 import Activities from './Activities'
-import { TodayCard } from '../components/HomeWidgets'
+import { VoiceTabs } from './Surveys'
 import { AsWho, Comments, FeedCard, Original, RepostForm, canWriteFeed, ledActivities } from '../components/FeedCard'
 import type { Activity } from '../lib/api'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
@@ -19,7 +19,8 @@ const isSocial = (k: PostKind) => SOCIAL.includes(k)
 const PAGE_TITLE: Record<Page, string> = { lost: tx('Lost & Found'), events: tx('Бастамалар'), proposals: tx('Ұсыныстар') }
 // old notification links (/?t=parliament) still land on the right page
 const LEGACY: Record<string, Page> = { lost: 'lost', upcoming: 'events', parliament: 'proposals' }
-const QUICK: [string, string, string][] = [['list', tx('Асхана'), '/menu'], ['search', tx('Lost & Found'), '/lost'], ['grid', tx('Cabinets'), '/book'], ['star', tx('Бастамалар'), '/events'], ['flag', tx('Ұсыныстар'), '/proposals'], ['poll', tx('Сауалнама'), '/surveys']]
+// Бастамалар is the big tile on the left, the other four sit 2 × 2 next to it
+const QUICK: [string, string, string][] = [['search', tx('Lost & Found'), '/lost'], ['grid', tx('Places'), '/book'], ['utensils', tx('Асхана'), '/menu'], ['poll', tx('Сауалнама'), '/surveys']]
 const PROPOSAL: Record<PostStatus, [string, Tone]> = {
   open: [tx('Жаңа'), 'accent'], considering: [tx('Қаралуда'), 'warn'], accepted: [tx('Қабылданды'), 'ok'], rejected: [tx('Қабылданбады'), 'bad'], resolved: [tx('Жабылды'), 'muted'],
 }
@@ -63,7 +64,8 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
 
   if (view) return (
     <div className="grid grid-cols-1 gap-3 pb-4">
-      <PageHead title={PAGE_TITLE[view]} back right={view !== 'events' ? <Button kind="secondary" onClick={() => setOpen({ kind: 'new', what: view === 'lost' ? 'lost' : 'proposal' })}>{view === 'lost' ? tx('Жариялау') : tx('Жазу')}</Button> : undefined} />
+      <PageHead title={view === 'proposals' ? tx('Сауалнама') : PAGE_TITLE[view]} back right={view !== 'events' ? <Button kind="secondary" onClick={() => setOpen({ kind: 'new', what: view === 'lost' ? 'lost' : 'proposal' })}>{view === 'lost' ? tx('Жариялау') : tx('Жазу')}</Button> : undefined} />
+      {view === 'proposals' && <VoiceTabs at="proposals" />}
       {view === 'events' ? <Activities tab="all" feed embedded />
         : posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} />
         : view === 'lost' ? <LostTab list={of(['lost', 'found'])} onOpen={(p) => setOpen({ kind: 'post', p })} onNew={() => setOpen({ kind: 'new', what: 'lost' })} />
@@ -92,15 +94,18 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
         </>
       )}
 
-      <nav aria-label={tx('Бөлімдер')} className="flex gap-2 overflow-x-auto -mx-4 px-4 [scrollbar-width:none]">
+      <nav aria-label={tx('Бөлімдер')} className="grid grid-cols-[1.3fr_1fr_1fr] grid-rows-2 gap-2">
+        <a href="#/events" className="row-span-2 min-w-0 grid content-between gap-2 rounded-lg bg-accent text-on-accent p-3 active:opacity-90">
+          <span className="size-10 rounded-md bg-white/20 grid place-items-center"><Icon n="star" size={22} /></span>
+          <span className="grid gap-0.5"><span className="text-base font-bold leading-tight break-words">{tx('Бастамалар')}</span>
+            <span className="text-xs opacity-90 leading-snug line-clamp-3">{tx('Жарыс, олимпиада, үйірме, клуб')}</span></span>
+        </a>
         {QUICK.map(([icon, label, path]) => (
-          <a key={path} href={`#${path}`} className="shrink-0 flex items-center gap-1.5 h-10 rounded-full bg-surface-2 px-3.5 text-sm font-semibold active:bg-surface">
-            <Icon n={icon} size={16} className="text-accent" />{label}
+          <a key={path} href={`#${path}`} className="min-w-0 grid justify-items-center content-center gap-1 min-h-[76px] rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-1 py-2 text-[13px] leading-tight font-semibold text-center active:bg-surface-2">
+            <span className="size-8 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span><span className="min-w-0 max-w-full truncate">{label}</span>
           </a>
         ))}
       </nav>
-
-      {tab === 'all' && <TodayCard me={me} />}
 
       <div className="flex items-end gap-2 border-b border-line">
         <div role="tablist" aria-label={tx('Лента')} className="flex-1 flex gap-5 overflow-x-auto [scrollbar-width:none]">

@@ -5,6 +5,8 @@ import { initTelegram } from './lib/telegram'
 import { loadLang } from './lib/i18n'
 
 initTelegram()
+// iOS Safari ignores user-scalable=no: stop the pinch here
+addEventListener('gesturestart', (e) => e.preventDefault())
 
 addEventListener('error', (e) => import('./components/Crash').then((m) => m.reportError(e.error ?? e.message)))
 addEventListener('unhandledrejection', (e) => import('./components/Crash').then((m) => m.reportError(e.reason)))

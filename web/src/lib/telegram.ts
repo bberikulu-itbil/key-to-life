@@ -7,6 +7,7 @@ type WebApp = {
   BackButton?: { show(): void; hide(): void; onClick(cb: () => void): void }
   HapticFeedback?: { selectionChanged(): void }
   openTelegramLink?: (url: string) => void
+  showScanQrPopup?: (p: { text?: string }, cb: (text: string) => boolean | void) => void; closeScanQrPopup?: () => void
 }
 export const tg: WebApp | undefined = (window as unknown as { Telegram?: { WebApp: WebApp } }).Telegram?.WebApp
 export const inTelegram = !!tg?.initData
@@ -26,7 +27,7 @@ export function initTelegram() {
     }
     theme()
     tg.onEvent?.('themeChanged', theme)
-    if (supports('6.1')) tg.BackButton?.onClick(() => history.back())
+    if (supports('6.1')) tg.BackButton?.onClick(goBack)
     if (supports('7.7')) tg.disableVerticalSwipes?.()   // scrolling the feed must not close the app
     tg.expand?.()
     tg.ready?.()
@@ -45,4 +46,18 @@ export function syncBackButton(isRoot: boolean) {
 export function openTelegram(url: string) {
   if (tg && inTelegram && tg.openTelegramLink) tg.openTelegramLink(url)
   else window.open(url, '_blank', 'noopener')
+}
+
+/** Back one screen. A screen opened from a bot link has no page behind it in the webview, so then go up to its parent. */
+export function goBack() {
+  const at = location.hash
+  const up = () => { if (location.hash === at) location.hash = at.startsWith('#/c/') ? '#/chats' : '#/' }
+  if (history.length > 1) { history.back(); setTimeout(up, 250) } else up()
+}
+
+/** Telegram's own QR scanner (6.4+); false when not available here. */
+export function tgScanQr(text: string, onText: (t: string) => boolean): boolean {
+  if (!tg || !inTelegram || !tg.isVersionAtLeast?.('6.4') || !tg.showScanQrPopup) return false
+  tg.showScanQrPopup({ text }, onText)
+  return true
 }

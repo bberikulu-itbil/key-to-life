@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { classAttendance, classChatId, classStudents, errText, listActivities, listBreaks, listClasses, listLeaves, listLessons, listStaff, openDirect, setClassTeacher, setTutor, updateStaff, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
+import { classAttendance, classChatId, classStudents, errText, listActivities, listBreaks, listClasses, listLeaves, listLessons, listStaff, openDirect, setClassTeacher, removeStudent, setTutor, updateStaff, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
 import Avatar from '../components/Avatar'
 import { hm, lessonOn, rate, scheduleLabel, today } from '../lib/time'
 import { useMe } from '../App'
@@ -173,6 +173,7 @@ export default function MyClass({ classId }: { classId?: string }) {
               )}
             </div>
             {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && <EditStudent key={open.id} s={open} onSaved={(v) => { setOpen({ ...open, ...v }); data.reload() }} />}
+            {me.role === 'admin' && <RemoveStudent s={open} onDone={() => { setOpen(null); data.reload() }} />}
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
               <dt className="text-muted">{tx('Олимпиада')}</dt><dd>{open.olympiad ?? '—'}</dd>
               <dt className="text-muted">{tx('Үйірме')}</dt><dd>{open.club ?? '—'}</dd>
@@ -207,6 +208,23 @@ function EditStudent({ s, onSaved }: { s: Student; onSaved: (v: { full_name: str
       <Field label={tx('Олимпиада')}>{(id) => <input id={id} value={f.olympiad} maxLength={60} onChange={(e) => setF({ ...f, olympiad: e.target.value })} className={inputCls} placeholder={tx('Мысалы: информатика')} />}</Field>
       <Field label={tx('Үйірме')}>{(id) => <input id={id} value={f.club} maxLength={120} onChange={(e) => setF({ ...f, club: e.target.value })} className={inputCls} />}</Field>
       <div className="grid grid-cols-2 gap-2"><Button kind="ghost" onClick={() => setEditing(false)}>{tx('Болдырмау')}</Button><Button loading={busy} onClick={save}>{tx('Сақтау')}</Button></div>
+    </div>
+  )
+}
+
+/** Admin: removes a student from the school. The account is blocked; marks and messages stay in history. */
+function RemoveStudent({ s, onDone }: { s: Student; onDone: () => void }) {
+  const [asking, setAsking] = useState(false)
+  const [busy, setBusy] = useState(false)
+  if (!asking) return <Button kind="ghost" onClick={() => setAsking(true)}><span className="text-danger">{tx('Оқушыны өшіру')}</span></Button>
+  const remove = async () => {
+    setBusy(true)
+    try { await removeStudent(s.id); toast(tx('{0} өшірілді', s.full_name)); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <div className="grid gap-3 rounded-md bg-danger-soft p-3">
+      <p className="text-sm">{tx('{0} мектептен өшіріледі: аккаунты бұғатталады, сыныптан және бастамалардан шығады. Бағалары мен хаттары тарихта қалады.', s.full_name)}</p>
+      <div className="grid grid-cols-2 gap-2"><Button kind="ghost" onClick={() => setAsking(false)}>{tx('Болдырмау')}</Button><Button kind="danger" loading={busy} onClick={remove}>{tx('Өшіру')}</Button></div>
     </div>
   )
 }

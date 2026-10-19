@@ -129,7 +129,7 @@ export default function Book({ resource }: { resource?: string }) {
       {done && (
         <Sheet title={tx('Бронь жасалды')} onClose={() => setDone(null)}>
           <div className="grid gap-3 justify-items-center text-center">
-            <Qr code={done.code} label={tx('Бронь')} />
+            {done.pending ? <p className="font-semibold">{tx('Растау күтуде · {0}', done.code)}</p> : <Qr code={done.code} label={tx('Бронь')} />}
             <p className="text-sm text-muted max-w-[34ch]">{tx('Нөмір мен QR «Менің броньдарым» бөлімінде сақталады. Растау керек болса, жауапты кісінің шешімі хабарламаға келеді.')}</p>
             <Button kind="secondary" onClick={() => go('/bookings')}>{tx('Менің броньдарым')}</Button>
           </div>

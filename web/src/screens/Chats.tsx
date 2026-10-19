@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { createChannel, ensureChats, errText, listClasses, listNotifications, listPeople, listReports, myChats, openDirect, resolveReport, type ChatKind } from '../lib/api'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { createChannel, ensureChats, errText, listClasses, listNotifications, listPeople, listReports, myChatFlags, myChats, openDirect, readChat, resolveReport, setChatFlags, type ChatKind } from '../lib/api'
 import { chatTime } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
@@ -12,13 +12,19 @@ type Filter = 'all' | 'groups' | 'channel' | 'direct'
 export default function Chats() {
   const { me } = useMe()
   const chats = useLoad(async () => { await ensureChats(); return myChats() }, [])
+  const flags = useLoad(myChatFlags, [])
+  const [archive, setArchive] = useState(false)
+  const flag = (id: string) => flags.data?.find((f) => f.chat_id === id) ?? { muted: false, archived: false }
+  const act = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); toast(done); chats.reload(); flags.reload() } catch (e) { toast(errText(e)) } }
   const sys = useLoad(listNotifications, [])
   const moderator = me.role === 'deputy' || me.role === 'admin' || me.role === 'class_teacher'
   const reports = useLoad(() => (moderator ? listReports() : Promise.resolve([])), [moderator])
   const [filter, setFilter] = useState<Filter>('all')
   const [sheet, setSheet] = useState<null | 'new' | 'channel'>(null)
 
-  const list = (chats.data ?? []).filter((c) => filter === 'all' || (filter === 'groups' ? c.kind === 'activity' || c.kind === 'class' : c.kind === filter))
+  const byKind = (chats.data ?? []).filter((c) => filter === 'all' || (filter === 'groups' ? c.kind === 'activity' || c.kind === 'class' : c.kind === filter))
+  const archived = byKind.filter((c) => flag(c.id).archived)
+  const list = archive ? archived : byKind.filter((c) => !flag(c.id).archived)
   const sysUnread = (sys.data ?? []).filter((n) => !n.read_at).length
   const openReports = (reports.data ?? []).filter((r) => !r.resolved_at).length
 
@@ -33,14 +39,33 @@ export default function Chats() {
 
       {chats.loading && !chats.data ? <Skeleton /> : chats.error ? <ErrorBox text={chats.error} retry={chats.reload} /> : (
         <ul className="bg-surface rounded-lg shadow-card border border-[var(--card-line,transparent)] divide-y divide-line">
-          {filter === 'all' && (
+          {(archived.length > 0 || archive) && (
+            <li><button type="button" onClick={() => setArchive(!archive)} aria-expanded={archive} className="w-full flex items-center gap-3 px-4 py-2.5 text-left active:bg-surface-2">
+              <span className="size-11 rounded-full grid place-items-center shrink-0 bg-surface-2 text-muted"><Icon n={archive ? 'back' : 'archive'} /></span>
+              <span className="flex-1 font-semibold">{archive ? tx('Барлық чаттар') : tx('Архив')}</span>
+              {!archive && <span className="text-sm text-muted tabular-nums">{archived.length}</span>}
+            </button></li>
+          )}
+          {filter === 'all' && !archive && (
             <Row href="#/chats/system" icon="bell" accent title="Key To Life" sub={sys.data?.[0]?.title ?? tx('Жүйелік хабарламалар')} time={sys.data?.[0] ? chatTime(sys.data[0].created_at) : ''} unread={sysUnread} badge={tx('Жүйе')} />
           )}
-          {list.map((c) => (
-            <Row key={c.id} href={`#/c/${c.id}`} icon={KIND_ICON[c.kind]} title={c.title} time={chatTime(c.last_at)} unread={c.unread}
-              sub={c.last_body ? `${c.last_author && c.kind !== 'direct' ? `${c.last_author.split(' ')[1] ?? c.last_author}: ` : ''}${c.last_body}` : KIND_LABEL[c.kind]}
-              badge={c.locked && c.kind !== 'channel' ? tx('Тек мұғалім') : undefined} />
-          ))}
+          {list.map((c) => {
+            const f = flag(c.id)
+            return (
+              <Swipe key={c.id}
+                left={<>
+                  <SwipeAction icon={f.muted ? 'bell' : 'belloff'} label={f.muted ? tx('Дыбысын қосу') : tx('Дыбыссыз')} tone="bg-late text-white"
+                    onClick={() => act(() => setChatFlags(c.id, { muted: !f.muted }), f.muted ? tx('Дыбысы қосылды') : tx('Дыбыссыз режим'))} />
+                  <SwipeAction icon="archive" label={f.archived ? tx('Архивтен шығару') : tx('Архивке')} tone="bg-muted text-white"
+                    onClick={() => act(() => setChatFlags(c.id, { archived: !f.archived }), f.archived ? tx('Архивтен шықты') : tx('Архивке жіберілді'))} />
+                </>}
+                right={<SwipeAction icon="check" label={tx('Оқылды')} tone="bg-accent text-on-accent" onClick={() => act(() => readChat(c.id), tx('Оқылды деп белгіленді'))} />}>
+                <Row href={`#/c/${c.id}`} icon={KIND_ICON[c.kind]} title={c.title} time={chatTime(c.last_at)} unread={c.unread} muted={f.muted}
+                  sub={c.last_body ? `${c.last_author && c.kind !== 'direct' ? `${c.last_author.split(' ')[1] ?? c.last_author}: ` : ''}${c.last_body}` : KIND_LABEL[c.kind]}
+                  badge={c.locked && c.kind !== 'channel' ? tx('Тек мұғалім') : undefined} />
+              </Swipe>
+            )
+          })}
           {!list.length && filter !== 'all' && <li><Empty icon="chat" title={tx('Әзірге жоқ')} text={filter === 'direct' ? tx('Мұғалімге немесе сыныптасқа жеке хат жазыңыз.') : tx('Бастамаға жазылсаңыз, оның тобы осында шығады.')} /></li>}
         </ul>
       )}
@@ -52,22 +77,57 @@ export default function Chats() {
   )
 }
 
-function Row({ href, icon, title, sub, time, unread, badge, accent }: { href: string; icon: string; title: string; sub: string; time: string; unread: number; badge?: string; accent?: boolean }) {
+const SwipeAction = ({ icon, label, tone, onClick }: { icon: string; label: string; tone: string; onClick: () => void }) => (
+  <button type="button" onClick={onClick} className={`w-20 h-full grid content-center justify-items-center gap-1 text-xs font-semibold ${tone}`}><Icon n={icon} size={22} />{label}</button>
+)
+
+/** A row that slides: to the right shows `left` actions, to the left shows `right`. Vertical scrolling stays free. */
+function Swipe({ left, right, children }: { left: ReactNode; right: ReactNode; children: ReactNode }) {
+  const [dx, setDx] = useState(0)
+  const start = useRef<{ x: number; y: number; dx: number; on: boolean } | null>(null)
+  const moved = useRef(false)
+  const LEFT = 160, RIGHT = 80
   return (
-    <li>
-      <a href={href} className="flex items-center gap-3 px-4 py-3 active:bg-surface-2">
+    <li className="relative overflow-hidden">
+      <div className="absolute inset-y-0 left-0 flex" aria-hidden={dx <= 0}>{left}</div>
+      <div className="absolute inset-y-0 right-0 flex" aria-hidden={dx >= 0}>{right}</div>
+      <div className="relative bg-surface touch-pan-y" style={{ transform: `translateX(${dx}px)`, transition: start.current?.on ? 'none' : 'transform .2s' }}
+        onPointerDown={(e) => { start.current = { x: e.clientX, y: e.clientY, dx, on: false }; moved.current = false }}
+        onPointerMove={(e) => {
+          const s = start.current; if (!s) return
+          const mx = e.clientX - s.x, my = e.clientY - s.y
+          if (!s.on && Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my)) { s.on = true; moved.current = true }
+          if (s.on) setDx(Math.max(-RIGHT, Math.min(LEFT, s.dx + mx)))
+        }}
+        onPointerUp={() => { const s = start.current; start.current = null; if (s?.on) setDx(dx > LEFT / 2 ? LEFT : dx < -RIGHT / 2 ? -RIGHT : 0) }}
+        onPointerCancel={() => { start.current = null; setDx(0) }}
+        onClickCapture={(e) => {
+          // the click that ends a drag keeps the row open; a tap on an open row closes it instead of opening the chat
+          if (moved.current) { e.preventDefault(); e.stopPropagation(); moved.current = false }
+          else if (dx !== 0) { e.preventDefault(); e.stopPropagation(); setDx(0) }
+        }}>
+        {children}
+      </div>
+    </li>
+  )
+}
+
+function Row({ href, icon, title, sub, time, unread, badge, accent, muted }: { href: string; icon: string; title: string; sub: string; time: string; unread: number; badge?: string; accent?: boolean; muted?: boolean }) {
+  const body = (
+      <a href={href} draggable={false} className="flex items-center gap-3 px-4 py-3 active:bg-surface-2 select-none">
         <span className={`size-11 rounded-full grid place-items-center shrink-0 ${accent ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent'}`}><Icon n={icon} /></span>
         <span className="flex-1 min-w-0">
-          <span className="flex items-center gap-2"><span className="font-semibold truncate">{title}</span>{badge && <span className="text-xs text-muted shrink-0">{badge}</span>}</span>
+          <span className="flex items-center gap-2"><span className="font-semibold truncate">{title}</span>{muted && <Icon n="belloff" size={14} className="text-muted shrink-0" />}{badge && <span className="text-xs text-muted shrink-0">{badge}</span>}</span>
           <span className={`block text-sm truncate ${unread ? 'text-fg' : 'text-muted'}`}>{sub}</span>
         </span>
         <span className="grid justify-items-end gap-1 shrink-0">
           <span className="text-xs text-muted tabular-nums">{time}</span>
-          {unread > 0 ? <span className="min-w-5 h-5 px-1.5 rounded-full bg-accent text-on-accent text-xs font-semibold grid place-items-center" aria-label={tx('{0} оқылмаған', unread)}>{unread > 99 ? '99+' : unread}</span> : <span className="h-5" />}
+          {unread > 0 ? <span className={`min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold grid place-items-center ${muted ? 'bg-surface-2 text-muted' : 'bg-accent text-on-accent'}`} aria-label={tx('{0} оқылмаған', unread)}>{unread > 99 ? '99+' : unread}</span> : <span className="h-5" />}
         </span>
       </a>
-    </li>
   )
+  // inside a Swipe the <li> is the Swipe's
+  return muted === undefined ? <li>{body}</li> : body
 }
 
 const ROLE_SHORT: Record<string, string> = { student: tx('Оқушы'), teacher: tx('Мұғалім'), class_teacher: tx('Сынып жетекшісі'), deputy: tx('Орынбасар'), admin: tx('Әкімші') }

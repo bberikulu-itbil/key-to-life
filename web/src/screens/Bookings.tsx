@@ -62,7 +62,7 @@ function Mine() {
         <Row key={b.id} b={b}>
           {(b.status === 'approved' || b.status === 'pending') && b.on_date >= t && (
             <div className="flex gap-2 flex-wrap">
-              <Button kind="secondary" onClick={() => setQr(b)}>QR · {b.code}</Button>
+              {b.status === 'approved' && <Button kind="secondary" onClick={() => setQr(b)}>QR · {b.code}</Button>}
               <Button kind="ghost" onClick={() => cancel(b)}>{tx('Тоқтату')}</Button>
             </div>
           )}

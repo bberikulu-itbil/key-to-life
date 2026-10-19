@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.1 — 2026-10-19
+
+- Home: a big «Initiatives» tile with Lost & Found, Places (was Cabinets), Canteen and Surveys next to it; the feed follows right away (no «Today» row).
+- Proposals moved inside Surveys (two tabs).
+- «+» menu: «New message» removed (it stays on the Chats page).
+- Pinch and double-tap zoom are off.
+- Chats: swipe right to mute or archive, swipe left to mark as read; muted and archived chats leave the badge.
+- Admin can remove a student: the account is blocked, the student leaves the class; marks and messages stay.
+- Telegram Mini App: the top «Back» button falls back to the parent screen when there is no page behind.
+- Profile: General, Administration and System settings (language, Telegram, About: news, tips, feedback).
+- QR: shown only after a leave or a booking is approved; teachers scan it with the camera (Telegram's scanner inside Telegram).
+
 ## 1.0.0 — 2026-10-18
 
 The first numbered release of Key To Life, the app of Қостанай Білім-Инновация лицейі.

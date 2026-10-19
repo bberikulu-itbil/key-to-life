@@ -9,7 +9,8 @@ import { tx } from '../lib/i18n'
 
 const ROLE: Record<string, string> = { student: tx('Оқушы'), teacher: tx('Мұғалім'), class_teacher: tx('Сынып жетекшісі'), deputy: tx('Тәрбие ісі жөніндегі орынбасар'), admin: tx('Әкімші') }
 
-const Section = ({ title, links }: { title: string; links: [string, string, string, string?][] }) => (
+type Link = [string, string, string, string?]
+const Section = ({ title, links }: { title: string; links: Link[] }) => (
   <section className="grid gap-2">
     <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{title}</h2>
     <nav aria-label={title} className="bg-surface rounded-lg shadow-card border border-[var(--card-line,transparent)] divide-y divide-line">
@@ -24,7 +25,7 @@ const Section = ({ title, links }: { title: string; links: [string, string, stri
   </section>
 )
 
-export default function Profile({ onAddUser }: { onAddUser: () => void }) {
+export default function Profile() {
   const { me } = useMe()
   const staff = me.role !== 'student'
   const stats = useLoad(async () => {
@@ -35,6 +36,13 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
   }, [me.id])
   const myClass = useLoad(async () => (staff ? (await listClasses()).find((c) => c.teacher_id === me.id || c.tutor_id === me.id) ?? null : null), [me.id])
   const [leaving, setLeaving] = useState(false)
+  // approvals, sign-ups, complaints, new accounts: for class teachers, deputies and admins
+  const admin: Link[] = [
+    ...(isApprover(me) ? [['#/activities/review', 'check', tx('Растау күтуде'), tx('Оқушылардың бастама ұсыныстары')] as Link] : []),
+    ...(me.role === 'admin' || myClass.data?.teacher_id === me.id ? [['#/registrations', 'userplus', tx('Тіркелу өтініштері'), tx('Растауды күтетін жаңа аккаунттар')] as Link] : []),
+    ...(canAddUsers(me) ? [['#/adduser', 'userplus', tx('Пайдаланушы қосу'), me.role === 'class_teacher' ? tx('Өз сыныбыңызға оқушы тіркеу') : tx('Оқушы немесе мұғалім тіркеу')] as Link] : []),
+    ...(isApprover(me) ? [['#/chats/reports', 'flag', tx('Чат шағымдары')] as Link] : []),
+  ]
   const [photo, setPhoto] = useState(me.photo)
   const [uploading, setUploading] = useState(false)
   const upload = async (f: File) => {
@@ -66,39 +74,31 @@ export default function Profile({ onAddUser }: { onAddUser: () => void }) {
         </div>
       </Card>
 
-      <Section title={tx('Менікі')} links={[
+      <Section title={tx('Жалпы')} links={[
         ['#/activities/mine', 'star', tx('Менің бастамаларым'), staff ? tx('Жетекшілік ететін және ұсынған') : tx('Жазылған, ұсынған, жауапты')],
+        ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'users', tx('Менің сыныбым'), tx('Оқушылар, суреттер, кім сыртта')] as Link] : []),
         ['#/leaves', 'clock', staff ? tx('Рұқсаттар') : tx('Менің рұқсаттарым'), staff ? tx('Шешім күтетіндер және бүгін берілгендер') : undefined],
         ['#/bookings', 'grid', tx('Менің броньдарым')],
-        ['#/calendars', 'file', tx('Күнтізбелер'), tx('Жеке, сынып, мектеп · импорт/экспорт')],
         ['#/timetable', 'list', tx('Сабақ кестесі')],
+        ['#/calendars', 'file', tx('Күнтізбелер'), tx('Жеке, сынып, мектеп · импорт/экспорт')],
+        ...(staff ? [['#/duty', 'users', tx('Кезекшіліктер'), tx('Мұғалімдер мен орынбасарлар')], ['#/v/', 'check', tx('QR тексеру'), tx('Камерамен рұқсат немесе бронь кодын тексеру')]] as Link[] : []),
       ]} />
-      {staff && <Section title={tx('Мұғалімге')} links={[
-        ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'users', tx('Менің сыныбым'), tx('Оқушылар, суреттер, кім сыртта')] as [string, string, string, string]] : []),
-        ...(isApprover(me) ? [['#/activities/review', 'check', tx('Растау күтуде'), tx('Оқушылардың бастама ұсыныстары')] as [string, string, string, string]] : []),
-        ...(me.role === 'admin' || myClass.data?.teacher_id === me.id ? [['#/registrations', 'userplus', tx('Тіркелу өтініштері'), tx('Растауды күтетін жаңа аккаунттар')] as [string, string, string, string]] : []),
-        ['#/duty', 'users', tx('Кезекшіліктер'), tx('Мұғалімдер мен орынбасарлар')],
-        ['#/v/', 'check', tx('QR тексеру'), tx('Рұқсат немесе бронь кодын тексеру')],
-        ...(isApprover(me) ? [['#/chats/reports', 'flag', tx('Чат шағымдары')] as [string, string, string]] : []),
-      ]} />}
-      {canAddUsers(me) && (
-        <button type="button" onClick={onAddUser} className="flex items-center gap-3 min-h-14 px-4 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] text-left">
-          <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="userplus" size={18} /></span>
-          <span className="flex-1">{tx('Пайдаланушы қосу')}</span><Icon n="chev" className="text-muted" />
-        </button>
-      )}
+      {admin.length > 0 && <Section title={tx('Әкімшілік')} links={admin} />}
 
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{tx('Аккаунт')}</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{tx('Жүйе баптаулары')}</h2>
       <Card className="grid gap-2"><p className="font-semibold">{tx('Тіл')}</p><LangChips signedIn /></Card>
       <TelegramCard staff={staff} />
+      <Section title={tx('Қосымша жайлы')} links={[
+        ['#/about/news', 'megaphone', tx('Жаңалықтар'), tx('Соңғы нұсқада не өзгерді')],
+        ['#/about/tips', 'star', tx('Кеңестер'), tx('Қосымшаны тиімді қолдану')],
+        ['#/feedback', 'flag', tx('Қосымшаны дамытуға ұсыныс'), tx('Идея немесе қате туралы әзірлеушіге жазыңыз')],
+      ]} />
       {leaving ? (
         <Card className="grid gap-3">
           <p className="font-semibold">{tx('Аккаунттан шығасыз ба?')}</p>
           <div className="grid grid-cols-2 gap-2"><Button kind="danger" onClick={() => signOut()}>{tx('Шығу')}</Button><Button kind="secondary" onClick={() => setLeaving(false)}>{tx('Жоқ')}</Button></div>
         </Card>
       ) : <Button kind="ghost" onClick={() => setLeaving(true)}>{tx('Шығу')}</Button>}
-
-      <Section title="Key To Life" links={[['#/feedback', 'flag', tx('Қосымшаны дамытуға ұсыныс'), tx('Идея немесе қате туралы әзірлеушіге жазыңыз')]]} />
       <p className="text-center text-xs text-muted">{tx('Нұсқа {0}', __APP_VERSION__)}</p>
     </div>
   )

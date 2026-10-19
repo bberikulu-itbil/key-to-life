@@ -8,3 +8,6 @@ html, body, #root { min-height: 100%; }
 
 /* Page roots are one-column grids; an auto column grows to its widest child (long titles, edge-to-edge rows) and widens the page. */
 main > .grid { grid-template-columns: minmax(0, 1fr); }
+
+/* no pinch or double-tap zoom: the app keeps one scale, like a native app */
+html { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }

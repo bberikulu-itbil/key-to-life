@@ -280,6 +280,9 @@ export type Person = { id: string; full_name: string; role: Role; class_name: st
 
 export const ensureChats = () => rpc('ensure_chats', {})
 export const myChats = () => rpc<ChatRow[]>('my_chats', {})
+export type ChatFlags = { chat_id: string; muted: boolean; archived: boolean }
+export const myChatFlags = () => ok(supabase.from('chat_state').select('chat_id, muted, archived').or('muted.eq.true,archived.eq.true')) as Promise<ChatFlags[]>
+export const setChatFlags = (chat: string, f: { muted?: boolean; archived?: boolean }) => rpc('set_chat_flags', { p_chat: chat, p_muted: f.muted ?? null, p_archived: f.archived ?? null })
 export const chatInfo = (id: string) => rpc<ChatInfo | null>('chat_info', { p_chat: id })
 export const chatPeople = (id: string) => rpc<Person[]>('chat_people', { p_chat: id })
 export const listMessages = (chat: string) =>
@@ -304,7 +307,7 @@ export const listReports = () =>
     .order('created_at', { ascending: false }).limit(100)) as unknown as Promise<Report[]>
 export const resolveReport = (id: number, remove: boolean) => rpc('resolve_report', { p_id: id, p_remove: remove })
 export const listPeople = () =>
-  ok(supabase.from('profiles').select('id, full_name, role, parliament, class:classes!class_id(name)').order('full_name')) as unknown as Promise<{ id: string; full_name: string; role: Role; parliament: boolean; class: { name: string } | null }[]>
+  ok(supabase.from('profiles').select('id, full_name, role, parliament, class:classes!class_id(name)').is('removed_at', null).order('full_name')) as unknown as Promise<{ id: string; full_name: string; role: Role; parliament: boolean; class: { name: string } | null }[]>
 /** Live updates for one chat; returns the unsubscribe function. */
 export function onMessages(chat: string, cb: () => void) {
   const ch = supabase.channel(`chat-${chat}`).on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `chat_id=eq.${chat}` }, cb).subscribe()
@@ -395,7 +398,9 @@ export const tgSendRollcall = (activity: string, date: string) => tgCall<{ ok: b
 /* ---------- my class ---------- */
 export type Student = { id: string; full_name: string; olympiad: string | null; club: string | null; parliament: boolean; photo: string | null }
 export const classStudents = (classId: string) =>
-  ok(supabase.from('profiles').select('id, full_name, olympiad, club, parliament, photo').eq('class_id', classId).eq('role', 'student').order('full_name')) as Promise<Student[]>
+  ok(supabase.from('profiles').select('id, full_name, olympiad, club, parliament, photo').eq('class_id', classId).eq('role', 'student').is('removed_at', null).order('full_name')) as Promise<Student[]>
+/** Admin only: hides the student, bans the account, takes them out of the class (history stays). */
+export const removeStudent = (id: string) => rpc('remove_student', { p_id: id })
 export const classAttendance = (ids: string[]) =>
   ok(supabase.from('attendance').select('student_id, status').in('student_id', ids)) as Promise<{ student_id: string; status: Mark }[]>
 export const setTutor = (classId: string, tutor: string | null) => rpc('set_tutor', { p_class: classId, p_tutor: tutor })

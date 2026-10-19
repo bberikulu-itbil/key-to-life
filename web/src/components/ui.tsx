@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { errText } from '../lib/api'
 import { tx } from '../lib/i18n'
+import { goBack } from '../lib/telegram'
 
 /* ---------- routing (hash based, works on any static host) ---------- */
 const getPath = () => location.hash.slice(1) || '/'
@@ -22,6 +23,7 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]) {
 
 /* ---------- icons (Lucide-style strokes, drawn here) ---------- */
 const P: Record<string, string> = {
+  belloff: 'M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l2 2H4M10 20a2 2 0 0 0 4 0M3 3l18 18', archive: 'M3 4h18v4H3zM5 8v12h14V8M10 12h4',
   code: 'm8 7-5 5 5 5M16 7l5 5-5 5', sigma: 'M18 5H6l6 7-6 7h12', flask: 'M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3',
   atom: 'M12 12h.01M12 3c3 0 4 4 4 9s-1 9-4 9-4-4-4-9 1-9 4-9zM3.5 7.5c1.5-2.6 5.6-1.5 9.9 1s7.1 5.7 5.6 8.3-5.6 1.5-9.9-1-7.1-5.7-5.6-8.3z',
   leaf: 'M5 21c0-9 6-15 15-16-1 9-7 15-15 16zM5 21l7-7', globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
@@ -160,7 +162,7 @@ export function Toaster() {
 
 export const PageHead = ({ title, back, right }: { title: string; back?: boolean; right?: ReactNode }) => (
   <div className="flex items-center gap-1 min-h-14">
-    {back && <button type="button" onClick={() => history.length > 1 ? history.back() : go('/')} aria-label={tx('Артқа')} className="tg-hide size-11 -ml-3 grid place-items-center"><Icon n="back" /></button>}
+    {back && <button type="button" onClick={goBack} aria-label={tx('Артқа')} className="tg-hide size-11 -ml-3 grid place-items-center"><Icon n="back" /></button>}
     <h1 className="flex-1 text-xl font-bold text-balance">{title}</h1>
     {right}
   </div>

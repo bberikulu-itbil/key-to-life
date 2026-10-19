@@ -1,5 +1,6 @@
 // Run: npx tsx src/lib/time.test.ts
 import assert from 'node:assert/strict'
+import { codeFrom } from './qr'
 import { addDays, byCategory, cycleCode, streak, isSession, isoDow, lessonOn, rate, sessions, weekOf } from './time'
 
 const weekly = { schedule: 'weekly' as const, on_date: null, weekdays: [1, 3], date_from: '2026-10-01', date_to: '2026-10-31' }
@@ -96,4 +97,11 @@ console.log('streak ok')
   assert.deepEqual(r.find((x) => x.cat === 'camp'), { cat: 'camp', held: 1, pct: rate(['present', 'absent']) })
   assert.deepEqual(r.find((x) => x.cat === 'other'), { cat: 'other', held: 1, pct: 100 })
   console.log('byCategory ok')
+}
+
+{
+  assert.equal(codeFrom('https://x.github.io/key-to-life/#/v/l-3f9a2c'), 'L-3F9A2C')
+  assert.equal(codeFrom(' B-12AB '), 'B-12AB')
+  assert.equal(codeFrom('https://example.com'), null)
+  console.log('qr ok')
 }

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { getMe, myChats, myRegistration, setMyLang, supabase, tgLink, unreadCount, type Me, type Registration } from './lib/api'
+import { getMe, myChatFlags, myChats, myRegistration, setMyLang, supabase, tgLink, unreadCount, type Me, type Registration } from './lib/api'
 import Registrations from './screens/Registrations'
 import { Pending } from './screens/Register'
 import { chosen, lang, rememberLang, setLang } from './lib/i18n'
@@ -32,6 +32,7 @@ import MyClass from './screens/MyClass'
 import MyActivities from './screens/MyActivities'
 import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
+import About from './screens/About'
 import { MenuCard } from './components/HomeWidgets'
 import { GoalForm, HabitForm } from './components/Goals'
 import { tx } from './lib/i18n'
@@ -85,7 +86,11 @@ function Shell({ me }: { me: Me }) {
   const [planKey, setPlanKey] = useState(0)
   const toPlan = () => { setSheet(null); setPlanKey(planKey + 1); go('/plan') }
   // notifications + unread chat messages; shortcut: polled on navigation, add realtime for the badge if it feels stale
-  const refreshBadge = () => { Promise.all([unreadCount(), myChats().catch(() => [])]).then(([n, c]) => setBadge(n + c.reduce((s, x) => s + x.unread, 0))) }
+  // muted and archived chats do not count
+  const refreshBadge = () => { Promise.all([unreadCount(), myChats().catch(() => []), myChatFlags().catch(() => [])]).then(([n, c, f]) => {
+    const quiet = new Set(f.map((x) => x.chat_id))
+    setBadge(n + c.reduce((s, x) => s + (quiet.has(x.id) ? 0 : x.unread), 0))
+  }) }
   useEffect(refreshBadge, [path])
   useEffect(() => syncBackButton(['/', '/plan', '/chats', '/profile'].includes(path) || path.startsWith('/?')), [path])
   // signed in with ЖСН inside Telegram → remember this Telegram account
@@ -126,11 +131,13 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'surveys' && id === 'new') screen = <SurveyNew />
   else if (seg === 'surveys' && id) screen = <SurveyView key={id} id={id} />
   else if (seg === 'surveys') screen = <Surveys />
-  else if (seg === 'profile') screen = <Profile onAddUser={() => setSheet('adduser')} />
+  else if (seg === 'profile') screen = <Profile />
+  else if (seg === 'adduser') screen = <div className="grid gap-3 pb-6"><PageHead title={tx('Пайдаланушы қосу')} back /><AddUser /></div>
+  else if (seg === 'about') screen = <About tab={id === 'tips' ? 'tips' : 'news'} />
   else screen = <Feed query={path.split('?')[1] ?? ''} />
 
   const tabs = [['/', 'home', tx('Home')], ['/plan', 'clock', tx('Жоспар')], ['+', 'plus', tx('Әрекет')], ['/chats', 'chat', tx('Чаттар')], ['/profile', 'user', tx('Профиль')]] as const
-  const active = (p: string) => (p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'p', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
+  const active = (p: string) => (p === '/profile' ? ['profile', 'adduser', 'about', 'feedback'].includes(seg) : p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'p', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>
@@ -162,7 +169,6 @@ function Shell({ me }: { me: Me }) {
             <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе бастамадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
             <MenuItem icon="grid" title={tx('Броньдау')} text={tx('Кабинет, спортзал, шай бөлмесі')} onClick={() => { setSheet(null); go('/book') }} />
             <MenuItem icon="file" title={tx('Бастама ұсыну')} text={tx('Жарыс, олимпиада, үйірме, клуб, команда немесе мектеп іс-шарасы')} onClick={() => { setSheet(null); go('/a/new') }} />
-            <MenuItem icon="chat" title={tx('Жаңа хат')} text={me.role === 'student' ? tx('Мұғалімге немесе сыныптасқа') : tx('Оқушыға, әріптеске немесе хабарландыру арнасы')} onClick={() => { setSheet(null); go('/chats') }} />
             {me.role !== 'student' && <MenuItem icon="check" title={tx('QR тексеру')} text={tx('Рұқсат немесе бронь кодын тексеру')} onClick={() => { setSheet(null); go('/v/') }} />}
             {canAddUsers(me) && <MenuItem icon="userplus" title={tx('Пайдаланушы қосу')} text={me.role === 'class_teacher' ? tx('Өз сыныбыңызға оқушы тіркеу') : tx('Оқушы немесе мұғалім тіркеу')} onClick={() => setSheet('adduser')} />}
           </div>

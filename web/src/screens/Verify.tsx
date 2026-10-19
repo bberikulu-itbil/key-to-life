@@ -1,10 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { errText, verifyCode } from '../lib/api'
 import { fmtDate } from '../lib/time'
 import { useMe } from '../App'
 import { LEAVE_CATEGORY } from './LeaveForm'
 import { LEAVE_STATUS, when } from './Leaves'
-import { Button, Card, Field, Icon, PageHead, Skeleton, go, inputCls } from '../components/ui'
+import { Button, Card, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast } from '../components/ui'
+import Scanner from '../components/Scanner'
+import { codeFrom } from '../lib/qr'
+import { tgScanQr } from '../lib/telegram'
 import { tx } from '../lib/i18n'
 
 type R = Record<string, string | boolean>
@@ -22,6 +25,15 @@ export default function Verify({ code }: { code?: string }) {
     verifyCode(code).then(setRes, (e) => setErr(errText(e))).finally(() => setBusy(false))
   }, [code, me.role])
 
+  const [scan, setScan] = useState(false)
+  // one read is enough: close the camera and open the result
+  const bad = useRef('')
+  const onText = useCallback((t: string) => {
+    const c = codeFrom(t)
+    if (!c) { if (bad.current !== t) toast(tx('Бұл Key To Life QR коды емес')); bad.current = t; return false }
+    setScan(false); go(`/v/${c}`); return true
+  }, [])
+  const startScan = () => { if (!tgScanQr(tx('Рұқсат немесе бронь QR кодын көрсетіңіз'), onText)) setScan(true) }
   const submit = (e: FormEvent) => { e.preventDefault(); if (input.trim()) go(`/v/${input.trim().toUpperCase()}`) }
 
   if (me.role === 'student') return <><PageHead title={tx('QR тексеру')} back /><Card><p>{tx('QR-ды тек мұғалімдер тексереді.')}</p></Card></>
@@ -34,11 +46,13 @@ export default function Verify({ code }: { code?: string }) {
   return (
     <div className="grid gap-3 pb-6">
       <PageHead title={tx('QR тексеру')} back />
+      <Button block onClick={startScan}><Icon n="search" size={20} />{tx('Камерамен сканерлеу')}</Button>
       <form onSubmit={submit} className="grid grid-cols-[1fr_auto] gap-2 items-end">
-        <Field label={tx('Код')} hint={tx('QR-ды телефон камерасымен сканерлесеңіз, бет өзі ашылады')}>{(id, d) =>
+        <Field label={tx('Немесе кодты жазыңыз')}>{(id, d) =>
           <input id={id} aria-describedby={d} value={input} onChange={(e) => setInput(e.target.value)} className={`${inputCls} uppercase tabular-nums`} placeholder="L-3F9A2C" />}</Field>
         <Button type="submit">{tx('Тексеру')}</Button>
       </form>
+      {scan && <Sheet title={tx('QR сканерлеу')} onClose={() => setScan(false)}><Scanner onText={onText} /></Sheet>}
       {busy && <Skeleton rows={1} />}
       {err && <Card className="bg-danger-soft text-danger">{err}</Card>}
       {code && !busy && res === null && <Card className="bg-danger-soft text-danger font-semibold">{tx('Мұндай код табылмады')}</Card>}

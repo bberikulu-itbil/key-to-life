@@ -3,8 +3,7 @@ import { createLeave, errText, listStaff } from '../lib/api'
 import { iso } from '../lib/time'
 import { useMe } from '../App'
 import AbsenceForm from './AbsenceForm'
-import Qr from '../components/Qr'
-import { Button, Card, Field, PageHead, Sheet, go, inputCls, useLoad } from '../components/ui'
+import { Button, Card, Field, Icon, PageHead, Sheet, go, inputCls, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
 export const LEAVE_CATEGORY: Record<string, string> = { illness: tx('Денсаулық (ауырып қалдым)'), family: tx('Отбасылық жағдай'), documents: tx('Құжат, ресми іс'), competition: tx('Жарыс, олимпиада'), other: tx('Басқа себеп') }
@@ -73,8 +72,8 @@ export default function LeaveForm() {
       {code && (
         <Sheet title={tx('Өтініш жіберілді')} onClose={() => go('/leaves')}>
           <div className="grid gap-3 justify-items-center text-center">
-            <Qr code={code} label={tx('Рұқсат')} />
-            <p className="text-sm text-muted max-w-[36ch]">{tx('QR рұқсат берілгеннен кейін ғана жарамды болады. Шешім хабарламаға келеді, күйін «Рұқсаттар» бөлімінен қараңыз.')}</p>
+            <span className="size-14 rounded-full bg-accent-soft text-accent grid place-items-center"><Icon n="clock" size={28} /></span>
+            <p className="text-sm text-muted max-w-[36ch]">{tx('Рұқсат берілгенде QR коды «Рұқсаттарым» бөлімінде шығады. Шешім хабарламаға келеді.')}</p>
             <Button kind="secondary" onClick={() => go('/leaves')}>{tx('Рұқсаттарым')}</Button>
           </div>
         </Sheet>
