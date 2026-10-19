@@ -50,9 +50,9 @@ export const Icon = ({ n, size = 20, className = '' }: { n: keyof typeof P | str
 )
 
 /* ---------- primitives ---------- */
-type BtnProps = { children: ReactNode; onClick?: () => void; kind?: 'primary' | 'secondary' | 'ghost' | 'danger'; block?: boolean; disabled?: boolean; loading?: boolean; type?: 'button' | 'submit' }
+type BtnProps = { children: ReactNode; onClick?: () => void; kind?: 'primary' | 'gold' | 'secondary' | 'ghost' | 'danger'; block?: boolean; disabled?: boolean; loading?: boolean; type?: 'button' | 'submit' }
 export function Button({ children, onClick, kind = 'primary', block, disabled, loading, type = 'button' }: BtnProps) {
-  const k = { primary: 'bg-accent text-on-accent', secondary: 'bg-accent-soft text-accent', ghost: 'text-accent', danger: 'bg-danger-soft text-danger' }[kind]
+  const k = { primary: 'bg-accent text-on-accent', gold: 'bg-gold text-on-gold', secondary: 'bg-accent-soft text-accent', ghost: 'text-accent', danger: 'bg-danger-soft text-danger' }[kind]
   return (
     <button type={type} onClick={onClick} disabled={disabled || loading} aria-busy={loading}
       className={`${k} ${block ? 'w-full h-[52px]' : 'h-11'} inline-flex items-center justify-center gap-2 rounded-md px-4 font-semibold transition active:scale-[.98] active:opacity-85 disabled:opacity-40`}>
@@ -121,7 +121,7 @@ export function Chips<T extends string>({ value, onChange, items, label }: { val
     <div role="group" aria-label={label} className="flex gap-2 overflow-x-auto py-1 -mx-1 px-1 [scrollbar-width:none]">
       {items.map(([v, t]) => (
         <button key={v} type="button" aria-pressed={v === value} onClick={() => onChange(v)}
-          className={`h-9 px-3.5 rounded-full text-sm whitespace-nowrap ${v === value ? 'bg-accent text-on-accent font-semibold' : 'bg-surface-2'}`}>{t}</button>
+          className={`h-9 px-4 rounded-full text-sm font-medium whitespace-nowrap border ${v === value ? 'bg-accent text-on-accent border-accent font-semibold' : 'bg-surface border-line'}`}>{t}</button>
       ))}
     </div>
   )

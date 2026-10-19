@@ -33,25 +33,36 @@ export default function Login() {
   }
 
   return (
-    <main className="min-h-dvh grid place-items-center px-4 py-10">
-      <form onSubmit={submit} className="w-full max-w-sm grid gap-5" noValidate>
-        <LangChips signedIn={false} />
-        <div className="grid gap-1">
-          <img src={`${import.meta.env.BASE_URL}logo-192.png`} alt="" className="size-16 rounded-[14px]" />
-          <h1 className="text-display font-bold mt-3">Key To Life</h1>
-          <p className="text-muted">{tx('Үйірмелер, курстар, жарыстар және олимпиадаға дайындық бір жерде.')}</p>
+    <main className="min-h-dvh grid grid-rows-[auto_1fr] bg-hero">
+      {/* navy hero with the logo; the form sits on a white sheet below */}
+      <header className="relative overflow-hidden px-6 pt-[max(40px,env(safe-area-inset-top))] pb-10 text-on-hero">
+        <span aria-hidden className="absolute -right-24 -top-24 size-72 rounded-full border border-white/10" />
+        <span aria-hidden className="absolute -right-10 top-10 size-44 rounded-full border border-white/10" />
+        <div className="relative mx-auto max-w-sm grid gap-4">
+          <div className="flex items-center gap-3">
+            <img src={`${import.meta.env.BASE_URL}logo-192.png`} alt="" className="size-12 rounded-[12px] ring-1 ring-gold/60" />
+            <span className="text-xs font-semibold tracking-[0.14em] uppercase text-gold">{tx('Білім-инновация лицейі')}</span>
+          </div>
+          <h1 className="text-[34px] leading-[40px] font-bold">Key To Life</h1>
+          <p className="text-white/80">{tx('Үйірмелер, курстар, жарыстар және олимпиадаға дайындық бір жерде.')}</p>
         </div>
-        <Field label={tx('ЖСН')} error={err && !/^\d{12}$/.test(iin) ? err : undefined}>
-          {(id, d) => <input id={id} aria-describedby={d} inputMode="numeric" autoComplete="username" maxLength={12} value={iin}
-            onChange={(e) => setIin(e.target.value.replace(/\D/g, ''))} className={`${inputCls} tabular-nums`} placeholder={tx('12 сан')} />}
-        </Field>
-        <Field label={tx('Құпия сөз')} hint={tx('Құпия сөзді сынып жетекшісі немесе орынбасар береді')}>
-          {(id, d) => <input id={id} aria-describedby={d} type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} className={inputCls} />}
-        </Field>
-        {inTelegram && <p className="text-sm rounded-md bg-accent-soft text-accent p-3">{tx('Бір рет ЖСН-мен кіріңіз. Telegram аккаунтыңыз байланысады да, келесі жолы өзі кіреді.')}</p>}
-        {err && /^\d{12}$/.test(iin) && <p role="alert" className="text-sm text-danger">{err}</p>}
-        <Button type="submit" block loading={busy}>{tx('Кіру')}</Button>
-        <Button kind="ghost" onClick={() => setSignup(true)}>{tx('Аккаунтым жоқ — тіркелу')}</Button>
+      </header>
+      <form onSubmit={submit} className="rounded-t-[28px] bg-surface px-6 pt-6 pb-[max(24px,env(safe-area-inset-bottom))]" noValidate>
+        <div className="mx-auto max-w-sm grid gap-5">
+          <LangChips signedIn={false} />
+          <Field label={tx('ЖСН')} error={err && !/^\d{12}$/.test(iin) ? err : undefined}>
+            {(id, d) => <input id={id} aria-describedby={d} inputMode="numeric" autoComplete="username" maxLength={12} value={iin}
+              onChange={(e) => setIin(e.target.value.replace(/\D/g, ''))} className={`${inputCls} tabular-nums`} placeholder={tx('12 сан')} />}
+          </Field>
+          <Field label={tx('Құпия сөз')} hint={tx('Құпия сөзді сынып жетекшісі немесе орынбасар береді')}>
+            {(id, d) => <input id={id} aria-describedby={d} type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} className={inputCls} />}
+          </Field>
+          {inTelegram && <p className="text-sm rounded-md bg-accent-soft text-accent p-3">{tx('Бір рет ЖСН-мен кіріңіз. Telegram аккаунтыңыз байланысады да, келесі жолы өзі кіреді.')}</p>}
+          {err && /^\d{12}$/.test(iin) && <p role="alert" className="text-sm text-danger">{err}</p>}
+          <Button type="submit" block loading={busy}>{tx('Кіру')} →</Button>
+          <p className="flex items-center gap-3 text-xs text-muted" aria-hidden><span className="flex-1 h-px bg-line" />{tx('немесе')}<span className="flex-1 h-px bg-line" /></p>
+          <button type="button" onClick={() => setSignup(true)} className="h-[52px] rounded-md border border-line font-semibold">{tx('Аккаунтым жоқ — тіркелу')}</button>
+        </div>
       </form>
     </main>
   )

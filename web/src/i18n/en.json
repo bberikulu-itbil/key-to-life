@@ -1416,5 +1416,12 @@
  "Немесе кодты жазыңыз": "Or type the code",
  "QR сканерлеу": "Scan QR",
  "Оқушыны тек әкімші өшіреді": "Only an admin removes a student",
- "Оқушы табылмады": "Student not found"
+ "Оқушы табылмады": "Student not found",
+ "Жаңа дизайн: лицей логотипіндегідей қою көк және алтын түстер.": "New design: navy and gold, like the lyceum logo.",
+ "Кіру беті, бастама беті және чат тақырыбы жаңарды.": "New sign-in page, initiative page and chat header.",
+ "Түгелдеуде «Келді / Кеш / Себ / Жоқ» батырмалары.": "Roll call buttons: «Present / Late / Excused / Absent».",
+ "Кеш": "Late",
+ "Себ": "Exc.",
+ "Білім-инновация лицейі": "Bilim-Innovation Lyceum",
+ "немесе": "or"
 }

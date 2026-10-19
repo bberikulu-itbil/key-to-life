@@ -60,11 +60,10 @@ export default function ActivityDetail({ id }: { id: string }) {
 
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title="" back right={<div className="flex gap-1">
+      <ProfileHeader nav={<>
         {chatOn && <ChatButton a={a} />}
-        {manager && a.status === 'approved' && <button type="button" onClick={() => go(`/a/${a.id}/settings`)} aria-label={tx('Баптаулар')} className="size-11 grid place-items-center rounded-md text-muted"><Icon n="settings" size={23} /></button>}
-      </div>} />
-      <ProfileHeader a={a} me={me} members={joined.length} awards={awards} canEdit={manager && a.status === 'approved'} onChange={reload} badges={<>
+        {manager && a.status === 'approved' && <button type="button" onClick={() => go(`/a/${a.id}/settings`)} aria-label={tx('Баптаулар')} className="size-11 grid place-items-center rounded-md bg-white/10"><Icon n="settings" size={22} /></button>}
+      </>} a={a} me={me} members={joined.length} awards={awards} canEdit={manager && a.status === 'approved'} onChange={reload} badges={<>
         {a.status !== 'approved' && <Badge tone={statusTone(a.status)}>{STATUS_LABEL[a.status]}</Badge>}
         {ended && a.status === 'approved' && <Badge tone="muted">{tx('Аяқталған')}</Badge>}
         {a.archived_at && <Badge tone="muted">{tx('Архивте')}</Badge>}
@@ -79,11 +78,11 @@ export default function ActivityDetail({ id }: { id: string }) {
         <Row icon="users">{a.audience_grades.length ? tx('{0}-сыныптар', a.audience_grades.join(', ')) : tx('Барлық сыныптар')} · {a.capacity ? tx('{0}/{1} орын', joined.length, a.capacity) : tx('{0} қатысушы', joined.length)}</Row>
       </Card>
       {tabs.length > 1 && (
-        <div role="tablist" aria-label={tx('Бастама бөлімдері')} className="flex gap-5 overflow-x-auto -mx-4 px-4 border-b border-line [scrollbar-width:none]">
+        <div role="tablist" aria-label={tx('Бастама бөлімдері')} className="grid grid-flow-col auto-cols-fr gap-1 rounded-lg bg-[color-mix(in_srgb,var(--border)_70%,transparent)] p-1">
           {tabs.map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={shown === k} onClick={() => setTab(k)}
-              className={`relative h-11 whitespace-nowrap text-[15px] ${shown === k ? 'font-semibold text-fg' : 'text-muted'}`}>
-              {label}{shown === k && <span className="absolute inset-x-0 -bottom-px h-[3px] rounded-t-full bg-accent" />}
+              className={`h-10 min-w-0 truncate px-1 rounded-md text-sm ${shown === k ? 'bg-surface shadow-card font-semibold text-fg' : 'text-muted'}`}>
+              {label}
             </button>
           ))}
         </div>
@@ -188,13 +187,15 @@ function JoinButton({ a, grade, busy, onJoin }: { a: ActivityFull; grade?: numbe
   if (a.audience_grades.length && (!grade || !a.audience_grades.includes(grade)))
     return <p className="text-sm text-muted">{tx('Бұл бастама {0}-сыныптарға арналған.', a.audience_grades.join(', '))}</p>
   const full = a.capacity !== null && a.enrollments.filter((e) => !e.waitlisted).length >= a.capacity
-  return <Button block loading={busy} onClick={onJoin}>{full ? tx('Күту тізіміне жазылу') : tx('Қатысамын')}</Button>
+  return <Button kind="gold" block loading={busy} onClick={onJoin}>{full ? tx('Күту тізіміне жазылу') : tx('Қатысамын')}</Button>
 }
 
 /* ---------- journal ---------- */
 const MARKS: Mark[] = ['present', 'late', 'excused', 'absent']
 const MARK_ON: Record<Mark, string> = { present: 'bg-success-soft text-success', late: 'bg-late-soft text-late', excused: 'bg-warning-soft text-warning', absent: 'bg-danger-soft text-danger' }
 const MARK_ICON: Record<Mark, string> = { present: 'check', late: 'clock', excused: 'file', absent: 'x' }
+const MARK_SOLID: Record<Mark, string> = { present: 'bg-success text-on-accent', late: 'bg-late text-on-accent', excused: 'bg-warning text-on-accent', absent: 'bg-danger text-on-accent' }
+const MARK_SHORT: Record<Mark, string> = { present: tx('Келді'), late: tx('Кеш'), excused: tx('Себ'), absent: tx('Жоқ') }
 const MARK_RING: Record<Mark, string> = { present: 'var(--success)', late: 'var(--late)', excused: 'var(--warning)', absent: 'var(--danger)' }
 // a tap on a face steps through the marks: келді → келмеді → кешікті → себепті → келді
 const NEXT_MARK: Record<Mark, Mark> = { present: 'absent', absent: 'late', late: 'excused', excused: 'present' }
@@ -289,7 +290,7 @@ function Journal({ a, fixed }: { a: ActivityFull; fixed?: string }) {
                         {MARKS.map((m) => (
                           <button key={m} type="button" role="radio" aria-checked={r?.status === m} aria-label={MARK_LABEL[m]} title={MARK_LABEL[m]}
                             onClick={() => r?.status !== m && put(s.student_id, mark(s.student_id, m))}
-                            className={`h-11 rounded-sm grid place-items-center ${r?.status === m ? MARK_ON[m] : 'text-muted'}`}><Icon n={MARK_ICON[m]} size={20} /></button>
+                            className={`h-10 rounded-sm text-xs font-semibold ${r?.status === m ? MARK_SOLID[m] : 'text-muted'}`}>{MARK_SHORT[m]}</button>
                         ))}
                       </div>
                       {r?.status === 'late' && <Chips label={tx('Қанша минут кешікті')} items={LATE_MIN.map((n) => [n, tx('{0} мин', n)] as const)} value={r.late_min ?? null} onPick={(v) => put(s.student_id, { ...r, late_min: v })} />}
@@ -410,7 +411,7 @@ function ChatButton({ a }: { a: ActivityFull }) {
     setBusy(true)
     try { const id = await activityChatId(a.id); if (id) go(`/c/${id}`); else toast(tx('Чат табылмады')) } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
-  return <Button kind="secondary" loading={busy} onClick={open}><Icon n="chat" size={18} />{tx('Чат')}</Button>
+  return <button type="button" disabled={busy} onClick={open} aria-label={tx('Чат')} className="size-11 grid place-items-center rounded-md bg-white/10 disabled:opacity-50"><Icon n="chat" size={22} /></button>
 }
 
 /* ---------- overview: attendance analytics for the leader ---------- */

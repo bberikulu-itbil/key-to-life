@@ -3,16 +3,17 @@ import { addAward, addHighlight, errText, listAwards, listHighlights, photoUrl, 
 import { TYPE_LABEL } from '../lib/time'
 import { Button, Card, Field, Icon, Sheet, inputCls, toast, useLoad } from './ui'
 import { tx } from '../lib/i18n'
+import { goBack } from '../lib/telegram'
 
 /** Subject icons and colours an initiative may wear instead of a photo. */
 const ACT_ICONS = ['code', 'sigma', 'atom', 'flask', 'leaf', 'globe', 'book', 'trophy', 'ball', 'music', 'star', 'users']
-const COLORS = ['#1d5bd8', '#7c3aed', '#db2777', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0d9488', '#0891b2', '#475569']
+const COLORS = ['#3b5bab', '#c9a23c', '#7c3aed', '#db2777', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0d9488', '#0891b2', '#475569']
 const TYPE_ICON: Partial<Record<Activity['type'], string>> = { olympiad_prep: 'star', competition: 'trophy', tournament: 'trophy', league: 'trophy', challenge: 'flag', club: 'users', community: 'chat', team: 'users', course: 'book', event: 'flag' }
 
 /** The initiative's round face: its photo, or a subject icon on its colour. */
 export function ActivityAvatar({ a, size = 80 }: { a: Pick<Activity, 'photo' | 'icon' | 'color' | 'type'>; size?: number }) {
   if (a.photo) return <img src={photoUrl(a.photo)} alt="" className="rounded-full object-cover bg-surface-2 shrink-0" style={{ width: size, height: size }} />
-  const c = a.color ?? '#1d5bd8'
+  const c = a.color ?? '#c9a23c'
   return (
     <span className="rounded-full grid place-items-center shrink-0" style={{ width: size, height: size, background: `${c}22`, color: c }}>
       <Icon n={a.icon ?? TYPE_ICON[a.type] ?? 'grid'} size={size * 0.45} />
@@ -20,31 +21,51 @@ export function ActivityAvatar({ a, size = 80 }: { a: Pick<Activity, 'photo' | '
   )
 }
 
-/** Instagram-style head: face, counters, name and a short description. */
-export function ProfileHeader({ a, me, members, awards, canEdit, badges, onChange }: { a: Activity; me: Me; members: number; awards: number; canEdit: boolean; badges: ReactNode; onChange: () => void }) {
+/** The initiative's square tile in the hero: its photo, or a subject icon on its colour (gold by default). */
+function HeroTile({ a }: { a: Activity }) {
+  if (a.photo) return <img src={photoUrl(a.photo)} alt="" className="size-[72px] rounded-[20px] object-cover shrink-0 bg-white/10" />
+  return (
+    <span className="size-[72px] rounded-[20px] grid place-items-center shrink-0" style={a.color && a.color !== COLORS[1] ? { background: a.color, color: '#fff' } : { background: 'var(--gold)', color: 'var(--on-gold)' }}>
+      <Icon n={a.icon ?? TYPE_ICON[a.type] ?? 'grid'} size={32} />
+    </span>
+  )
+}
+
+/** Navy hero: back and actions, tile, gold kind label, title, short description; the counters sit on a card over its edge. */
+export function ProfileHeader({ a, me, nav, members, awards, canEdit, badges, onChange }: { a: Activity; me: Me; nav: ReactNode; members: number; awards: number; canEdit: boolean; badges: ReactNode; onChange: () => void }) {
   const [more, setMore] = useState(false)
   const [look, setLook] = useState(false)
+  const grades = a.audience_grades.length ? tx('{0}-сыныптар', [Math.min(...a.audience_grades), Math.max(...a.audience_grades)].filter((g, i, x) => x.indexOf(g) === i).join('–')) : tx('Барлық сыныптар')
   return (
-    <section className="grid gap-3">
-      <div className="flex items-center gap-5">
-        {canEdit ? <button type="button" onClick={() => setLook(true)} aria-label={tx('Сурет пен белгіні өзгерту')} className="relative">
-          <ActivityAvatar a={a} />
-          <span className="absolute -bottom-0.5 -right-0.5 size-7 rounded-full bg-accent text-on-accent grid place-items-center border-2 border-[var(--bg)]"><Icon n="plus" size={14} /></span>
-        </button> : <ActivityAvatar a={a} />}
-        <dl className="flex-1 grid grid-cols-2 text-center">
-          <div><dt className="sr-only">{tx('Қатысушылар')}</dt><dd className="text-xl font-bold tabular-nums">{members}</dd><dd className="text-xs text-muted" aria-hidden>{tx('қатысушы')}</dd></div>
-          <div><dt className="sr-only">{tx('Марапаттар')}</dt><dd className="text-xl font-bold tabular-nums">{awards}</dd><dd className="text-xs text-muted" aria-hidden>{tx('марапат')}</dd></div>
-        </dl>
+    <section className="grid">
+      <div className="relative overflow-hidden -mx-4 -mt-2 px-4 pt-2 pb-14 bg-hero text-on-hero">
+        <span aria-hidden className="absolute -right-20 -top-16 size-64 rounded-full border border-white/10" />
+        <span aria-hidden className="absolute right-6 top-16 size-32 rounded-full border border-white/10" />
+        <div className="relative flex items-center gap-2 min-h-14">
+          <button type="button" onClick={goBack} aria-label={tx('Артқа')} className="tg-hide size-11 grid place-items-center rounded-md bg-white/10"><Icon n="back" /></button>
+          <span className="flex-1" />
+          {nav}
+        </div>
+        <div className="relative flex items-start gap-4 mt-2">
+          {canEdit ? <button type="button" onClick={() => setLook(true)} aria-label={tx('Сурет пен белгіні өзгерту')} className="relative shrink-0">
+            <HeroTile a={a} />
+            <span className="absolute -bottom-1 -right-1 size-6 rounded-full bg-surface text-accent grid place-items-center"><Icon n="plus" size={14} /></span>
+          </button> : <HeroTile a={a} />}
+          <div className="min-w-0 grid gap-1">
+            <p className="text-xs font-semibold tracking-[0.12em] uppercase text-gold">{TYPE_LABEL[a.type]} · {grades}</p>
+            <h1 className="text-[22px] leading-[28px] font-bold text-balance break-words">{a.title}</h1>
+          </div>
+        </div>
+        {a.description && <div className="relative mt-3">
+          <p className={`text-[15px] text-white/85 whitespace-pre-line break-words ${more ? '' : 'line-clamp-3'}`}>{a.description}</p>
+          {a.description.length > 140 && <button type="button" onClick={() => setMore(!more)} className="text-sm text-gold min-h-8">{more ? tx('Жасыру') : tx('толығырақ')}</button>}
+        </div>}
+        <div className="relative flex gap-1.5 flex-wrap mt-2 empty:hidden">{badges}</div>
       </div>
-      <div className="grid gap-1">
-        <h1 className="text-lg font-bold text-balance break-words leading-snug">{a.title}</h1>
-        <p className="text-sm text-muted">{TYPE_LABEL[a.type]}</p>
-        <div className="flex gap-1.5 flex-wrap">{badges}</div>
-        {a.description && <>
-          <p className={`text-[15px] whitespace-pre-line break-words ${more ? '' : 'line-clamp-3'}`}>{a.description}</p>
-          {a.description.length > 140 && <button type="button" onClick={() => setMore(!more)} className="justify-self-start text-sm text-muted min-h-8">{more ? tx('Жасыру') : tx('толығырақ')}</button>}
-        </>}
-      </div>
+      <dl className="-mt-10 relative grid grid-cols-2 divide-x divide-line rounded-lg bg-surface shadow-pop py-3 text-center">
+        <div><dt className="sr-only">{tx('Қатысушылар')}</dt><dd className="font-display text-xl font-bold tabular-nums">{members}</dd><dd className="text-xs text-muted" aria-hidden>{tx('қатысушы')}</dd></div>
+        <div><dt className="sr-only">{tx('Марапаттар')}</dt><dd className="font-display text-xl font-bold tabular-nums">{awards}</dd><dd className="text-xs text-muted" aria-hidden>{tx('марапат')}</dd></div>
+      </dl>
       {look && <Sheet title={tx('Сурет пен белгі')} onClose={() => setLook(false)}><LookEdit a={a} me={me} onDone={() => { setLook(false); onChange() }} /></Sheet>}
     </section>
   )
@@ -52,7 +73,7 @@ export function ProfileHeader({ a, me, members, awards, canEdit, badges, onChang
 
 function LookEdit({ a, me, onDone }: { a: Activity; me: Me; onDone: () => void }) {
   const [icon, setIcon] = useState(a.icon ?? TYPE_ICON[a.type] ?? 'grid')
-  const [color, setColor] = useState(a.color ?? COLORS[0])
+  const [color, setColor] = useState(a.color ?? COLORS[1])
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const save = async (photo: string | null | 'keep') => {

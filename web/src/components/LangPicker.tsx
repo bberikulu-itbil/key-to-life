@@ -12,7 +12,7 @@ export function LangChips({ signedIn }: { signedIn: boolean }) {
     <div role="radiogroup" aria-label="Тіл · Language" className="grid grid-cols-4 gap-1 bg-surface-2 rounded-md p-1">
       {LANGS.map(([l, name]) => (
         <button key={l} type="button" role="radio" aria-checked={lang === l} lang={l} onClick={() => l !== lang && pickLang(l, signedIn)}
-          className={`min-h-10 rounded-sm text-sm font-semibold ${lang === l ? 'bg-surface shadow-card' : 'text-muted'}`}>{name}</button>
+          className={`min-h-10 rounded-sm text-sm font-semibold ${lang === l ? 'bg-accent text-on-accent shadow-card' : 'text-muted'}`}>{name}</button>
       ))}
     </div>
   )

@@ -79,7 +79,7 @@ export const sessionType = (a: { extra?: Extra[]; types?: SessionType[]; default
   return a.types?.find((t) => t.id === id)
 }
 export const IMPORTANCE: Record<1 | 2 | 3, { label: string; color: string }> = {
-  1: { label: tx('Орташа'), color: '#1d5bd8' }, 2: { label: tx('Маңызды'), color: '#d97706' }, 3: { label: tx('Өте маңызды'), color: '#dc2626' },
+  1: { label: tx('Орташа'), color: '#3b5bab' }, 2: { label: tx('Маңызды'), color: '#d97706' }, 3: { label: tx('Өте маңызды'), color: '#dc2626' },
 }
 
 export const lastDay = (a: Sched) => [a.schedule === 'once' ? a.on_date! : a.date_to!, ...(a.extra ?? []).map((x) => x.on_date)].sort().reverse()[0]

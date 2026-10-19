@@ -5,7 +5,7 @@ import { tx } from './i18n'
 export type Item = { key: string; src: string; color: string; title: string; start: Date; end: Date; allDay: boolean; place?: string | null; responsible?: string | null; link?: string; kind: 'activity' | 'event' | 'lesson'; stype?: SessionType }
 export type Source = { key: string; name: string; color: string; editable?: boolean; cal?: Calendar }
 
-export const ACT_COLOR = '#1d5bd8'
+export const ACT_COLOR = '#3b5bab'
 export const LESSON_COLOR = '#0e7490'
 
 /** Activities that belong on this person's calendar automatically. */

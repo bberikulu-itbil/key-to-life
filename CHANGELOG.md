@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0 — 2026-10-19
+
+New look, after the lyceum logo:
+- Navy and gold palette, light grey background, rounder cards; Unbounded for headings, Inter for text.
+- Bottom bar: the active tab sits in a soft pill; the «+» button is navy with a gold plus.
+- Sign-in: navy hero with the logo, the form on a white sheet below.
+- Initiative page: navy hero with a gold subject tile, kind and grades in gold, counters on a card over its edge, segmented tabs, a gold «Join» button.
+- Chat: navy header, gold send button.
+- Roll call: «Келді / Кеш / Себ / Жоқ» text buttons with solid colours.
+- Chips: navy when selected, outlined otherwise.
+
 ## 1.0.1 — 2026-10-19
 
 - Home: a big «Initiatives» tile with Lost & Found, Places (was Cabinets), Canteen and Surveys next to it; the feed follows right away (no «Today» row).

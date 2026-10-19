@@ -4,7 +4,7 @@ import { chatInfo, chatPeople, errText, listMessages, listVotes, messageReaders,
 import { chatTime, fmtDate, iso } from '../lib/time'
 import { useMe } from '../App'
 import { Button, Card, ErrorBox, Field, Icon, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
-import { KIND_LABEL } from './Chats'
+import { KIND_ICON, KIND_LABEL } from './Chats'
 import { tx } from '../lib/i18n'
 
 const ROLE_SHORT: Record<string, string> = { teacher: tx('Мұғалім'), class_teacher: tx('Сынып жетекшісі'), deputy: tx('Орынбасар'), admin: tx('Әкімші') }
@@ -36,13 +36,14 @@ export default function ChatRoom({ id }: { id: string }) {
 
   return (
     <div className="grid gap-2 pb-2">
-      <div className="sticky top-0 z-10 -mx-4 px-4 bg-bg flex items-center gap-1 min-h-14 border-b border-line">
-        <button type="button" onClick={() => go('/chats')} aria-label={tx('Чаттарға оралу')} className="tg-hide size-11 -ml-3 grid place-items-center"><Icon n="back" /></button>
+      <div className="sticky top-0 z-10 -mx-4 -mt-2 px-4 py-2 bg-hero text-on-hero flex items-center gap-2 min-h-16">
+        <button type="button" onClick={() => go('/chats')} aria-label={tx('Чаттарға оралу')} className="tg-hide size-10 grid place-items-center rounded-md bg-white/10"><Icon n="back" /></button>
+        <span className="size-10 rounded-full bg-white/10 grid place-items-center shrink-0" aria-hidden><Icon n={KIND_ICON[c.kind]} size={20} /></span>
         <button type="button" onClick={() => setSheet({ kind: 'info' })} className="flex-1 min-w-0 text-left">
           <span className="block font-bold truncate">{c.title}</span>
-          <span className="block text-xs text-muted">{KIND_LABEL[c.kind]}{group ? tx(' · {0} адам', c.members) : ''}{c.locked && c.kind !== 'channel' ? tx(' · тек мұғалім жазады') : ''}</span>
+          <span className="block text-xs text-white/70">{KIND_LABEL[c.kind]}{group ? tx(' · {0} адам', c.members) : ''}{c.locked && c.kind !== 'channel' ? tx(' · тек мұғалім жазады') : ''}</span>
         </button>
-        <button type="button" onClick={() => setSheet({ kind: 'info' })} aria-label={tx('Чат туралы')} className="size-11 grid place-items-center text-muted"><Icon n="more" size={24} /></button>
+        <button type="button" onClick={() => setSheet({ kind: 'info' })} aria-label={tx('Чат туралы')} className="size-10 grid place-items-center rounded-md bg-white/10"><Icon n="more" size={22} /></button>
       </div>
 
       {pinned && (
@@ -157,7 +158,7 @@ function Composer({ chat, canPoll, onSent, onPoll }: { chat: string; canPoll: bo
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); send() } }}
           className="w-full resize-none bg-transparent px-2 py-2.5 focus:outline-none" />
       </label>
-      <button type="submit" disabled={busy || !text.trim()} aria-label={tx('Жіберу')} className="size-11 rounded-full bg-accent text-on-accent grid place-items-center shrink-0 disabled:opacity-40"><Icon n="send" /></button>
+      <button type="submit" disabled={busy || !text.trim()} aria-label={tx('Жіберу')} className="size-11 rounded-full bg-gold text-on-gold grid place-items-center shrink-0 disabled:opacity-40"><Icon n="send" /></button>
     </form>
   )
 }

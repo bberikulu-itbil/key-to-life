@@ -95,8 +95,8 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
       )}
 
       <nav aria-label={tx('Бөлімдер')} className="grid grid-cols-[1.3fr_1fr_1fr] grid-rows-2 gap-2">
-        <a href="#/events" className="row-span-2 min-w-0 grid content-between gap-2 rounded-lg bg-accent text-on-accent p-3 active:opacity-90">
-          <span className="size-10 rounded-md bg-white/20 grid place-items-center"><Icon n="star" size={22} /></span>
+        <a href="#/events" className="row-span-2 min-w-0 grid content-between gap-2 rounded-lg bg-hero text-on-hero p-3 active:opacity-90">
+          <span className="size-10 rounded-md bg-gold text-on-gold grid place-items-center"><Icon n="star" size={22} /></span>
           <span className="grid gap-0.5"><span className="text-base font-bold leading-tight break-words">{tx('Бастамалар')}</span>
             <span className="text-xs opacity-90 leading-snug line-clamp-3">{tx('Жарыс, олимпиада, үйірме, клуб')}</span></span>
         </a>

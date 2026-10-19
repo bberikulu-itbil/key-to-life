@@ -149,11 +149,11 @@ function Shell({ me }: { me: Me }) {
           {tabs.map(([p, icon, label]) =>
             p === '+' ? (
               <button key={p} type="button" onClick={() => setSheet('menu')} aria-label={tx('Әрекеттер мәзірі')}
-                className="justify-self-center -mt-6 size-[52px] rounded-full bg-accent text-on-accent grid place-items-center shadow-pop"><Icon n="plus" size={24} /></button>
+                className="justify-self-center -mt-7 size-14 rounded-full bg-hero text-gold grid place-items-center shadow-pop ring-4 ring-surface"><Icon n="plus" size={26} /></button>
             ) : (
               <a key={p} href={`#${p}`} aria-current={active(p) ? 'page' : undefined}
-                className={`relative grid justify-items-center gap-0.5 text-xs h-14 content-center ${active(p) ? 'text-accent font-semibold' : 'text-muted'}`}>
-                <Icon n={icon} size={24} />{label}
+                className={`relative grid justify-items-center gap-0.5 text-[11px] h-14 content-center ${active(p) ? 'text-accent font-semibold' : 'text-muted'}`}>
+                <span className={`h-7 w-12 rounded-full grid place-items-center ${active(p) ? 'bg-accent-soft' : ''}`}><Icon n={icon} size={21} /></span>{label}
                 {p === '/chats' && badge > 0 && <span className="absolute top-1.5 left-1/2 ml-1.5 min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center" aria-label={tx('{0} оқылмаған', badge)}>{badge > 9 ? '9+' : badge}</span>}
               </a>
             ),
