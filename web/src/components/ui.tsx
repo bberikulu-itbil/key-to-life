@@ -23,6 +23,7 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]) {
 
 /* ---------- icons (Lucide-style strokes, drawn here) ---------- */
 const P: Record<string, string> = {
+  compose: 'M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6l-3.6.8.8-3.6z',
   belloff: 'M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l2 2H4M10 20a2 2 0 0 0 4 0M3 3l18 18', archive: 'M3 4h18v4H3zM5 8v12h14V8M10 12h4',
   code: 'm8 7-5 5 5 5M16 7l5 5-5 5', sigma: 'M18 5H6l6 7-6 7h12', flask: 'M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3',
   atom: 'M12 12h.01M12 3c3 0 4 4 4 9s-1 9-4 9-4-4-4-9 1-9 4-9zM3.5 7.5c1.5-2.6 5.6-1.5 9.9 1s7.1 5.7 5.6 8.3-5.6 1.5-9.9-1-7.1-5.7-5.6-8.3z',

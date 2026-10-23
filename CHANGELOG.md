@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1 — 2026-10-23
+
+- «Publish» list: just the kinds, without the explanation lines.
+- «Write in the feed» and the feed's publish button use a pen-on-square icon.
+
 ## 1.2.0 — 2026-10-23
 
 Initiatives:

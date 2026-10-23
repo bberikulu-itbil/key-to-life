@@ -171,7 +171,7 @@ function Shell({ me }: { me: Me }) {
       {sheet === 'menu' && (
         <Sheet title={tx('Не істейміз?')} onClose={() => setSheet(null)}>
           <div className="grid grid-cols-2 gap-3">
-            {voice.data && <MenuItem icon="megaphone" title={tx('Лента жазу')} text={tx('Жаңалық, хабарландыру — өз атыңыздан, пәніңізден, бастама немесе рөл атынан')} onClick={() => { setSheet(null); go('/?new=1') }} />}
+            {voice.data && <MenuItem icon="compose" title={tx('Лента жазу')} text={tx('Жаңалық, хабарландыру — өз атыңыздан, пәніңізден, бастама немесе рөл атынан')} onClick={() => { setSheet(null); go('/?new=1') }} />}
             <MenuItem icon="flag" title={tx('Жаңа жоспар')} text={tx('Мақсат, оның жоспары және күнделікті тапсырмалары')} onClick={() => setSheet('goal')} />
             <MenuItem icon="check" title={tx('Жаңа әдет')} text={tx('Күн сайын белгілеп, жүйелілігіңізді көресіз')} onClick={() => setSheet('habit')} />
             <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе бастамадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />

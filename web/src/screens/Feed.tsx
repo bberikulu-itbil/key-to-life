@@ -120,7 +120,7 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label={tx('Жариялау')} className="size-11 grid place-items-center text-accent"><Icon n="plus" /></button>
+        <button type="button" onClick={() => setOpen({ kind: 'new', what: null })} aria-label={tx('Жариялау')} className="size-11 grid place-items-center text-accent"><Icon n="compose" /></button>
       </div>
 
       {posts.loading && !posts.data ? <Skeleton /> : posts.error ? <ErrorBox text={posts.error} retry={posts.reload} />
@@ -297,12 +297,12 @@ function PostOptions({ p, me, onChange }: { p: Post; me: Me; onChange: () => voi
 function NewPost({ me, led, roles, initial, onDone }: { me: Me; led: Activity[]; roles: ActRole[]; initial: PostKind | null; onDone: () => void }) {
   const staff = me.role !== 'student'
   const voice = led.length + roles.length > 0
-  const options: [PostKind, string, string, string][] = [
-    ...(staff || me.parliament || voice ? [['news', 'file', tx('Жаңалық'), tx('Фотосымен, лентаның басында')] as [PostKind, string, string, string]] : []),
-    ...(staff || voice ? [['announcement', 'megaphone', tx('Хабарландыру'), tx('Барлығына маңызды ақпарат')] as [PostKind, string, string, string]] : []),
-    ...(staff || me.parliament || voice ? [['project', 'grid', tx('Жоба'), tx('Оқушылар мен бастамалардың жобалары')], ['event', 'star', tx('Оқиға'), tx('Өткен немесе болатын оқиға, фотосымен')]] as [PostKind, string, string, string][] : []),
-    ['lost', 'search', tx('Жоғалған немесе табылған зат'), tx('Lost & Found')],
-    ['proposal', 'flag', tx('Ұсыныс'), tx('Парламентке, әкімшілікке немесе мұғалімге')],
+  const options: [PostKind, string, string][] = [
+    ...(staff || me.parliament || voice ? [['news', 'file', tx('Жаңалық')] as [PostKind, string, string]] : []),
+    ...(staff || voice ? [['announcement', 'megaphone', tx('Хабарландыру')] as [PostKind, string, string]] : []),
+    ...(staff || me.parliament || voice ? [['project', 'grid', tx('Жоба')], ['event', 'star', tx('Оқиға')]] as [PostKind, string, string][] : []),
+    ['lost', 'search', tx('Жоғалған немесе табылған зат')],
+    ['proposal', 'flag', tx('Ұсыныс')],
   ]
   const [kind, setKind] = useState<PostKind | null>(initial)
   const [to, setTo] = useState<'parliament' | 'admin' | 'teacher'>('parliament')
@@ -319,15 +319,15 @@ function NewPost({ me, led, roles, initial, onDone }: { me: Me; led: Activity[];
 
   if (!kind) return (
     <div className="grid gap-2">
-      {options.map(([k, icon, title, text]) => (
-        <button key={k} type="button" onClick={() => setKind(k)} className="flex items-center gap-3 min-h-16 rounded-md px-3 py-2 text-left hover:bg-surface-2">
+      {options.map(([k, icon, title]) => (
+        <button key={k} type="button" onClick={() => setKind(k)} className="flex items-center gap-3 min-h-14 rounded-md px-3 py-2 text-left hover:bg-surface-2">
           <span className="size-10 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n={icon} /></span>
-          <span className="flex-1"><span className="block font-semibold">{title}</span><span className="block text-sm text-muted">{text}</span></span><Icon n="chev" className="text-muted" />
+          <span className="flex-1 font-semibold">{title}</span><Icon n="chev" className="text-muted" />
         </button>
       ))}
       <button type="button" onClick={() => go('/a/new')} className="flex items-center gap-3 min-h-16 rounded-md px-3 py-2 text-left hover:bg-surface-2">
         <span className="size-10 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="grid" /></span>
-        <span className="flex-1"><span className="block font-semibold">{tx('Бастама ұсыну')}</span><span className="block text-sm text-muted">{tx('Үйірме, жарыс, турнир — растаған соң Бастамалар бөлімінде шығады')}</span></span><Icon n="chev" className="text-muted" />
+        <span className="flex-1 font-semibold">{tx('Бастама ұсыну')}</span><Icon n="chev" className="text-muted" />
       </button>
     </div>
   )
