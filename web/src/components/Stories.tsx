@@ -107,7 +107,7 @@ function Viewer({ me, items, start, onSeen, onClose, onJoined }: { me: Me; items
         <button type="button" aria-label={tx('Келесі')} onClick={next} className="absolute right-0 top-48 bottom-40 w-2/3" />
         <div className="flex-1 overflow-hidden p-4 grid gap-2 content-start">
           <p className="flex gap-2 items-center tabular-nums"><Icon n="clock" size={18} className="text-muted" />{scheduleLabel(a)}</p>
-          <p className="flex gap-2 items-center"><Icon n="pin" size={18} className="text-muted" />{a.place}</p>
+          {a.place && <p className="flex gap-2 items-center"><Icon n="pin" size={18} className="text-muted" />{a.place}</p>}
           <p className="flex gap-2 items-center"><Icon n="user" size={18} className="text-muted" />{a.supervisor.full_name}</p>
           {seats !== null && <p className="flex gap-2 items-center"><Icon n="users" size={18} className="text-muted" />{seats}{' '}{tx('бос орын')}</p>}
           <p className="text-muted line-clamp-6 mt-1">{a.description}</p>

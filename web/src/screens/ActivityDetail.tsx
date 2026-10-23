@@ -4,7 +4,7 @@ import {
   errText, listLeaves, activityChatId, myAttendance, setActivityFeatures, activityAttendance, addSessions, removeSession, tgSendRollcall, type ActivityFull, type Feature, type Mark, type MarkRow,
 } from '../lib/api'
 import { when } from './Leaves'
-import { IMPORTANCE, MARK_LABEL, PLAN_CAT, STATUS_LABEL, byCategory, WD_SHORT, addDays, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessionType, sessions, today, planDates } from '../lib/time'
+import { CONTEST, IMPORTANCE, MARK_LABEL, PLAN_CAT, STATUS_LABEL, byCategory, WD_SHORT, addDays, fmtDate, hm, isoDow, lastDay, parse, rate, scheduleLabel, sessionTime, sessionType, sessions, today, planDates } from '../lib/time'
 import Tasks from '../components/Tasks'
 import Avatar from '../components/Avatar'
 import ActivityFeed from '../components/ActivityFeed'
@@ -14,6 +14,7 @@ import { statusTone } from '../components/ActivityCard'
 import AbsenceForm from './AbsenceForm'
 import Syllabus from '../components/Syllabus'
 import { HallOfFame, Highlights, ProfileHeader } from '../components/ActivityProfile'
+import { JoinRequestBox, JoinRequestsPanel, Results } from '../components/ActivityExtras'
 import { Badge, Button, Card, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, TypeBadge, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
@@ -26,7 +27,7 @@ export default function ActivityDetail({ id }: { id: string }) {
   const [returning, setReturning] = useState(false)
   const [note, setNote] = useState('')
   const [absence, setAbsence] = useState(false)
-  const [tab, setTab] = useState<'about' | 'feed' | Feature>('about')
+  const [tab, setTab] = useState<'about' | 'feed' | 'results' | Feature>('about')
   const [awards, setAwards] = useState(0)
 
   if (loading && !a) return <><PageHead title="" back /><Skeleton rows={4} /></>
@@ -52,7 +53,8 @@ export default function ActivityDetail({ id }: { id: string }) {
   const hub = a.features.includes('syllabus') && a.features.includes('tasks') && insider
   const tabs = a.status === 'approved'
     ? [['about', tx('Шолу')] as const, ['feed', tx('Лента')] as const, ...TABS.filter(([f]) => a.features.includes(f) && (f !== 'tasks' || (insider && !hub)))
-        .map(([f, l]): [Feature, string] => [f, f === 'syllabus' && hub ? tx('Оқу') : l])]
+        .map(([f, l]): [Feature, string] => [f, f === 'syllabus' && hub ? tx('Оқу') : l]),
+      ...(CONTEST.includes(a.type) ? [['results', tx('Нәтиже')] as const] : [])]
     : []
   const chatOn = a.status === 'approved' && a.features.includes('chat') && insider
   const stats = canKeepJournal && a.status === 'approved' && a.features.includes('attendance')
@@ -73,7 +75,7 @@ export default function ActivityDetail({ id }: { id: string }) {
 
       <Card className="grid gap-2 text-sm">
         <Row icon="clock">{scheduleLabel(a)}{a.schedule === 'weekly' && <span className="text-muted"> · {fmtDate(a.date_from!)} – {fmtDate(a.date_to!)}</span>}</Row>
-        <Row icon="pin">{a.place}</Row>
+        {a.place && <Row icon="pin">{a.place}</Row>}
         <Row icon="user">{tx('Жауапты:')}{' '}{a.supervisor.full_name}{a.author_id !== a.supervisor_id && <span className="text-muted">{' '}{tx('· ұсынған: {0}', a.author.full_name)}</span>}</Row>
         <Row icon="users">{a.audience_grades.length ? tx('{0}-сыныптар', a.audience_grades.join(', ')) : tx('Барлық сыныптар')} · {a.capacity ? tx('{0}/{1} орын', joined.length, a.capacity) : tx('{0} қатысушы', joined.length)}</Row>
       </Card>
@@ -88,12 +90,14 @@ export default function ActivityDetail({ id }: { id: string }) {
         </div>
       )}
       {shown === 'feed' && <ActivityFeed a={a} me={me} />}
+      {shown === 'results' && <Results a={a} me={me} canEdit={manager} />}
       {shown === 'tasks' && <Tasks me={me} activity={a} canGive={manager || curatorIds.includes(me.id)} />}
       {shown === 'syllabus' && <Syllabus a={a} me={me} hub={hub ? { canGive: manager || curatorIds.includes(me.id) } : undefined} />}
       {shown === 'syllabus' && hub && <Tasks me={me} activity={a} canGive={manager || curatorIds.includes(me.id)} noTopic />}
       {shown === 'schedule' && <ActivityCalendar a={a} canEdit={manager} journal={canKeepJournal && a.features.includes('attendance')} onChange={reload} />}
       {shown === 'about' && (
         <>
+          {(manager || curatorIds.includes(me.id)) && a.join_requests && <JoinRequestsPanel a={a} onChange={reload} />}
           <HallOfFame a={a} canEdit={manager && a.status === 'approved'} onCount={setAwards} />
           {stats && <>{isOwner && <Requests activityId={a.id} />}<Journal a={a} /><Analytics a={a} /></>}
           {!canKeepJournal && mine && !mine.waitlisted && a.status === 'approved' && a.features.includes('attendance') && <MyMarks a={a} onAsk={() => setAbsence(true)} />}
@@ -109,7 +113,7 @@ export default function ActivityDetail({ id }: { id: string }) {
                 </div>
               </Card>
             ) : (
-              <JoinButton a={a} grade={me.class?.grade} busy={busy === 'join'} onJoin={() => run('join', () => joinActivity(a.id).then((ok) => { if (!ok) toast(tx('Орын толы — күту тізіміне жазылдыңыз')) }), tx('Жазылдыңыз'))} />
+              a.join_requests && a.enrollment_open && !a.archived_at ? <JoinRequestBox a={a} onSent={reload} /> : <JoinButton a={a} grade={me.class?.grade} busy={busy === 'join'} onJoin={() => run('join', () => joinActivity(a.id).then((ok) => { if (!ok) toast(tx('Орын толы — күту тізіміне жазылдыңыз')) }), tx('Жазылдыңыз'))} />
             )
           )}
 

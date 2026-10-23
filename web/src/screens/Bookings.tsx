@@ -79,7 +79,9 @@ function Review({ resources }: { resources: Resource[] }) {
   const t = today()
   const { data, error, loading, reload } = useLoad(() => listBookings({ from: t }), [t])
   const [busy, setBusy] = useState('')
-  const mineIds = new Set(resources.filter((r) => managesRoom(me, r)).map((r) => r.id))
+  // opened from one room's request chat (?r=): only that room
+  const only = new URLSearchParams(location.hash.split('?')[1] ?? '').get('r')
+  const mineIds = new Set(resources.filter((r) => managesRoom(me, r) && (!only || r.id === only)).map((r) => r.id))
   const list = (data ?? []).filter((b) => mineIds.has(b.resource_id))
   const pending = list.filter((b) => b.status === 'pending')
   const upcoming = list.filter((b) => b.status === 'approved').sort((a, b) => (a.on_date + a.start_time).localeCompare(b.on_date + b.start_time))

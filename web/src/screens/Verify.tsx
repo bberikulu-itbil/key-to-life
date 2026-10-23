@@ -29,12 +29,14 @@ export default function Verify({ code }: { code?: string }) {
   // one read is enough: close the camera and open the result
   const bad = useRef('')
   const onText = useCallback((t: string) => {
+    const cert = t.match(/#\/cert\/([A-Za-z0-9-]+)/)
+    if (cert) { setScan(false); go(`/cert/${cert[1].toUpperCase()}`); return true }
     const c = codeFrom(t)
     if (!c) { if (bad.current !== t) toast(tx('Бұл Key To Life QR коды емес')); bad.current = t; return false }
     setScan(false); go(`/v/${c}`); return true
   }, [])
   const startScan = () => { if (!tgScanQr(tx('Рұқсат немесе бронь QR кодын көрсетіңіз'), onText)) setScan(true) }
-  const submit = (e: FormEvent) => { e.preventDefault(); if (input.trim()) go(`/v/${input.trim().toUpperCase()}`) }
+  const submit = (e: FormEvent) => { e.preventDefault(); const v = input.trim().toUpperCase(); if (v) go(v.startsWith('C-') ? `/cert/${v}` : `/v/${v}`) }
 
   if (me.role === 'student') return <><PageHead title={tx('QR тексеру')} back /><Card><p>{tx('QR-ды тек мұғалімдер тексереді.')}</p></Card></>
 

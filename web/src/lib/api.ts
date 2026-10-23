@@ -28,6 +28,7 @@ export type Activity = {
   class_plan: string | null   // a class's own plan (Etude): not listed among initiatives
   default_type_id: string | null; types: SessionType[]; tg_chat_title: string | null
   photo: string | null; icon: string | null; color: string | null
+  no_time: boolean; resource_id: string | null; join_requests: boolean
   author: { full_name: string; class: { name: string; teacher_id: string | null } | null }
   supervisor: { full_name: string }
   enrollments: { student_id: string; waitlisted: boolean }[]
@@ -65,7 +66,7 @@ export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
-const ACT = 'id, type, title, class_plan, photo, icon, color, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id, series_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance, category), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
+const ACT = 'id, type, title, class_plan, photo, icon, color, no_time, resource_id, join_requests, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id, series_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance, category), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
 
 /** Initiatives only: class plans (Etude) are not initiatives. */
 export const isInitiative = (a: Activity) => !a.class_plan
@@ -118,6 +119,7 @@ export const requestAbsence = (activity: string, date: string, category: string,
   rpc('request_absence', { p_activity: activity, p_date: date, p_category: category, p_reason: reason })
 export const decideAbsence = (id: string, approve: boolean, note?: string) => rpc('decide_absence', { p_id: id, p_approve: approve, p_note: note ?? null })
 export const markRead = () => rpc('mark_notifications_read', {})
+export const markNoticesRead = (ids: number[]) => rpc('mark_notices_read', { p_ids: ids })
 export const attendanceRate = (student: string) => rpc<number | null>('attendance_rate', { p_student: student })
 
 async function adminUsers<T>(body: Record<string, unknown>): Promise<T> {
@@ -465,6 +467,37 @@ export const createActivityPost = (activityId: string, title: string, body: stri
 
 /* ---------- managing an activity ---------- */
 export const updateActivity = (id: string, p: Record<string, unknown>) => rpc('update_activity', { p_id: id, p })
+/** No fixed time, the room from the list (booked on approval), joining by request. */
+export const setActivityExtras = (id: string, x: { noTime: boolean; resource: string | null; joinRequests: boolean }) =>
+  rpc('set_activity_extras', { p_id: id, p_no_time: x.noTime, p_resource: x.resource, p_join_requests: x.joinRequests })
+
+/* ---------- join requests, matches, results, certificates ---------- */
+export type JoinRequest = { activity_id: string; student_id: string; note: string | null; status: 'pending' | 'accepted' | 'declined'; created_at: string
+  student: { full_name: string; class: { name: string } | null } }
+export const listJoinRequests = (activity: string) => ok(supabase.from('join_requests')
+  .select('activity_id, student_id, note, status, created_at, student:profiles!student_id(full_name, class:classes!class_id(name))').eq('activity_id', activity)
+  .order('created_at', { ascending: false })) as unknown as Promise<JoinRequest[]>
+export const requestJoin = (id: string, note: string) => rpc('request_join', { p_id: id, p_note: note })
+export const decideJoin = (id: string, student: string, accept: boolean) => rpc('decide_join', { p_id: id, p_student: student, p_accept: accept })
+export type Match = { id: string; activity_id: string; round: string; side_a: string; side_b: string; score_a: number | null; score_b: number | null; played_on: string | null; sort: number }
+export const listMatches = (activity: string) => ok(supabase.from('activity_matches').select('*').eq('activity_id', activity).order('sort').order('created_at')) as Promise<Match[]>
+export const saveMatch = (m: Partial<Match> & { activity_id: string }) => ok(supabase.from('activity_matches').upsert(m))
+export const removeMatch = (id: string) => ok(supabase.from('activity_matches').delete().eq('id', id))
+export type Result = { id: string; activity_id: string; place: number; name: string; note: string | null }
+export const listResults = (activity: string) => ok(supabase.from('activity_results').select('*').eq('activity_id', activity).order('place')) as Promise<Result[]>
+export const addResult = (r: Omit<Result, 'id'>) => ok(supabase.from('activity_results').insert(r))
+export const removeResult = (id: string) => ok(supabase.from('activity_results').delete().eq('id', id))
+export type Certificate = { id: string; code: string; activity_id: string; student_id: string; title: string; issued_at: string
+  student: { full_name: string }; activity: { title: string } }
+export const listCertificates = (q: { activity?: string; student?: string }) => {
+  let r = supabase.from('certificates').select('id, code, activity_id, student_id, title, issued_at, student:profiles!student_id(full_name), activity:activities(title)')
+  if (q.activity) r = r.eq('activity_id', q.activity)
+  if (q.student) r = r.eq('student_id', q.student)
+  return ok(r.order('issued_at', { ascending: false })) as unknown as Promise<Certificate[]>
+}
+export const issueCertificates = (activity: string, students: string[], title: string) => rpc<number>('issue_certificates', { p_id: activity, p_students: students, p_title: title })
+export type CertView = { code: string; title: string; issued_at: string; student: string; class: string | null; activity: string; type: ActivityType; issuer: string; school: string }
+export const getCertificate = (code: string) => rpc<CertView | null>('get_certificate', { p_code: code })
 export const setActivityFlags = (id: string, open: boolean | null, archived: boolean | null) => rpc('set_activity_flags', { p_id: id, p_open: open, p_archived: archived })
 export const removeActivity = (id: string) => rpc('remove_activity', { p_id: id })
 export const addParticipant = (activity: string, student: string) => ok(supabase.from('enrollments').insert({ activity_id: activity, student_id: student, waitlisted: false }))

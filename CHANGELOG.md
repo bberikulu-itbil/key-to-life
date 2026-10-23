@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.0 — 2026-10-23
+
+Initiatives:
+- Place and time are optional (switched off by default for contests, leagues, tournaments, challenges, communities and teams); without a time an initiative shows as «all day».
+- The place is picked from the room list by category (floors, other) or typed by hand; a listed room is booked for every session when the initiative is approved, busy days are reported to the leader.
+- A short description of every kind in the form (team, community and the rest).
+- Joining by request: the student sends a request with a note, the leader or a responsible student accepts or declines.
+- «Results» tab for contests: matches by round with scores, final places.
+- Certificates: the leader issues them to participants; each has a QR that opens its check page; «Save as PDF»; students see «My certificates» in the profile.
+
+Notifications and privacy:
+- System notifications are split into chats: sign-up requests, each room's booking requests, complaints per chat, the rest.
+- A complaint goes to that chat's moderators (class teacher and tutor, initiative leader, channel owner); deputies only when the chat has none.
+- Pickers show people's names only, not their titles and duties.
+
+Database: migration 0046 (run by the owner in the SQL Editor).
+
 ## 1.1.0 — 2026-10-19
 
 New look, after the lyceum logo:

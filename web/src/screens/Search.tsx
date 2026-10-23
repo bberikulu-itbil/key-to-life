@@ -45,7 +45,7 @@ export default function Search() {
         : !total ? <Card><Empty icon="search" title={tx('Ештеңе табылмады')} text={tx('Басқа сөзбен іздеп көріңіз.')} /></Card> : (
           <>
             <Group title={tx('Бастамалар')} n={r.acts.length}>{r.acts.map((a) => (
-              <Row key={a.id} href={`#/a/${a.id}`} icon="star" title={a.title} sub={`${TYPE_LABEL[a.type]} · ${scheduleLabel(a)} · ${a.place}`} />))}</Group>
+              <Row key={a.id} href={`#/a/${a.id}`} icon="star" title={a.title} sub={`${TYPE_LABEL[a.type]} · ${scheduleLabel(a)}${a.place ? ` · ${a.place}` : ''}`} />))}</Group>
             <Group title={tx('Адамдар')} n={r.people.length}>{r.people.map((p) => (
               <button key={p.id} type="button" onClick={() => dm(p.id)} className="w-full flex items-center gap-3 px-4 min-h-14 text-left">
                 <Avatar name={p.full_name} size={36} />

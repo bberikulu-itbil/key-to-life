@@ -1,6 +1,7 @@
 // Run: npx tsx src/lib/time.test.ts
 import assert from 'node:assert/strict'
 import { codeFrom } from './qr'
+import { noticeGroup } from './notices'
 import { addDays, byCategory, cycleCode, streak, isSession, isoDow, lessonOn, rate, sessions, weekOf } from './time'
 
 const weekly = { schedule: 'weekly' as const, on_date: null, weekdays: [1, 3], date_from: '2026-10-01', date_to: '2026-10-31' }
@@ -104,4 +105,13 @@ console.log('streak ok')
   assert.equal(codeFrom(' B-12AB '), 'B-12AB')
   assert.equal(codeFrom('https://example.com'), null)
   console.log('qr ok')
+}
+
+{
+  assert.equal(noticeGroup({ title: 'Тіркелу өтініші', body: 'X', link: '/registrations' }).key, 'reg')
+  assert.equal(noticeGroup({ title: 'Бронь сұрауы', body: 'Аты · 105 · 21.10 15:00', link: '/bookings/review?r=abc' }).key, 'room:abc')
+  assert.equal(noticeGroup({ title: 'Бронь сұрауы', body: 'Аты · 105 · 21.10 15:00', link: '/bookings/review' }).key, 'room:105')
+  assert.equal(noticeGroup({ title: 'Шағым · 7B сыныбы', body: 'x', link: '/chats/reports?c=c1' }).label, 'Шағым · 7B сыныбы')
+  assert.equal(noticeGroup({ title: 'Іс-шара расталды', body: null, link: '/a/1' }).key, 'sys')
+  console.log('notices ok')
 }

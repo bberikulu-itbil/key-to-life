@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { createChannel, ensureChats, errText, listClasses, listNotifications, listPeople, listReports, myChatFlags, myChats, openDirect, readChat, resolveReport, setChatFlags, type ChatKind } from '../lib/api'
+import { createChannel, ensureChats, errText, listClasses, listNotifications, listPeople, listReports, myChatFlags, myChats, openDirect, readChat, resolveReport, setChatFlags, type ChatKind, type Notice } from '../lib/api'
 import { chatTime } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
-import { tx } from '../lib/i18n'
+import { tx, txTitle } from '../lib/i18n'
+import { noticeGroup, type NoticeGroup } from '../lib/notices'
 
 export const KIND_ICON: Record<ChatKind, string> = { activity: 'star', class: 'users', channel: 'megaphone', direct: 'chat' }
 export const KIND_LABEL: Record<ChatKind, string> = { activity: tx('Бастама тобы'), class: tx('Сынып чаты'), channel: tx('Арна'), direct: tx('Жеке хат') }
@@ -25,7 +26,13 @@ export default function Chats() {
   const byKind = (chats.data ?? []).filter((c) => filter === 'all' || (filter === 'groups' ? c.kind === 'activity' || c.kind === 'class' : c.kind === filter))
   const archived = byKind.filter((c) => flag(c.id).archived)
   const list = archive ? archived : byKind.filter((c) => !flag(c.id).archived)
-  const sysUnread = (sys.data ?? []).filter((n) => !n.read_at).length
+  // one row per kind of notification: sign-ups, each room, each chat's complaints, the rest
+  const groups = [...(sys.data ?? []).reduce((m, n) => {
+    const g = noticeGroup(n)
+    const x = m.get(g.key) ?? { ...g, last: n, unread: 0 }
+    if (!n.read_at) x.unread++
+    return m.set(g.key, x)
+  }, new Map<string, NoticeGroup & { last: Notice; unread: number }>()).values()]
   const openReports = (reports.data ?? []).filter((r) => !r.resolved_at).length
 
   return (
@@ -47,7 +54,10 @@ export default function Chats() {
             </button></li>
           )}
           {filter === 'all' && !archive && (
-            <Row href="#/chats/system" icon="bell" accent title="Key To Life" sub={sys.data?.[0]?.title ?? tx('Жүйелік хабарламалар')} time={sys.data?.[0] ? chatTime(sys.data[0].created_at) : ''} unread={sysUnread} badge={tx('Жүйе')} />
+            <>{(groups.length ? groups : [{ key: 'sys', label: 'Key To Life', icon: 'bell', last: null, unread: 0 }]).map((g) => (
+              <Row key={g.key} href={`#/chats/system?g=${encodeURIComponent(g.key)}`} icon={g.icon} accent title={g.label}
+                sub={g.last ? txTitle(g.last.title) : tx('Жүйелік хабарламалар')} time={g.last ? chatTime(g.last.created_at) : ''} unread={g.unread} badge={tx('Жүйе')} />
+            ))}</>
           )}
           {list.map((c) => {
             const f = flag(c.id)

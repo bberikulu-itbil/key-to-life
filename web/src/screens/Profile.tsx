@@ -79,6 +79,7 @@ export default function Profile() {
         ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'users', tx('Менің сыныбым'), tx('Оқушылар, суреттер, кім сыртта')] as Link] : []),
         ['#/leaves', 'clock', staff ? tx('Рұқсаттар') : tx('Менің рұқсаттарым'), staff ? tx('Шешім күтетіндер және бүгін берілгендер') : undefined],
         ['#/bookings', 'grid', tx('Менің броньдарым')],
+        ...(staff ? [] : [['#/certs', 'trophy', tx('Сертификаттарым')] as Link]),
         ['#/timetable', 'list', tx('Сабақ кестесі')],
         ['#/calendars', 'file', tx('Күнтізбелер'), tx('Жеке, сынып, мектеп · импорт/экспорт')],
         ...(staff ? [['#/duty', 'users', tx('Кезекшіліктер'), tx('Мұғалімдер мен орынбасарлар')], ['#/v/', 'check', tx('QR тексеру'), tx('Камерамен рұқсат немесе бронь кодын тексеру')]] as Link[] : []),

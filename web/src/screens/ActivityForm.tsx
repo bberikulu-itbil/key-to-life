@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { errText, getActivity, listStaff, submitActivity, updateActivity, type ActivityType } from '../lib/api'
+import { errText, getActivity, listGroups, listResources, listStaff, setActivityExtras, submitActivity, updateActivity, type ActivityType } from '../lib/api'
 import { TYPE_GROUPS, TYPE_LABEL, WD_SHORT, addDays, today } from '../lib/time'
 import { useMe } from '../App'
 import { Button, Card, ErrorBox, Field, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
@@ -7,7 +7,23 @@ import { tx } from '../lib/i18n'
 
 type F = { type: ActivityType; title: string; description: string; supervisor_id: string; place: string; audience: number[]; capacity: string
   schedule: 'once' | 'weekly' | 'calendar'; on_date: string; weekdays: number[]; date_from: string; date_to: string; start_time: string; end_time: string
-  perDay: boolean; times: Record<number, { start: string; end: string }>; extra: { date: string; start: string; end: string }[] }
+  perDay: boolean; times: Record<number, { start: string; end: string }>; extra: { date: string; start: string; end: string }[]
+  hasPlace: boolean; resource: string; hasTime: boolean; joinRequests: boolean }
+
+// contests, leagues, communities and teams often meet anywhere and any time: place and time start switched off
+const LOOSE: ActivityType[] = ['competition', 'league', 'tournament', 'challenge', 'community', 'team']
+const TYPE_HINT: Record<ActivityType, string> = {
+  competition: tx('Бір реттік сайыс: жеңімпаздар мен нәтиже кестесі болады.'),
+  league: tx('Бірнеше турдан тұратын маусым: әр турдың нәтижесі жазылады.'),
+  tournament: tx('Ойындар кезеңмен өтеді: 1/4, жартылай финал, финал.'),
+  challenge: tx('Белгілі мерзімдегі тапсырма: қатысушылар өз уақытында орындайды.'),
+  olympiad_prep: tx('Олимпиадаға жүйелі дайындық: силлабус, тапсырмалар, қатысу журналы.'),
+  course: tx('Тұрақты сабақтар: кесте, журнал, тапсырмалар.'),
+  club: tx('Қызығушылық бойынша тұрақты кездесулер.'),
+  community: tx('Ортақ қызығушылық тобы: чат пен лента арқылы байланысады, кесте міндетті емес.'),
+  team: tx('Тұрақты құрамы бар топ: жарысқа бірге дайындалады. Капитанды кейін «Жауапты оқушы» етіп белгілейсіз.'),
+  event: tx('Бүкіл мектепке арналған бір реттік іс-шара.'),
+}
 
 const GRADES = [5, 6, 7, 8, 9, 10, 11]
 const SCHEDULE = { weekly: tx('Апта сайын'), once: tx('Бір рет'), calendar: tx('Күнтізбеде') } as const
@@ -17,7 +33,7 @@ export function validate(f: F, t = today()): Partial<Record<keyof F, string>> {
   if (f.title.trim().length < 3) e.title = tx('Атауы кемінде 3 таңба')
   if (f.description.trim().length < 30) e.description = tx('Тағы {0} таңба жазыңыз: не істейсіздер, кімге арналған', 30 - f.description.trim().length)
   if (!f.supervisor_id) e.supervisor_id = tx('Жауапты мұғалімді таңдаңыз')
-  if (f.place.trim().length < 2) e.place = tx('Өтетін орнын жазыңыз')
+  if (f.hasPlace && !f.resource && f.place.trim().length < 2) e.place = tx('Орынды тізімнен таңдаңыз немесе жазыңыз')
   if (f.capacity && !(+f.capacity >= 1 && +f.capacity <= 2000)) e.capacity = tx('1-ден 2000-ға дейін')
   if (f.schedule === 'once' && (!f.on_date || f.on_date < t)) e.on_date = tx('Бүгін немесе кейінгі күнді таңдаңыз')
   if (f.schedule !== 'once') {
@@ -25,10 +41,10 @@ export function validate(f: F, t = today()): Partial<Record<keyof F, string>> {
     if (!f.date_from || !f.date_to || f.date_to < f.date_from) e.date_to = tx('Кезеңнің соңы басынан кейін болуы керек')
     else if (f.date_to < t) e.date_to = tx('Кезеңнің соңы өтіп кеткен')
   }
-  if (!f.start_time || !f.end_time || f.end_time <= f.start_time) e.end_time = tx('Аяқталу уақыты басталудан кейін болуы керек')
-  if (f.schedule === 'weekly' && f.perDay && f.weekdays.some((w) => { const x = f.times[w]; return x && x.end <= x.start }))
+  if (f.hasTime && (!f.start_time || !f.end_time || f.end_time <= f.start_time)) e.end_time = tx('Аяқталу уақыты басталудан кейін болуы керек')
+  if (f.hasTime && f.schedule === 'weekly' && f.perDay && f.weekdays.some((w) => { const x = f.times[w]; return x && x.end <= x.start }))
     e.times = tx('Әр күннің аяқталу уақыты басталудан кейін болуы керек')
-  if (f.schedule === 'once' && f.extra.some((x) => !x.date || x.date < t || x.end <= x.start || x.date === f.on_date))
+  if (f.schedule === 'once' && f.extra.some((x) => !x.date || x.date < t || (f.hasTime && x.end <= x.start) || x.date === f.on_date))
     e.extra = tx('Қосымша күндерді тексеріңіз: өткен күн, қайталанған күн немесе уақыт қате')
   return e
 }
@@ -38,7 +54,8 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
   const staff = useLoad(listStaff, [])
   const t = today()
   const [f, setF] = useState<F>({ type: 'club', title: '', description: '', supervisor_id: me.role !== 'student' ? me.id : '', place: '', audience: [], capacity: '',
-    schedule: 'weekly', on_date: addDays(t, 7), weekdays: [], date_from: t, date_to: addDays(t, 60), start_time: '15:00', end_time: '16:30', perDay: false, times: {}, extra: [] })
+    schedule: 'weekly', on_date: addDays(t, 7), weekdays: [], date_from: t, date_to: addDays(t, 60), start_time: '15:00', end_time: '16:30', perDay: false, times: {}, extra: [],
+    hasPlace: true, resource: '', hasTime: true, joinRequests: false })
   const [loaded, setLoaded] = useState(!id && !copyOf)
   const [approved, setApproved] = useState(false)
   const [touched, setTouched] = useState(false)
@@ -53,7 +70,8 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
       setF({ type: a.type, title: a.title, description: a.description, supervisor_id: a.supervisor_id, place: a.place, audience: a.audience_grades,
         capacity: a.capacity ? String(a.capacity) : '', schedule: a.schedule === 'weekly' && !a.weekdays?.length ? 'calendar' : a.schedule, on_date: a.on_date ?? addDays(t, 7), weekdays: a.weekdays ?? [],
         date_from: a.date_from ?? t, date_to: a.date_to ?? addDays(t, 60), start_time: a.start_time.slice(0, 5), end_time: a.end_time.slice(0, 5),
-        perDay: !!a.slots?.length, times: Object.fromEntries((a.slots ?? []).map((x) => [x.wd, { start: x.start, end: x.end }])), extra: [] })
+        perDay: !!a.slots?.length, times: Object.fromEntries((a.slots ?? []).map((x) => [x.wd, { start: x.start, end: x.end }])), extra: [],
+        hasPlace: !!a.place || !!a.resource_id, resource: a.resource_id ?? '', hasTime: !a.no_time, joinRequests: a.join_requests })
       setLoaded(true)
     }, (e) => setErr(errText(e)))
   }, [id, copyOf])
@@ -67,13 +85,17 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
     if (Object.keys(validate(f, t)).length) return toast(tx('Белгіленген өрістерді түзетіңіз'))
     setBusy(true)
     try {
-      const slots = f.schedule === 'weekly' && f.perDay ? f.weekdays.map((wd) => ({ wd, ...(f.times[wd] ?? { start: f.start_time, end: f.end_time }) })) : []
-      const p = { type: f.type, title: f.title.trim(), description: f.description.trim(), supervisor_id: f.supervisor_id, place: f.place.trim(),
+      // no fixed time: the whole day, shown as «all day»
+      const ft = f.hasTime ? f : { ...f, start_time: '00:00', end_time: '23:59', perDay: false }
+      const slots = ft.schedule === 'weekly' && ft.perDay ? f.weekdays.map((wd) => ({ wd, ...(f.times[wd] ?? { start: f.start_time, end: f.end_time }) })) : []
+      const p = { type: f.type, title: f.title.trim(), description: f.description.trim(), supervisor_id: f.supervisor_id, place: f.hasPlace ? f.place.trim() : '',
         audience_grades: f.audience, capacity: f.capacity || null, schedule: f.schedule === 'once' ? 'once' : 'weekly',
-        start_time: slots[0]?.start ?? f.start_time, end_time: slots[0]?.end ?? f.end_time, slots,
-        ...(f.schedule === 'once' ? { on_date: f.on_date, extra: f.extra } : { weekdays: f.schedule === 'calendar' ? [] : f.weekdays, date_from: f.date_from, date_to: f.date_to }) }
-      if (approved && id) { await updateActivity(id, p); toast(tx('Сақталды. Уақыты өзгерсе, қатысушыларға хабар кетті')); go(`/a/${id}`); return }
+        start_time: slots[0]?.start ?? ft.start_time, end_time: slots[0]?.end ?? ft.end_time, slots,
+        ...(f.schedule === 'once' ? { on_date: f.on_date, extra: f.hasTime ? f.extra : f.extra.map((x) => ({ ...x, start: '00:00', end: '23:59' })) } : { weekdays: f.schedule === 'calendar' ? [] : f.weekdays, date_from: f.date_from, date_to: f.date_to }) }
+      const extras = { noTime: !f.hasTime, resource: f.hasPlace && f.resource ? f.resource : null, joinRequests: f.joinRequests }
+      if (approved && id) { await updateActivity(id, p); await setActivityExtras(id, extras); toast(tx('Сақталды. Уақыты өзгерсе, қатысушыларға хабар кетті')); go(`/a/${id}`); return }
       const newId = await submitActivity(p, id)
+      await setActivityExtras(newId, extras)
       toast(me.role === 'deputy' || me.role === 'admin' ? tx('Жарияланды') : me.role === 'student' ? tx('Сынып жетекшісіне жіберілді') : tx('Орынбасарға жіберілді'))
       go(`/a/${newId}`)
     } catch (x) { setErr(errText(x)) } finally { setBusy(false) }
@@ -90,9 +112,13 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
 
       <Card className="grid gap-4">
         <Field label={tx('Түрі')}>
-          {(fid) => <select id={fid} value={f.type} onChange={(e) => set('type', e.target.value as ActivityType)} className={inputCls}>
+          {(fid) => <select id={fid} value={f.type} onChange={(e) => {
+            const type = e.target.value as ActivityType
+            setF(id ? { ...f, type } : { ...f, type, hasPlace: !LOOSE.includes(type), hasTime: !LOOSE.includes(type) })
+          }} className={inputCls}>
             {TYPE_GROUPS.map(([g, types]) => <optgroup key={g} label={g}>{types.map((k) => <option key={k} value={k}>{TYPE_LABEL[k]}</option>)}</optgroup>)}</select>}
         </Field>
+        <p className="text-sm text-muted -mt-2">{TYPE_HINT[f.type]}</p>
         <Field label={tx('Атауы')} error={errors.title}>
           {(fid, d) => <input id={fid} aria-describedby={d} aria-invalid={!!errors.title} maxLength={120} value={f.title} onChange={(e) => set('title', e.target.value)} className={inputCls} placeholder={tx('Мысалы: 3D модельдеу үйірмесі')} />}
         </Field>
@@ -102,11 +128,12 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
         <Field label={tx('Жауапты мұғалім')} error={errors.supervisor_id ?? staff.error}>
           {(fid, d) => <select id={fid} aria-describedby={d} value={f.supervisor_id} onChange={(e) => set('supervisor_id', e.target.value)} className={inputCls}>
             <option value="">{tx('Таңдаңыз')}</option>
-            {(staff.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.full_name}{s.title ? ` · ${s.title}` : ''}</option>)}</select>}
+            {(staff.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}</select>}
         </Field>
-        <Field label={tx('Өтетін орны')} error={errors.place}>
-          {(fid, d) => <input id={fid} aria-describedby={d} value={f.place} onChange={(e) => set('place', e.target.value)} className={inputCls} placeholder={tx('402-кабинет')} />}
-        </Field>
+        <Toggle on={f.hasPlace} onChange={(v) => setF({ ...f, hasPlace: v })} label={tx('Өтетін орны бар')} />
+        {f.hasPlace && <PlacePicker value={f.resource} text={f.place} error={errors.place}
+          onPick={(resource, place) => setF({ ...f, resource, place })} />}
+        <Toggle on={f.joinRequests} onChange={(v) => set('joinRequests', v)} label={tx('Қатысу өтінім арқылы')} hint={tx('Оқушы өтінім береді, жетекші немесе жауапты оқушы қабылдайды')} />
       </Card>
 
       <Card className="grid gap-4">
@@ -137,13 +164,14 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
             </div>
           </>
         )}
-        {f.schedule === 'weekly' && f.weekdays.length > 1 && (
+        <Toggle on={f.hasTime} onChange={(v) => set('hasTime', v)} label={tx('Белгілі уақыты бар')} hint={f.hasTime ? undefined : tx('Күнтізбеде «күні бойы» болып көрінеді')} />
+        {f.hasTime && f.schedule === 'weekly' && f.weekdays.length > 1 && (
           <label className="flex items-center gap-3 min-h-11">
             <input type="checkbox" checked={f.perDay} onChange={(e) => set('perDay', e.target.checked)} className="size-5 accent-[var(--accent)]" />
             <span>{tx('Әр күнге бөлек уақыт')}</span>
           </label>
         )}
-        {f.schedule === 'weekly' && f.perDay && f.weekdays.length > 1 ? (
+        {!f.hasTime ? null : f.schedule === 'weekly' && f.perDay && f.weekdays.length > 1 ? (
           <div className="grid gap-2">
             {f.weekdays.map((wd) => {
               const x = f.times[wd] ?? { start: f.start_time, end: f.end_time }
@@ -171,8 +199,8 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
               return (
                 <div key={i} className="grid grid-cols-[1.3fr_1fr_1fr_44px] gap-2 items-center">
                   <input type="date" aria-label={tx('{0}-күн', i + 2)} min={t} value={x.date} onChange={(e) => put('date', e.target.value)} className={inputCls} />
-                  <input type="time" aria-label={tx('{0}-күн басталуы', i + 2)} value={x.start} onChange={(e) => put('start', e.target.value)} className={inputCls} />
-                  <input type="time" aria-label={tx('{0}-күн аяқталуы', i + 2)} value={x.end} onChange={(e) => put('end', e.target.value)} className={inputCls} />
+                  {f.hasTime ? <><input type="time" aria-label={tx('{0}-күн басталуы', i + 2)} value={x.start} onChange={(e) => put('start', e.target.value)} className={inputCls} />
+                  <input type="time" aria-label={tx('{0}-күн аяқталуы', i + 2)} value={x.end} onChange={(e) => put('end', e.target.value)} className={inputCls} /></> : <span className="col-span-2 text-sm text-muted">{tx('Күні бойы')}</span>}
                   <button type="button" onClick={() => set('extra', f.extra.filter((_, j) => j !== i))} aria-label={tx('{0}-күнді алып тастау', i + 2)} className="size-11 grid place-items-center text-muted">✕</button>
                 </div>
               )
@@ -202,5 +230,50 @@ export default function ActivityForm({ id, copyOf }: { id?: string; copyOf?: str
       {err && <ErrorBox text={err} />}
       <Button type="submit" block loading={busy}>{id ? tx('Қайта жіберу') : me.role === 'deputy' || me.role === 'admin' ? tx('Жариялау') : tx('Ұсынысты жіберу')}</Button>
     </form>
+  )
+}
+
+const Toggle = ({ on, onChange, label, hint }: { on: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) => (
+  <label className="flex items-start gap-3 min-h-11 py-1">
+    <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[var(--accent)]" />
+    <span><span className="block font-medium">{label}</span>{hint && <span className="block text-sm text-muted">{hint}</span>}</span>
+  </label>
+)
+
+/** A room from the list, by category (floor, other), or a place typed by hand when it is not listed. */
+function PlacePicker({ value, text, error, onPick }: { value: string; text: string; error?: string; onPick: (resource: string, place: string) => void }) {
+  const data = useLoad(() => Promise.all([listGroups(), listResources()]), [])
+  const [groups, rooms] = data.data ?? [[], []]
+  const picked = rooms.find((r) => r.id === value)
+  const [group, setGroup] = useState('')
+  const [manual, setManual] = useState(!value && !!text)
+  const g = group || picked?.group_id || groups[0]?.id || ''
+  const label = (r: { name: string; title: string | null }) => (r.title ? `${r.name} · ${r.title}` : r.name)
+  return (
+    <div className="grid gap-2">
+      {manual ? (
+        <Field label={tx('Өтетін орны')} error={error}>{(fid, d) => <input id={fid} aria-describedby={d} value={text} maxLength={120}
+          onChange={(e) => onPick('', e.target.value)} className={inputCls} placeholder={tx('Мысалы: қалалық стадион')} />}</Field>
+      ) : data.loading && !data.data ? <Skeleton rows={1} /> : (
+        <>
+          <div role="tablist" aria-label={tx('Орын санаты')} className="flex gap-2 overflow-x-auto -mx-1 px-1 [scrollbar-width:none]">
+            {groups.map((x) => <button key={x.id} type="button" role="tab" aria-selected={g === x.id} onClick={() => setGroup(x.id)}
+              className={`h-9 px-3.5 rounded-full text-sm whitespace-nowrap border ${g === x.id ? 'bg-accent text-on-accent border-accent font-semibold' : 'bg-surface border-line'}`}>{x.name}</button>)}
+          </div>
+          <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+            {rooms.filter((r) => r.group_id === g && r.active).map((r) => (
+              <button key={r.id} type="button" aria-pressed={r.id === value} onClick={() => onPick(r.id, label(r))}
+                className={`min-h-12 rounded-md border px-3 py-2 text-left text-sm ${r.id === value ? 'border-accent bg-accent-soft font-semibold' : 'border-line'}`}>
+                <span className="block font-semibold">{r.name}</span>{r.title && <span className="block text-xs text-muted truncate">{r.title}</span>}
+              </button>
+            ))}
+          </div>
+          {picked && <p className="text-sm text-muted">{tx('Бастама расталғанда {0} оның сабақтарына броньдалады.', picked.name)}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
+        </>
+      )}
+      <button type="button" onClick={() => { setManual(!manual); onPick('', manual ? '' : text) }} className="justify-self-start text-sm text-accent font-semibold min-h-10">
+        {manual ? tx('Тізімнен таңдау') : tx('Тізімде жоқ — қолмен жазу')}</button>
+    </div>
   )
 }

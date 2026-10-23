@@ -14,6 +14,8 @@ export const TYPE_GROUPS: [string, ActivityType[]][] = [
   [tx('Байланыс және қауымдастық'), ['community', 'team']],
   [tx('Мектеп іс-шаралары'), ['event']],
 ]
+/** Contest kinds get a «Нәтиже» tab: matches by round and the final places. */
+export const CONTEST: ActivityType[] = ['competition', 'league', 'tournament', 'challenge', 'team']
 export const STATUS_LABEL: Record<ActivityStatus, string> = {
   pending_class_teacher: tx('Сынып жетекшісінде'), pending_deputy: tx('Орынбасарда'), approved: tx('Расталды'), rejected: tx('Қайтарылды'), cancelled: tx('Тоқтатылды'),
 }
@@ -85,10 +87,10 @@ export const IMPORTANCE: Record<1 | 2 | 3, { label: string; color: string }> = {
 export const lastDay = (a: Sched) => [a.schedule === 'once' ? a.on_date! : a.date_to!, ...(a.extra ?? []).map((x) => x.on_date)].sort().reverse()[0]
 
 export function scheduleLabel(a: Activity) {
-  const time = `${hm(a.start_time)}–${hm(a.end_time)}`
+  const time = a.no_time ? tx('күні бойы') : `${hm(a.start_time)}–${hm(a.end_time)}`
   const extra = a.extra?.length ? tx(' · +{0} күн', a.extra.length) : ''
   if (a.schedule === 'once') return `${fmtDate(a.on_date!)} · ${time}${extra}`
-  if (a.slots?.length) return [...a.slots].sort((x, y) => x.wd - y.wd).map((s) => `${WD_SHORT[s.wd - 1]} ${s.start}–${s.end}`).join(', ') + extra
+  if (a.slots?.length && !a.no_time) return [...a.slots].sort((x, y) => x.wd - y.wd).map((s) => `${WD_SHORT[s.wd - 1]} ${s.start}–${s.end}`).join(', ') + extra
   if (!a.weekdays?.length) return a.extra?.length ? tx('Күнтізбе бойынша · {0} сабақ', a.extra.length) : tx('Уақыты күнтізбеде қойылады')
   return `${a.weekdays.map((w) => WD_SHORT[w - 1]).join(', ')} · ${time}${extra}`
 }

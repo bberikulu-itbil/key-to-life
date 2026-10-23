@@ -19,7 +19,7 @@ export default function ActivityCard({ a, showStatus }: { a: Activity; showStatu
       <h3 className="mt-2 text-lg font-semibold break-words">{a.title}</h3>
       <div className="mt-1 grid gap-1 text-sm text-muted">
         <span className="flex items-center gap-1.5 tabular-nums"><Icon n="clock" size={16} />{scheduleLabel(a)}</span>
-        <span className="flex items-center gap-1.5"><Icon n="pin" size={16} />{a.place} · {a.supervisor.full_name}</span>
+        <span className="flex items-center gap-1.5"><Icon n="pin" size={16} />{a.place ? `${a.place} · ` : ''}{a.supervisor.full_name}</span>
         <span className="flex items-center gap-1.5 tabular-nums"><Icon n="users" size={16} />{a.capacity ? tx('{0}/{1} орын', joined, a.capacity) : tx('{0} қатысушы', joined)}</span>
       </div>
     </a>

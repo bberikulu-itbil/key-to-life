@@ -33,6 +33,7 @@ import MyActivities from './screens/MyActivities'
 import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
 import About from './screens/About'
+import Certificate, { MyCertificates } from './screens/Certificate'
 import { MenuCard } from './components/HomeWidgets'
 import { GoalForm, HabitForm } from './components/Goals'
 import { tx } from './lib/i18n'
@@ -115,7 +116,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'timetable') screen = <Timetable classId={id} />
   else if (seg === 'class') screen = <MyClass classId={id} />
   else if (seg === 'my') screen = <MyActivities kind={id} />
-  else if (seg === 'chats' && id === 'system') screen = <Notifications />
+  else if (seg === 'chats' && id === 'system') screen = <Notifications key={path} group={new URLSearchParams(path.split('?')[1] ?? '').get('g') ?? undefined} />
   else if (seg === 'chats' && id === 'reports') screen = <Reports />
   else if (seg === 'chats') screen = <Chats />
   else if (seg === 'c' && id) screen = <ChatRoom key={id} id={id} />
@@ -133,18 +134,20 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'surveys') screen = <Surveys />
   else if (seg === 'profile') screen = <Profile />
   else if (seg === 'adduser') screen = <div className="grid gap-3 pb-6"><PageHead title={tx('Пайдаланушы қосу')} back /><AddUser /></div>
+  else if (seg === 'certs') screen = <MyCertificates />
+  else if (seg === 'cert' && id) screen = <Certificate key={id} code={id} />
   else if (seg === 'about') screen = <About tab={id === 'tips' ? 'tips' : 'news'} />
   else screen = <Feed query={path.split('?')[1] ?? ''} />
 
   const tabs = [['/', 'home', tx('Home')], ['/plan', 'clock', tx('Жоспар')], ['+', 'plus', tx('Әрекет')], ['/chats', 'chat', tx('Чаттар')], ['/profile', 'user', tx('Профиль')]] as const
-  const active = (p: string) => (p === '/profile' ? ['profile', 'adduser', 'about', 'feedback'].includes(seg) : p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'p', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
+  const active = (p: string) => (p === '/profile' ? ['profile', 'adduser', 'about', 'feedback', 'certs', 'cert'].includes(seg) : p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'p', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>
       <div className="min-h-dvh pb-[calc(80px+env(safe-area-inset-bottom))]">
         <main className="mx-auto max-w-[640px] pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]">{screen}</main>
       </div>
-      <nav aria-label={tx('Негізгі мәзір')} className="fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
+      <nav aria-label={tx('Негізгі мәзір')} className="print:hidden fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto max-w-[640px] grid grid-cols-5 h-16 items-center">
           {tabs.map(([p, icon, label]) =>
             p === '+' ? (

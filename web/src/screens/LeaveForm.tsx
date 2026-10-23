@@ -56,7 +56,7 @@ export default function LeaveForm() {
         <Card className="grid gap-4">
           {kind === 'lesson' && (
             <Field label={tx('Пән мұғалімі')}>{(id) => <select id={id} value={teacher} onChange={(e) => setTeacher(e.target.value)} className={inputCls}>
-              <option value="">{tx('Таңдаңыз')}</option>{(staff.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.full_name}{s.title ? ` · ${s.title}` : ''}</option>)}</select>}</Field>
+              <option value="">{tx('Таңдаңыз')}</option>{(staff.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}</select>}</Field>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label={kind === 'outside' ? tx('Шығу уақыты') : tx('Басталуы')}>{(id) => <input id={id} type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />}</Field>
