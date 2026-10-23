@@ -10,7 +10,7 @@ export type ActivityStatus = 'pending_class_teacher' | 'pending_deputy' | 'appro
 export type Feature = 'chat' | 'syllabus' | 'schedule' | 'tasks' | 'attendance'
 export type Mark = 'present' | 'late' | 'excused' | 'absent'
 
-export type Me = { id: string; full_name: string; role: Role; title: string | null; school_id: string; parliament: boolean; photo: string | null; lang: Lang | null
+export type Me = { id: string; full_name: string; role: Role; title: string | null; subject?: string | null; school_id: string; parliament: boolean; photo: string | null; lang: Lang | null
   class: { id: string; name: string; grade: number; teacher_id: string | null } | null; school: { name: string } }
 
 /** importance: 1 орташа, 2 маңызды, 3 өте маңызды */
@@ -63,7 +63,7 @@ export const signIn = (iin: string, password: string) =>
 export const signOut = () => supabase.auth.signOut()
 
 export const getMe = (id: string) =>
-  ok(supabase.from('profiles').select('id, full_name, role, title, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
+  ok(supabase.from('profiles').select('id, full_name, role, title, subject, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
 const ACT = 'id, type, title, class_plan, photo, icon, color, no_time, resource_id, join_requests, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id, series_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance, category), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
@@ -79,7 +79,9 @@ export const getActivity = (id: string) =>
     .eq('id', id).single()) as unknown as Promise<ActivityFull>
 
 export const listStaff = () =>
-  ok(supabase.from('profiles').select('id, full_name, title, role').neq('role', 'student').order('full_name')) as Promise<{ id: string; full_name: string; title: string | null; role: Role }[]>
+  ok(supabase.from('profiles').select('id, full_name, title, role, staff_kind, subject').neq('role', 'student').is('removed_at', null).order('full_name')) as Promise<Staff[]>
+export type Staff = { id: string; full_name: string; title: string | null; role: Role; staff_kind: 'teacher' | 'tutor' | 'staff' | null; subject: string | null }
+export const setStaffInfo = (user: string, kind: Staff['staff_kind'], subject: string) => rpc('set_staff_info', { p_user: user, p_kind: kind, p_subject: subject })
 
 export const listClasses = () =>
   ok(supabase.from('classes').select('id, name, grade, teacher_id, tutor_id').order('grade').order('name')) as Promise<{ id: string; name: string; grade: number; teacher_id: string | null; tutor_id: string | null }[]>
@@ -334,20 +336,28 @@ export type Post = { id: string; author_id: string; kind: PostKind; title: strin
   status: PostStatus; answer: string | null; pinned: boolean; created_at: string
   activity_id: string | null; visibility: 'public' | 'members'; activity: { title: string } | null
   addressee: 'parliament' | 'admin' | 'teacher' | null; addressee_id: string | null; to: { full_name: string } | null
-  author: { full_name: string; role: Role; photo: string | null; class: { name: string } | null }; answerer: { full_name: string } | null; votes: { user_id: string; value: number }[]
+  author: { full_name: string; role: Role; photo: string | null; subject?: string | null; class: { name: string } | null }; answerer: { full_name: string } | null; votes: { user_id: string; value: number }[]
+  as_subject?: boolean; role?: { title: string } | null
   hide_likes: boolean; comments_off: boolean; repost_of: string | null; comments: { count: number }[]
-  orig: { id: string; kind: PostKind; title: string; body: string; photo: string | null; created_at: string; author: { full_name: string; photo: string | null }; activity: { title: string } | null } | null }
-const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, activity_id, visibility, activity:activities(title), addressee, addressee_id, to:profiles!addressee_id(full_name), author:profiles!author_id(full_name, role, photo, class:classes!class_id(name)), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value), '
-  + 'hide_likes, comments_off, repost_of, comments:post_comments(count), orig:repost_of(id, kind, title, body, photo, created_at, author:profiles!author_id(full_name, photo), activity:activities(title))'
+  orig: { id: string; kind: PostKind; title: string; body: string; photo: string | null; created_at: string; author: { full_name: string; photo: string | null; subject?: string | null }; activity: { title: string } | null; as_subject?: boolean; role?: { title: string } | null } | null }
+const POST = 'id, author_id, kind, title, body, photo, place, status, answer, pinned, created_at, activity_id, visibility, activity:activities(title), addressee, addressee_id, to:profiles!addressee_id(full_name), author:profiles!author_id(full_name, role, photo, subject, class:classes!class_id(name)), as_subject, role:activity_roles(title), answerer:profiles!answered_by(full_name), votes:post_votes(user_id, value), '
+  + 'hide_likes, comments_off, repost_of, comments:post_comments(count), orig:repost_of(id, kind, title, body, photo, created_at, as_subject, role:activity_roles(title), author:profiles!author_id(full_name, photo, subject), activity:activities(title))'
 export const listPosts = () =>
   ok(supabase.from('posts').select(POST).order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(200)) as unknown as Promise<Post[]>
 export const createPost = (kind: PostKind, title: string, body: string, photo?: string | null, place?: string | null) =>
   rpc<string>('create_post', { p_kind: kind, p_title: title, p_body: body, p_photo: photo ?? null, p_place: place ?? null })
 export const getPost = (id: string) => ok(supabase.from('posts').select(POST).eq('id', id).maybeSingle()) as unknown as Promise<Post | null>
 /** News or announcement in the author's own name, or in an activity's name; with `repost` it shares that post. */
-export const createFeedPost = (v: { kind: 'news' | 'announcement' | 'project' | 'event'; title: string; body: string; photo?: string | null; activity?: string | null; hideLikes?: boolean; commentsOff?: boolean; repost?: string | null }) =>
+export const createFeedPost = (v: { kind: 'news' | 'announcement' | 'project' | 'event'; title: string; body: string; photo?: string | null; activity?: string | null; hideLikes?: boolean; commentsOff?: boolean; repost?: string | null; role?: string | null; asSubject?: boolean }) =>
   rpc<string>('create_feed_post', { p_kind: v.kind, p_title: v.title, p_body: v.body, p_photo: v.photo ?? null, p_activity: v.activity ?? null,
-    p_hide_likes: !!v.hideLikes, p_comments_off: !!v.commentsOff, p_repost_of: v.repost ?? null })
+    p_hide_likes: !!v.hideLikes, p_comments_off: !!v.commentsOff, p_repost_of: v.repost ?? null, p_role: v.role ?? null, p_as_subject: !!v.asSubject })
+/* ---------- roles inside an initiative ---------- */
+export type ActRole = { id: string; activity_id: string; title: string; holder_id: string | null; sort: number; holder: { full_name: string } | null; activity: { title: string; status: ActivityStatus } }
+const ROLE = 'id, activity_id, title, holder_id, sort, holder:profiles!holder_id(full_name), activity:activities(title, status)'
+export const listRoles = (activity: string) => ok(supabase.from('activity_roles').select(ROLE).eq('activity_id', activity).order('sort').order('created_at')) as unknown as Promise<ActRole[]>
+export const myRoles = (me: string) => ok(supabase.from('activity_roles').select(ROLE).eq('holder_id', me)) as unknown as Promise<ActRole[]>
+export const saveRole = (r: { id?: string; activity_id: string; title: string; holder_id: string | null; sort?: number }) => ok(supabase.from('activity_roles').upsert(r))
+export const removeRole = (id: string) => ok(supabase.from('activity_roles').delete().eq('id', id))
 export const likePost = (id: string, on: boolean) => rpc('like_post', { p_id: id, p_on: on })
 export const setPostOptions = (id: string, hideLikes: boolean, commentsOff: boolean) => rpc('set_post_options', { p_id: id, p_hide_likes: hideLikes, p_comments_off: commentsOff })
 export type Comment = { id: string; author_id: string; body: string; created_at: string; author: { full_name: string; class: { name: string } | null } }

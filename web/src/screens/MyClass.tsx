@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
+import StaffList, { KIND_LABEL, type StaffKind } from '../components/StaffList'
 import { classAttendance, classChatId, classStudents, errText, listActivities, listBreaks, listClasses, listLeaves, listLessons, listStaff, openDirect, setClassTeacher, removeStudent, setTutor, updateStaff, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
 import Avatar from '../components/Avatar'
 import { hm, lessonOn, rate, scheduleLabel, today } from '../lib/time'
@@ -7,6 +8,30 @@ import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, She
 import { tx } from '../lib/i18n'
 
 export default function MyClass({ classId }: { classId?: string }) {
+  const { me } = useMe()
+  const deputy = me.role === 'deputy' || me.role === 'admin'
+  const [view, setView] = useState<'class' | StaffKind>('class')
+  if (deputy && view !== 'class') return (
+    <div className="grid gap-3 pb-6">
+      <PageHead title={KIND_LABEL[view]} back />
+      <ViewTabs value={view} onChange={setView} />
+      <StaffList key={view} kind={view} />
+    </div>
+  )
+  return <ClassPage classId={classId} tabs={deputy ? <ViewTabs value={view} onChange={setView} /> : null} />
+}
+
+/** Admin and deputies: the class pages and the staff lists side by side. */
+const ViewTabs = ({ value, onChange }: { value: 'class' | StaffKind; onChange: (v: 'class' | StaffKind) => void }) => (
+  <div role="tablist" aria-label={tx('Бөлім')} className="grid grid-cols-4 gap-1 rounded-lg bg-surface-2 p-1">
+    {([['class', tx('Сынып')], ['teacher', tx('Мұғалім')], ['tutor', tx('Тәрбиеші')], ['staff', tx('Қызметкер')]] as const).map(([k, l]) => (
+      <button key={k} type="button" role="tab" aria-selected={value === k} onClick={() => onChange(k)}
+        className={`h-10 min-w-0 truncate px-1 rounded-md text-[13px] ${value === k ? 'bg-surface shadow-card font-semibold' : 'text-muted'}`}>{l}</button>
+    ))}
+  </div>
+)
+
+function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
   const { me } = useMe()
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const classes = useLoad(listClasses, [])
@@ -54,12 +79,13 @@ export default function MyClass({ classId }: { classId?: string }) {
     } catch (e) { toast(errText(e)) }
   }
 
-  if (classes.loading && !classes.data) return <><PageHead title={tx('Менің сыныбым')} back /><Skeleton /></>
-  if (!cls) return <><PageHead title={tx('Менің сыныбым')} back /><Card><Empty icon="users" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></Card></>
+  if (classes.loading && !classes.data) return <><PageHead title={tx('Менің сыныбым')} back />{tabs}<Skeleton /></>
+  if (!cls) return <><PageHead title={tx('Менің сыныбым')} back />{tabs}<Card><Empty icon="users" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></Card></>
 
   return (
     <div className="grid gap-3 pb-6">
       <PageHead title={tx('Менің сыныбым')} back />
+      {tabs}
       {options.length > 1 && <Chips label={tx('Сынып')} value={cls.id} onChange={(v) => go(`/class/${v}`)} items={options.map((c) => [c.id, c.name] as [string, string])} />}
 
       <Card className="grid gap-3">

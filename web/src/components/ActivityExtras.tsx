@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addResult, decideJoin, errText, issueCertificates, listCertificates, listJoinRequests, listMatches, listResults, removeMatch, removeResult, requestJoin, saveMatch,
+import { addResult, decideJoin, listRoles, removeRole, saveRole, type ActRole, errText, issueCertificates, listCertificates, listJoinRequests, listMatches, listResults, removeMatch, removeResult, requestJoin, saveMatch,
   type ActivityFull, type Match, type Me } from '../lib/api'
 import { fmtDate } from '../lib/time'
 import { Button, Card, Field, Icon, Sheet, Skeleton, inputCls, toast, useLoad } from './ui'
@@ -208,6 +208,65 @@ function CertForm({ a, onDone }: { a: ActivityFull; onDone: () => void }) {
         ))}
       </div>
       <Button block loading={busy} onClick={save}>{tx('Беру')}</Button>
+    </div>
+  )
+}
+
+/* ---------- roles inside the initiative: «Капитан», «Мәдениет министрі» ---------- */
+
+export function Roles({ a, canEdit }: { a: ActivityFull; canEdit: boolean }) {
+  const list = useLoad(() => listRoles(a.id), [a.id])
+  const [edit, setEdit] = useState<null | { r?: ActRole }>(null)
+  const roles = list.data ?? []
+  if (!roles.length && !canEdit) return null
+  return (
+    <section className="grid gap-2">
+      <div className="flex items-baseline justify-between mt-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">{tx('Командадағы рөлдер')}</h2>
+        {canEdit && <button type="button" onClick={() => setEdit({})} className="text-sm text-accent font-semibold min-h-11 px-1">{tx('Рөл қосу')}</button>}
+      </div>
+      {!roles.length ? <Card><p className="text-sm text-muted">{tx('Рөл беріңіз: капитан, министр, хатшы. Рөл иесі лентаға сол рөлдің атынан жаза алады.')}</p></Card> : (
+        <Card className="p-0 divide-y divide-line">
+          {roles.map((r) => {
+            const body = (
+              <span className="flex items-center gap-3 px-4 py-3 w-full text-left">
+                <span className="size-9 rounded-full bg-gold-soft text-[var(--on-gold)] grid place-items-center shrink-0"><Icon n="star" size={16} /></span>
+                <span className="flex-1 min-w-0"><span className="block font-semibold break-words">{r.title}</span><span className="block text-sm text-muted">{r.holder?.full_name ?? tx('Бос')}</span></span>
+                {canEdit && <Icon n="chev" size={16} className="text-muted" />}
+              </span>
+            )
+            return canEdit ? <button key={r.id} type="button" onClick={() => setEdit({ r })} className="w-full">{body}</button> : <div key={r.id}>{body}</div>
+          })}
+        </Card>
+      )}
+      {edit && <Sheet title={edit.r ? tx('Рөл') : tx('Жаңа рөл')} onClose={() => setEdit(null)}>
+        <RoleForm a={a} r={edit.r} next={roles.length} onDone={() => { setEdit(null); list.reload() }} />
+      </Sheet>}
+    </section>
+  )
+}
+
+function RoleForm({ a, r, next, onDone }: { a: ActivityFull; r?: ActRole; next: number; onDone: () => void }) {
+  const [f, setF] = useState({ title: r?.title ?? '', holder: r?.holder_id ?? '' })
+  const [busy, setBusy] = useState(false)
+  // the leader and the participants may hold a role
+  const people = [{ id: a.supervisor_id, name: a.supervisor.full_name }, ...a.enrollments.filter((e) => !e.waitlisted).map((e) => ({ id: e.student_id, name: e.student.full_name }))]
+  const save = async () => {
+    if (f.title.trim().length < 2) return toast(tx('Рөлдің атауын жазыңыз'))
+    setBusy(true)
+    try { await saveRole({ ...(r ? { id: r.id } : { sort: next }), activity_id: a.id, title: f.title.trim(), holder_id: f.holder || null }); toast(tx('Сақталды')); onDone() }
+    catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  const del = async () => { if (!r) return; try { await removeRole(r.id); onDone() } catch (e) { toast(errText(e)) } }
+  return (
+    <div className="grid gap-4">
+      <Field label={tx('Рөл')}>{(id) => <input id={id} value={f.title} maxLength={60} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls} placeholder={tx('Мысалы: Мәдениет министрі')} />}</Field>
+      <Field label={tx('Кімде')}>{(id) => <select id={id} value={f.holder} onChange={(e) => setF({ ...f, holder: e.target.value })} className={inputCls}>
+        <option value="">{tx('Бос')}</option>
+        {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>}</Field>
+      <Button block loading={busy} onClick={save}>{tx('Сақтау')}</Button>
+      {r && <Button block kind="danger" onClick={del}>{tx('Өшіру')}</Button>}
     </div>
   )
 }

@@ -14,7 +14,7 @@ import { statusTone } from '../components/ActivityCard'
 import AbsenceForm from './AbsenceForm'
 import Syllabus from '../components/Syllabus'
 import { HallOfFame, Highlights, ProfileHeader } from '../components/ActivityProfile'
-import { JoinRequestBox, JoinRequestsPanel, Results } from '../components/ActivityExtras'
+import { JoinRequestBox, JoinRequestsPanel, Results, Roles } from '../components/ActivityExtras'
 import { Badge, Button, Card, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, TypeBadge, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
@@ -98,6 +98,7 @@ export default function ActivityDetail({ id }: { id: string }) {
       {shown === 'about' && (
         <>
           {(manager || curatorIds.includes(me.id)) && a.join_requests && <JoinRequestsPanel a={a} onChange={reload} />}
+          {a.status === 'approved' && <Roles a={a} canEdit={manager} />}
           <HallOfFame a={a} canEdit={manager && a.status === 'approved'} onCount={setAwards} />
           {stats && <>{isOwner && <Requests activityId={a.id} />}<Journal a={a} /><Analytics a={a} /></>}
           {!canKeepJournal && mine && !mine.waitlisted && a.status === 'approved' && a.features.includes('attendance') && <MyMarks a={a} onAsk={() => setAbsence(true)} />}

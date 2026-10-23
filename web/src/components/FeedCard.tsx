@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addComment, createFeedPost, errText, hideComment, likePost, listComments, photoUrl, type Activity, type Me, type Post } from '../lib/api'
+import { addComment, createFeedPost, errText, hideComment, likePost, listComments, photoUrl, type ActRole, type Activity, type Me, type Post } from '../lib/api'
 import { chatTime } from '../lib/time'
 import { Button, Field, Icon, Skeleton, inputCls, toast, useLoad } from './ui'
 import { tx } from '../lib/i18n'
@@ -9,15 +9,19 @@ import Avatar from './Avatar'
 export const ledActivities = (me: Me, list: Activity[]) => list.filter((a) => a.status === 'approved' && !a.archived_at && !a.class_plan
   && (a.supervisor_id === me.id || a.curator_id === me.id || a.curators.some((c) => c.student_id === me.id)))
 /** May write news or announcements: staff and parliament in their own name, leaders in an activity's name. */
-export const canWriteFeed = (me: Me, led: Activity[]) => me.role !== 'student' || me.parliament || led.length > 0
+export const canWriteFeed = (me: Me, led: Activity[], roles: ActRole[] = []) => me.role !== 'student' || me.parliament || led.length > 0 || roles.length > 0
 
 const likes = (p: Post) => p.votes.filter((v) => v.value === 1).length
 export const FEED_KIND: Record<string, string> = { news: tx('Жаңалық'), announcement: tx('Хабарландыру'), project: tx('Жоба'), event: tx('Оқиға') }
 
-type Who = { kind: string; created_at: string; author: { full_name: string; photo?: string | null }; activity: { title: string } | null }
-/** The face of a post: the activity when written in its name, otherwise the author's photo. */
-const Face = ({ p, size = 40 }: { p: Who; size?: number }) => p.activity
-  ? <span className="rounded-full bg-accent-soft text-accent grid place-items-center shrink-0" style={{ width: size, height: size }}><Icon n="grid" size={size / 2} /></span>
+type Who = { kind: string; created_at: string; author: { full_name: string; photo?: string | null; subject?: string | null }; activity: { title: string } | null
+  as_subject?: boolean; role?: { title: string } | null }
+/** Who a post speaks as: an initiative (signed by a role or the author), a subject, or the person. */
+const speaker = (p: Who) => p.activity ? { name: p.activity.title, sub: p.role?.title ?? p.author.full_name, icon: 'grid' }
+  : p.as_subject && p.author.subject ? { name: p.author.subject, sub: p.author.full_name, icon: 'book' } : { name: p.author.full_name, sub: null, icon: '' }
+/** The face of a post: the activity or subject icon, otherwise the author's photo. */
+const Face = ({ p, size = 40 }: { p: Who; size?: number }) => speaker(p).icon
+  ? <span className="rounded-full bg-accent-soft text-accent grid place-items-center shrink-0" style={{ width: size, height: size }}><Icon n={speaker(p).icon} size={size / 2} /></span>
   : <Avatar name={p.author.full_name} photo={p.author.photo} size={size} />
 
 /** Name · time, then the kind; the real author under an activity's name. */
@@ -25,12 +29,12 @@ function Head({ p, pinned }: { p: Who; pinned?: boolean }) {
   return (
     <span className="block min-w-0">
       <span className="flex items-baseline gap-1.5 min-w-0">
-        <span className="font-semibold truncate">{p.activity?.title ?? p.author.full_name}</span>
+        <span className="font-semibold truncate">{speaker(p).name}</span>
         <span className="text-sm text-muted shrink-0">{chatTime(p.created_at)}</span>
         {pinned && <Icon n="star" size={14} className="text-accent self-center" />}
         <span className="ml-auto text-xs text-muted shrink-0">{FEED_KIND[p.kind]}</span>
       </span>
-      {p.activity && <span className="block text-xs text-muted truncate">{p.author.full_name}</span>}
+      {speaker(p).sub && <span className="block text-xs text-muted truncate">{speaker(p).sub}</span>}
     </span>
   )
 }
@@ -121,33 +125,39 @@ export function Comments({ p, me }: { p: Post; me: Me }) {
   )
 }
 
-/** Who a news post or announcement is written as: the person, or one of the activities they lead. */
-export function AsWho({ me, led, value, onChange, own }: { me: Me; led: Activity[]; value: string; onChange: (v: string) => void; own: boolean }) {
-  if (!led.length) return null
+/** Who a post is written as: '' the person, 'subj' their subject, 'a:<id>' an initiative they lead, 'r:<id>' a role they hold. */
+export const asParams = (v: string) => ({ activity: v.startsWith('a:') ? v.slice(2) : null, role: v.startsWith('r:') ? v.slice(2) : null, asSubject: v === 'subj' })
+export const defaultAs = (own: boolean, led: Activity[], roles: ActRole[]) => (own ? '' : led[0] ? `a:${led[0].id}` : roles[0] ? `r:${roles[0].id}` : '')
+
+export function AsWho({ me, led, roles, value, onChange, own }: { me: Me; led: Activity[]; roles: ActRole[]; value: string; onChange: (v: string) => void; own: boolean }) {
+  const subject = me.role !== 'student' && me.subject
+  if (!led.length && !roles.length && !subject) return null
   return (
     <Field label={tx('Кімнің атынан')}>{(id) => (
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
         {own && <option value="">{tx('Өз атымнан ({0})', me.full_name)}</option>}
-        {led.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}
+        {own && subject && <option value="subj">{tx('{0} пәні атынан', subject)}</option>}
+        {led.map((a) => <option key={a.id} value={`a:${a.id}`}>{a.title}</option>)}
+        {roles.map((r) => <option key={r.id} value={`r:${r.id}`}>{r.activity.title} · {r.title}</option>)}
       </select>
     )}</Field>
   )
 }
 
-export function RepostForm({ p, me, led, onDone }: { p: Post; me: Me; led: Activity[]; onDone: () => void }) {
+export function RepostForm({ p, me, led, roles, onDone }: { p: Post; me: Me; led: Activity[]; roles: ActRole[]; onDone: () => void }) {
   const own = me.role !== 'student' || me.parliament
-  const [as, setAs] = useState(own ? '' : led[0]?.id ?? '')
+  const [as, setAs] = useState(defaultAs(own, led, roles))
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const save = async () => {
     setBusy(true)
-    try { await createFeedPost({ kind: 'news', title: '', body: text, activity: as || null, repost: p.id }); toast(tx('Лентада бөлістіңіз')); onDone() }
+    try { await createFeedPost({ kind: 'news', title: '', body: text, ...asParams(as), repost: p.id }); toast(tx('Лентада бөлістіңіз')); onDone() }
     catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
     <div className="grid gap-4">
       <Original o={(p.repost_of && p.orig) || { ...p }} />
-      <AsWho me={me} led={led} value={as} onChange={setAs} own={own} />
+      <AsWho me={me} led={led} roles={roles} value={as} onChange={setAs} own={own} />
       <Field label={tx('Пікіріңіз')} hint={tx('Міндетті емес')}>{(id, d) => <textarea id={id} aria-describedby={d} value={text} maxLength={5000} onChange={(e) => setText(e.target.value)} className={`${inputCls} h-24 py-2`} />}</Field>
       <Button block loading={busy} onClick={save}>{tx('Репост жасау')}</Button>
     </div>

@@ -38,6 +38,7 @@ export default function Profile() {
   const [leaving, setLeaving] = useState(false)
   // approvals, sign-ups, complaints, new accounts: for class teachers, deputies and admins
   const admin: Link[] = [
+    ...(me.role === 'admin' || me.role === 'deputy' ? [['#/class', 'users', tx('Сыныптар мен қызметкерлер'), tx('Мұғалімдер, тәрбиешілер, қызметкерлер')] as Link] : []),
     ...(isApprover(me) ? [['#/activities/review', 'check', tx('Растау күтуде'), tx('Оқушылардың бастама ұсыныстары')] as Link] : []),
     ...(me.role === 'admin' || myClass.data?.teacher_id === me.id ? [['#/registrations', 'userplus', tx('Тіркелу өтініштері'), tx('Растауды күтетін жаңа аккаунттар')] as Link] : []),
     ...(canAddUsers(me) ? [['#/adduser', 'userplus', tx('Пайдаланушы қосу'), me.role === 'class_teacher' ? tx('Өз сыныбыңызға оқушы тіркеу') : tx('Оқушы немесе мұғалім тіркеу')] as Link] : []),

@@ -10,12 +10,18 @@ Initiatives:
 - «Results» tab for contests: matches by round with scores, final places.
 - Certificates: the leader issues them to participants; each has a QR that opens its check page; «Save as PDF»; students see «My certificates» in the profile.
 
+- Roles inside an initiative (captain, minister, secretary) given to the leader or participants.
+- Writing in the feed as yourself, as your subject («Информатика»), as an initiative you lead, or as a role you hold («Парламент командасы · Мәдениет министрі»); «Write in the feed» in the «+» menu for staff and responsible students.
+
+Staff:
+- Admins and deputies see Teachers, Tutors and Staff next to the classes, and set each person's kind, subject and title.
+
 Notifications and privacy:
 - System notifications are split into chats: sign-up requests, each room's booking requests, complaints per chat, the rest.
 - A complaint goes to that chat's moderators (class teacher and tutor, initiative leader, channel owner); deputies only when the chat has none.
 - Pickers show people's names only, not their titles and duties.
 
-Database: migration 0046 (run by the owner in the SQL Editor).
+Database: migrations 0046 and 0047 (run by the owner in the SQL Editor, in this order).
 
 ## 1.1.0 — 2026-10-19
 

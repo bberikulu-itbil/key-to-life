@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFeedPost, createPost, createProposal, errText, getPost, hidePost, setPostOptions, listActivities, listPeople, listPosts, listStaff, openDirect, photoUrl, pinPost, setParliament, setPostStatus, uploadPhoto, votePost,
   type Me, type Post, type PostKind, type PostStatus } from '../lib/api'
 import { chatTime, fmtDate } from '../lib/time'
@@ -6,8 +6,8 @@ import { useMe } from '../App'
 import Stories, { storyCandidates } from '../components/Stories'
 import Activities from './Activities'
 import { VoiceTabs } from './Surveys'
-import { AsWho, Comments, FeedCard, Original, RepostForm, canWriteFeed, ledActivities } from '../components/FeedCard'
-import type { Activity } from '../lib/api'
+import { AsWho, Comments, FeedCard, Original, RepostForm, asParams, canWriteFeed, defaultAs, ledActivities } from '../components/FeedCard'
+import { myRoles, type ActRole, type Activity } from '../lib/api'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
 import { tx } from '../lib/i18n'
 
@@ -41,9 +41,13 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   const posts = useLoad(listPosts, [])
   const acts = useLoad(listActivities, [])
   const [open, setOpen] = useState<Open>(null)
+  // «+» → «Лента жазу» lands here with ?new=1: open the writer, keep the plain feed address
+  useEffect(() => { if (new URLSearchParams(query).get('new')) { setOpen({ kind: 'new', what: null }); location.replace('#/') } }, [query])
   const reload = () => { posts.reload(); setOpen(null) }
   const led = ledActivities(me, acts.data ?? [])
-  const writer = canWriteFeed(me, led)
+  const rolesQ = useLoad(() => myRoles(me.id), [me.id])
+  const roles = (rolesQ.data ?? []).filter((r) => r.activity.status === 'approved')
+  const writer = canWriteFeed(me, led, roles)
   // members-only activity posts live on the activity page, not in the school feed
   const all = (posts.data ?? []).filter((p) => p.visibility === 'public')
   const of = (k: PostKind[]) => all.filter((p) => k.includes(p.kind))
@@ -54,9 +58,9 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
   const sheets = (
     <>
       {open?.kind === 'post' && <Sheet title={KIND_TITLE[open.p.kind]} onClose={() => setOpen(null)}><PostView p={open.p} me={me} onChange={reload} /></Sheet>}
-      {open?.kind === 'new' && <Sheet title={tx('Жариялау')} onClose={() => setOpen(null)}><NewPost me={me} led={led} initial={open.what} onDone={reload} /></Sheet>}
+      {open?.kind === 'new' && <Sheet title={tx('Жариялау')} onClose={() => setOpen(null)}><NewPost me={me} led={led} roles={roles} initial={open.what} onDone={reload} /></Sheet>}
       {open?.kind === 'answer' && <Sheet title={tx('Ұсынысқа жауап')} onClose={() => setOpen(null)}><Answer p={open.p} onDone={reload} /></Sheet>}
-      {open?.kind === 'repost' && <Sheet title={tx('Репост')} onClose={() => setOpen(null)}><RepostForm p={open.p} me={me} led={led} onDone={reload} /></Sheet>}
+      {open?.kind === 'repost' && <Sheet title={tx('Репост')} onClose={() => setOpen(null)}><RepostForm p={open.p} me={me} led={led} roles={roles} onDone={reload} /></Sheet>}
       {open?.kind === 'more' && <Sheet title={tx('Жазба баптаулары')} onClose={() => setOpen(null)}><PostOptions p={open.p} me={me} onChange={reload} /></Sheet>}
       {open?.kind === 'parliament' && <Sheet title={tx('Парламент құрамы')} onClose={() => setOpen(null)}><Members /></Sheet>}
     </>
@@ -290,12 +294,13 @@ function PostOptions({ p, me, onChange }: { p: Post; me: Me; onChange: () => voi
   )
 }
 
-function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initial: PostKind | null; onDone: () => void }) {
+function NewPost({ me, led, roles, initial, onDone }: { me: Me; led: Activity[]; roles: ActRole[]; initial: PostKind | null; onDone: () => void }) {
   const staff = me.role !== 'student'
+  const voice = led.length + roles.length > 0
   const options: [PostKind, string, string, string][] = [
-    ...(staff || me.parliament || led.length ? [['news', 'file', tx('Жаңалық'), tx('Фотосымен, лентаның басында')] as [PostKind, string, string, string]] : []),
-    ...(staff || led.length ? [['announcement', 'megaphone', tx('Хабарландыру'), tx('Барлығына маңызды ақпарат')] as [PostKind, string, string, string]] : []),
-    ...(staff || me.parliament || led.length ? [['project', 'grid', tx('Жоба'), tx('Оқушылар мен бастамалардың жобалары')], ['event', 'star', tx('Оқиға'), tx('Өткен немесе болатын оқиға, фотосымен')]] as [PostKind, string, string, string][] : []),
+    ...(staff || me.parliament || voice ? [['news', 'file', tx('Жаңалық'), tx('Фотосымен, лентаның басында')] as [PostKind, string, string, string]] : []),
+    ...(staff || voice ? [['announcement', 'megaphone', tx('Хабарландыру'), tx('Барлығына маңызды ақпарат')] as [PostKind, string, string, string]] : []),
+    ...(staff || me.parliament || voice ? [['project', 'grid', tx('Жоба'), tx('Оқушылар мен бастамалардың жобалары')], ['event', 'star', tx('Оқиға'), tx('Өткен немесе болатын оқиға, фотосымен')]] as [PostKind, string, string, string][] : []),
     ['lost', 'search', tx('Жоғалған немесе табылған зат'), tx('Lost & Found')],
     ['proposal', 'flag', tx('Ұсыныс'), tx('Парламентке, әкімшілікке немесе мұғалімге')],
   ]
@@ -309,7 +314,7 @@ function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initia
   // in their own name: staff always, parliament for news; otherwise only in an activity's name
   const own = staff || (kind !== 'announcement' && me.parliament)
   const [as, setAs] = useState('')
-  const asId = own ? as : as || led[0]?.id || ''
+  const asId = own || as ? as : defaultAs(own, led, roles)
   const [extra, setExtra] = useState({ hide: false, off: false })
 
   if (!kind) return (
@@ -340,7 +345,7 @@ function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initia
         if (to === 'teacher' && !teacher) { setBusy(false); return toast(tx('Мұғалімді таңдаңыз')) }
         await createProposal(to, to === 'teacher' ? teacher : null, f.title, f.body)
       } else if (kind === 'news' || kind === 'announcement' || kind === 'project' || kind === 'event') {
-        await createFeedPost({ kind, title: f.title, body: f.body, photo: path, activity: asId || null, hideLikes: extra.hide, commentsOff: extra.off })
+        await createFeedPost({ kind, title: f.title, body: f.body, photo: path, ...asParams(asId), hideLikes: extra.hide, commentsOff: extra.off })
       } else await createPost(kind, f.title, f.body, path, lf ? f.place : null)
       toast(kind === 'proposal' ? tx('Ұсыныс жіберілді, алушыға хабар кетті') : tx('Жарияланды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
@@ -361,7 +366,7 @@ function NewPost({ me, led, initial, onDone }: { me: Me; led: Activity[]; initia
             <option value="">{tx('Таңдаңыз')}</option>{(teachers.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}</select>}</Field>}
         </>
       )}
-      {social && <AsWho me={me} led={led} value={asId} onChange={setAs} own={own} />}
+      {social && <AsWho me={me} led={led} roles={roles} value={asId} onChange={setAs} own={own} />}
       <Field label={kind === 'proposal' ? tx('Ұсыныс') : lf ? tx('Не?') : tx('Тақырып')}>{(id) => <input id={id} value={f.title} maxLength={140} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls}
         placeholder={kind === 'proposal' ? tx('Асханаға су автоматы қою') : kind === 'lost' ? tx('Көк түсті рюкзак') : kind === 'found' ? tx('Кілт, 2-қабат') : ''} />}</Field>
       {lf && <Field label={kind === 'lost' ? tx('Қай жерде жоғалды') : tx('Қай жерден табылды')}>{(id) => <input id={id} value={f.place} onChange={(e) => setF({ ...f, place: e.target.value })} className={inputCls} placeholder={tx('Спортзал, 3-қабат')} />}</Field>}

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { getMe, myChatFlags, myChats, myRegistration, setMyLang, supabase, tgLink, unreadCount, type Me, type Registration } from './lib/api'
+import { getMe, listActivities, myChatFlags, myChats, myRoles, myRegistration, setMyLang, supabase, tgLink, unreadCount, type Me, type Registration } from './lib/api'
 import Registrations from './screens/Registrations'
 import { Pending } from './screens/Register'
 import { chosen, lang, rememberLang, setLang } from './lib/i18n'
@@ -9,7 +9,8 @@ import { inTelegram, syncBackButton, tg } from './lib/telegram'
 import Feed, { PostPage } from './screens/Feed'
 import Search from './screens/Search'
 import Surveys, { SurveyNew, SurveyView } from './screens/Surveys'
-import { Icon, PageHead, Sheet, Toaster, go, usePath } from './components/ui'
+import { Icon, PageHead, Sheet, Toaster, go, useLoad, usePath } from './components/ui'
+import { ledActivities } from './components/FeedCard'
 import Login from './screens/Login'
 import Plan from './screens/Plan'
 import Chats, { Reports } from './screens/Chats'
@@ -85,6 +86,9 @@ function Shell({ me }: { me: Me }) {
   const [badge, setBadge] = useState(0)
   const [sheet, setSheet] = useState<null | 'menu' | 'adduser' | 'goal' | 'habit'>(null)
   const [planKey, setPlanKey] = useState(0)
+  // who may write in the feed: staff, parliament, and students who lead an initiative or hold a role in one
+  const voice = useLoad(async () => me.role !== 'student' || me.parliament ? true
+    : Promise.all([myRoles(me.id), listActivities()]).then(([r, a]) => r.length > 0 || ledActivities(me, a).length > 0), [me.id])
   const toPlan = () => { setSheet(null); setPlanKey(planKey + 1); go('/plan') }
   // notifications + unread chat messages; shortcut: polled on navigation, add realtime for the badge if it feels stale
   // muted and archived chats do not count
@@ -167,6 +171,7 @@ function Shell({ me }: { me: Me }) {
       {sheet === 'menu' && (
         <Sheet title={tx('Не істейміз?')} onClose={() => setSheet(null)}>
           <div className="grid grid-cols-2 gap-3">
+            {voice.data && <MenuItem icon="megaphone" title={tx('Лента жазу')} text={tx('Жаңалық, хабарландыру — өз атыңыздан, пәніңізден, бастама немесе рөл атынан')} onClick={() => { setSheet(null); go('/?new=1') }} />}
             <MenuItem icon="flag" title={tx('Жаңа жоспар')} text={tx('Мақсат, оның жоспары және күнделікті тапсырмалары')} onClick={() => setSheet('goal')} />
             <MenuItem icon="check" title={tx('Жаңа әдет')} text={tx('Күн сайын белгілеп, жүйелілігіңізді көресіз')} onClick={() => setSheet('habit')} />
             <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе бастамадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
