@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1 — 2026-10-29
+
+- «+» menu: «QR» at the top right; «New plan (beta)» and «New habit (beta)» moved to the end.
+- QR check opens the camera at once, full screen, with the code field at the bottom; a torch button where the camera has one; inside Telegram its own scanner is one tap away.
+- When the camera does not start, the reason is shown with «Report the problem», which sends it to the developer.
+
 ## 1.4.0 — 2026-10-29
 
 Dorm settings regrouped into Placement, Cleanliness and Rooms, under a card with the current placement period:

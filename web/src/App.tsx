@@ -171,16 +171,16 @@ function Shell({ me }: { me: Me }) {
       </nav>
 
       {sheet === 'menu' && (
-        <Sheet title={tx('Не істейміз?')} onClose={() => setSheet(null)}>
+        <Sheet title={tx('Не істейміз?')} onClose={() => setSheet(null)}
+          right={<button type="button" onClick={() => { setSheet(null); go('/v/') }} aria-label={tx('QR тексеру')} className="h-11 px-3 rounded-md bg-accent-soft text-accent font-semibold inline-flex items-center gap-1.5"><Icon n="qr" size={20} />QR</button>}>
           <div className="grid grid-cols-2 gap-3">
             {voice.data && <MenuItem icon="compose" title={tx('Лента жазу')} text={tx('Жаңалық, хабарландыру — өз атыңыздан, пәніңізден, бастама немесе рөл атынан')} onClick={() => { setSheet(null); go('/?new=1') }} />}
-            <MenuItem icon="flag" title={tx('Жаңа жоспар')} text={tx('Мақсат, оның жоспары және күнделікті тапсырмалары')} onClick={() => setSheet('goal')} />
-            <MenuItem icon="check" title={tx('Жаңа әдет')} text={tx('Күн сайын белгілеп, жүйелілігіңізді көресіз')} onClick={() => setSheet('habit')} />
             <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе бастамадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
             <MenuItem icon="grid" title={tx('Броньдау')} text={tx('Кабинет, спортзал, шай бөлмесі')} onClick={() => { setSheet(null); go('/book') }} />
             <MenuItem icon="file" title={tx('Бастама ұсыну')} text={tx('Жарыс, олимпиада, үйірме, клуб, команда немесе мектеп іс-шарасы')} onClick={() => { setSheet(null); go('/a/new') }} />
-            <MenuItem icon="check" title={tx('QR тексеру')} text={tx('Рұқсат, бронь, сертификат, жатақхана заты')} onClick={() => { setSheet(null); go('/v/') }} />
             {canAddUsers(me) && <MenuItem icon="userplus" title={tx('Пайдаланушы қосу')} text={me.role === 'class_teacher' ? tx('Өз сыныбыңызға оқушы тіркеу') : tx('Оқушы немесе мұғалім тіркеу')} onClick={() => setSheet('adduser')} />}
+            <MenuItem icon="flag" title={tx('Жаңа жоспар (beta)')} text={tx('Мақсат, оның жоспары және күнделікті тапсырмалары')} onClick={() => setSheet('goal')} />
+            <MenuItem icon="check" title={tx('Жаңа әдет (beta)')} text={tx('Күн сайын белгілеп, жүйелілігіңізді көресіз')} onClick={() => setSheet('habit')} />
           </div>
         </Sheet>
       )}

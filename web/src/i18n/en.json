@@ -1750,5 +1750,18 @@
  "Бөлме табылмады": "Room not found",
  "Жатақхана баптаулары: Орналастыру, Тазалық, Бөлмелер; қазіргі кезең және оның күндері.": "Dorm settings: Placement, Cleanliness, Rooms; the current period and its dates.",
  "Апта соңы бөлме ауыстыру: рұқсат болса, оқушы сенбі–жексенбіге бос бөлмені таңдайды.": "Weekend room change: if allowed, a boy picks a free room for Saturday–Sunday.",
- "Бөлме кезекшілігінің кестесі: кезекпен толтыру, оқушы өз күндерін көреді.": "Room duty roster: filled by rotation, a boy sees his days."
+ "Бөлме кезекшілігінің кестесі: кезекпен толтыру, оқушы өз күндерін көреді.": "Room duty roster: filled by rotation, a boy sees his days.",
+ "Жаңа жоспар (beta)": "New plan (beta)",
+ "Жаңа әдет (beta)": "New habit (beta)",
+ "Telegram сканері": "Telegram scanner",
+ "Қайта сканерлеу": "Scan again",
+ "Камера қосылмады. Кодты қолмен жазыңыз немесе қате туралы хабарлаңыз.": "The camera did not start. Type the code or report the problem.",
+ "Фонарик қосылмады": "The torch did not turn on",
+ "камера қосылмады": "camera did not start",
+ "Хабарланды, рахмет!": "Reported, thank you!",
+ "Хабарланды": "Reported",
+ "Қате туралы хабарлау": "Report the problem",
+ "Фонарик": "Torch",
+ "QR тексеру: камера бірден толық экранда ашылады, фонарик бар, код төменде жазылады.": "QR check: the camera opens at once full screen, with a torch; the code can be typed at the bottom.",
+ "Камера қосылмаса, қате туралы бір батырмамен хабарлауға болады.": "If the camera does not start, report it with one button."
 }

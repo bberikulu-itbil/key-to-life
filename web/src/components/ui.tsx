@@ -37,6 +37,7 @@ const P: Record<string, string> = {
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6',
   pin: 'M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12zM12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  flash: 'M13 2 4 14h7l-1 8 9-12h-7z', qr: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z',
   chev: 'm9 6 6 6-6 6', back: 'm15 6-6 6 6 6', x: 'M6 6l12 12M18 6 6 18',
   users: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21c0-4 3-6 7-6s7 2 7 6M16 3.5a4 4 0 0 1 0 7.5M22 21c0-3-2-5-5-5.5',
   check: 'M5 12.5 10 17l9-10', file: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6', userplus: 'M10 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21c0-4 3-6 7-6 2 0 3.5.5 4.5 1.3M19 14v6M16 17h6',
@@ -129,7 +130,7 @@ export function Chips<T extends string>({ value, onChange, items, label }: { val
 }
 
 /* ---------- bottom sheet ---------- */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Sheet({ title, onClose, children, right }: { title: string; onClose: () => void; children: ReactNode; right?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null
@@ -144,6 +145,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         className="w-full max-w-[640px] max-h-[90dvh] overflow-y-auto bg-surface rounded-t-lg shadow-pop pb-[max(16px,env(safe-area-inset-bottom))] outline-none">
         <div className="sticky top-0 bg-surface flex items-center gap-2 px-4 pt-3 pb-2 border-b border-line">
           <h2 className="flex-1 text-lg font-semibold">{title}</h2>
+          {right}
           <button type="button" onClick={onClose} aria-label={tx('Жабу')} className="size-11 grid place-items-center rounded-md hover:bg-surface-2"><Icon n="x" /></button>
         </div>
         <div className="p-4">{children}</div>

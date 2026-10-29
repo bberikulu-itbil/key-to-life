@@ -1750,5 +1750,18 @@
  "Бөлме табылмады": "Oda bulunamadı",
  "Жатақхана баптаулары: Орналастыру, Тазалық, Бөлмелер; қазіргі кезең және оның күндері.": "Yurt ayarları: Yerleştirme, Temizlik, Odalar; mevcut dönem ve tarihleri.",
  "Апта соңы бөлме ауыстыру: рұқсат болса, оқушы сенбі–жексенбіге бос бөлмені таңдайды.": "Hafta sonu oda değişimi: izin varsa öğrenci cumartesi–pazar için boş oda seçer.",
- "Бөлме кезекшілігінің кестесі: кезекпен толтыру, оқушы өз күндерін көреді.": "Oda nöbet çizelgesi: sırayla doldurulur, öğrenci kendi günlerini görür."
+ "Бөлме кезекшілігінің кестесі: кезекпен толтыру, оқушы өз күндерін көреді.": "Oda nöbet çizelgesi: sırayla doldurulur, öğrenci kendi günlerini görür.",
+ "Жаңа жоспар (beta)": "Yeni plan (beta)",
+ "Жаңа әдет (beta)": "Yeni alışkanlık (beta)",
+ "Telegram сканері": "Telegram tarayıcı",
+ "Қайта сканерлеу": "Tekrar tara",
+ "Камера қосылмады. Кодты қолмен жазыңыз немесе қате туралы хабарлаңыз.": "Kamera açılmadı. Kodu yazın veya hatayı bildirin.",
+ "Фонарик қосылмады": "Fener açılmadı",
+ "камера қосылмады": "kamera açılmadı",
+ "Хабарланды, рахмет!": "Bildirildi, teşekkürler!",
+ "Хабарланды": "Bildirildi",
+ "Қате туралы хабарлау": "Hatayı bildir",
+ "Фонарик": "Fener",
+ "QR тексеру: камера бірден толық экранда ашылады, фонарик бар, код төменде жазылады.": "QR kontrol: kamera hemen tam ekran açılır, fener var, kod altta yazılır.",
+ "Камера қосылмаса, қате туралы бір батырмамен хабарлауға болады.": "Kamera açılmazsa tek düğmeyle bildirilebilir."
 }

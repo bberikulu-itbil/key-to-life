@@ -57,9 +57,10 @@ export function goBack() {
 }
 
 /** Telegram's own QR scanner (6.4+); false when not available here. */
+export const canTgScan = () => !!(tg && inTelegram && tg.isVersionAtLeast?.('6.4') && tg.showScanQrPopup)
 export function tgScanQr(text: string, onText: (t: string) => boolean): boolean {
-  if (!tg || !inTelegram || !tg.isVersionAtLeast?.('6.4') || !tg.showScanQrPopup) return false
-  tg.showScanQrPopup({ text }, onText)
+  if (!canTgScan()) return false
+  tg!.showScanQrPopup!({ text }, onText)
   return true
 }
 
