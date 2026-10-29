@@ -86,9 +86,9 @@ export default function Profile() {
         const dorm = me.dorm || (staff && (myClass.data || me.staff_kind === 'dorm_head' || me.role === 'deputy' || me.role === 'admin'))
         return (
           <nav aria-label={tx('Жалпы')} className="grid grid-cols-6 gap-2.5">
-            {dorm && <Tile href="#/dorm" art="bed" className={`col-span-6 h-28 ${TILE.bed}`} title={tx('Жатақхана')} text={staff ? tx('Бөлмелер, орналастыру, тазалық') : tx('Бөлмем, орным, постель')} />}
-            {(staff || dorm) && <Tile href={staff ? '#/duty' : '#/dorm'} art="duty" size="mid" className={`col-span-3 h-28 ${TILE.duty}`} title={tx('Кезекшілік')} />}
-            <Tile href="#/timetable" art="clock" size="mid" className={`${staff || dorm ? 'col-span-3' : 'col-span-6'} h-28 ${TILE.clock}`} title={tx('Сабақ кестесі')} />
+            {dorm && <Tile href="#/dorm" art="bed" size="mid" className={`col-span-2 h-24 ${TILE.bed}`} title={tx('Жатақхана')} />}
+            {(staff || dorm) && <Tile href={staff ? '#/duty' : '#/dorm'} art="duty" size="mid" className={`${dorm ? 'col-span-2' : 'col-span-3'} h-24 ${TILE.duty}`} title={tx('Кезекшілік')} />}
+            <Tile href="#/timetable" art="clock" size="mid" className={`${dorm ? 'col-span-2' : staff ? 'col-span-3' : 'col-span-6'} h-24 ${TILE.clock}`} title={tx('Сабақ кестесі')} />
           </nav>
         )
       })()}

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.6 — 2026-10-29
+
+- Profile: Dorm, Duty and Timetable tiles fit in one row.
+
 ## 1.4.5 — 2026-10-29
 
 - Profile reorganised: the top card shows «My responsibilities» (initiatives, places or attendance) and «My class»; tiles for Dorm, Duty and Timetable; rows «My bookings», «My permissions», «My calendars», «My achievements».
