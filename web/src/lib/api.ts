@@ -10,7 +10,7 @@ export type ActivityStatus = 'pending_class_teacher' | 'pending_deputy' | 'appro
 export type Feature = 'chat' | 'syllabus' | 'schedule' | 'tasks' | 'attendance'
 export type Mark = 'present' | 'late' | 'excused' | 'absent'
 
-export type Me = { id: string; full_name: string; role: Role; title: string | null; subject?: string | null; school_id: string; parliament: boolean; photo: string | null; lang: Lang | null
+export type Me = { id: string; full_name: string; role: Role; title: string | null; subject?: string | null; staff_kind?: Staff['staff_kind']; dorm?: boolean; school_id: string; parliament: boolean; photo: string | null; lang: Lang | null
   class: { id: string; name: string; grade: number; teacher_id: string | null } | null; school: { name: string } }
 
 /** importance: 1 орташа, 2 маңызды, 3 өте маңызды */
@@ -63,7 +63,7 @@ export const signIn = (iin: string, password: string) =>
 export const signOut = () => supabase.auth.signOut()
 
 export const getMe = (id: string) =>
-  ok(supabase.from('profiles').select('id, full_name, role, title, subject, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
+  ok(supabase.from('profiles').select('id, full_name, role, title, subject, staff_kind, dorm, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>
 
 const ACT = 'id, type, title, class_plan, photo, icon, color, no_time, resource_id, join_requests, description, place, status, audience_grades, capacity, schedule, on_date, weekdays, date_from, date_to, start_time, end_time, author_id, supervisor_id, curator_id, created_at, features, enrollment_open, archived_at, slots, default_type_id, tg_chat_title, extra:activity_sessions!activity_sessions_activity_id_fkey(id, on_date, start_time, end_time, note, type_id, series_id), types:activity_session_types!activity_session_types_activity_id_fkey(id, name, importance, category), author:profiles!author_id(full_name, class:classes!class_id(name, teacher_id)), supervisor:profiles!supervisor_id(full_name), curators:activity_curators(student_id, student:profiles!student_id(full_name, photo, class:classes!class_id(name))), enrollments(student_id, waitlisted)'
@@ -80,7 +80,7 @@ export const getActivity = (id: string) =>
 
 export const listStaff = () =>
   ok(supabase.from('profiles').select('id, full_name, title, role, staff_kind, subject').neq('role', 'student').is('removed_at', null).order('full_name')) as Promise<Staff[]>
-export type Staff = { id: string; full_name: string; title: string | null; role: Role; staff_kind: 'teacher' | 'tutor' | 'staff' | null; subject: string | null }
+export type Staff = { id: string; full_name: string; title: string | null; role: Role; staff_kind: 'teacher' | 'tutor' | 'staff' | 'dorm_head' | null; subject: string | null }
 export const setStaffInfo = (user: string, kind: Staff['staff_kind'], subject: string) => rpc('set_staff_info', { p_user: user, p_kind: kind, p_subject: subject })
 
 export const listClasses = () =>
@@ -583,3 +583,69 @@ export type Feedback = { id: number; body: string; created_at: string; user_id: 
 export const sendAppFeedback = (body: string) => rpc('send_app_feedback', { p_body: body })
 export const listAppFeedback = () =>
   ok(supabase.from('app_feedback').select('id, body, created_at, user_id, author:profiles!user_id(full_name)').order('created_at', { ascending: false }).limit(200)) as unknown as Promise<Feedback[]>
+
+/* ---------- dormitory ---------- */
+export type DormKind = 'bed' | 'wardrobe' | 'nightstand'
+export type DormRoom = { id: string; name: string; floor: number | null; capacity: number; active: boolean; created_by: string | null }
+export type DormItem = { id: string; room_id: string; kind: DormKind; no: number; code: string; state: 'ok' | 'damaged'; note: string | null }
+export type DormAssign = { term: string; student_id: string; room_id: string | null; pinned: boolean; is_head: boolean
+  student: { full_name: string; photo: string | null; class_id: string | null; class: { name: string } | null } }
+export type DormHolder = { id: number; item_id: string; student_id: string; term: string; from_at: string; to_at: string | null; student: { full_name: string } }
+export type DormSettings = { class_id: string; mode: 'auto' | 'self'; swap: 'off' | 'free' | 'confirm'; linen_days: number | null; linen_time: string; linen_last: string | null }
+export type LinenAnswer = 'done' | 'later' | 'no'
+export type DormSwap = { id: string; term: string; from_id: string; to_id: string; status: 'pending' | 'accepted' | 'declined' | 'done' | 'rejected'; created_at: string
+  from: { full_name: string }; to: { full_name: string } }
+export type DormReport = { id: string; item_id: string; student_id: string; body: string; created_at: string; resolved_at: string | null; student: { full_name: string } }
+export type DormResident = { id: string; full_name: string; photo: string | null; dorm: boolean }
+
+export const listDormRooms = () => ok(supabase.from('dorm_rooms').select('id, name, floor, capacity, active, created_by').order('name')) as Promise<DormRoom[]>
+export const listDormItems = () => ok(supabase.from('dorm_items').select('id, room_id, kind, no, code, state, note').order('kind').order('no')) as Promise<DormItem[]>
+// shortcut: every term's placement is loaded (the history for the random); filter by term in SQL once there are years of it
+export const listDormAssignments = () =>
+  ok(supabase.from('dorm_assignments').select('term, student_id, room_id, pinned, is_head, student:profiles!student_id(full_name, photo, class_id, class:classes!class_id(name))')) as unknown as Promise<DormAssign[]>
+export const listDormHolders = (all = false) => {
+  const q = supabase.from('dorm_item_holders').select('id, item_id, student_id, term, from_at, to_at, student:profiles!student_id(full_name)').order('from_at', { ascending: false })
+  return ok(all ? q.limit(2000) : q.is('to_at', null)) as unknown as Promise<DormHolder[]>
+}
+export const dormResidents = (classId: string) =>
+  ok(supabase.from('profiles').select('id, full_name, photo, dorm').eq('class_id', classId).eq('role', 'student').is('removed_at', null).order('full_name')) as Promise<DormResident[]>
+export const getDormSettings = async (classId: string): Promise<DormSettings> =>
+  (await ok(supabase.from('dorm_settings').select('class_id, mode, swap, linen_days, linen_time, linen_last').eq('class_id', classId).maybeSingle()))
+  ?? { class_id: classId, mode: 'self', swap: 'confirm', linen_days: null, linen_time: '18:00', linen_last: null }
+export const saveDormSettings = (s: DormSettings) =>
+  rpc('set_dorm_settings', { p_class: s.class_id, p_mode: s.mode, p_swap: s.swap, p_linen_days: s.linen_days, p_linen_time: s.linen_time })
+export const setDormResident = (student: string, on: boolean) => rpc('set_dorm_resident', { p_student: student, p_on: on })
+export const publishDorm = (term: string, classId: string, rows: { student: string; room: string | null; pinned: boolean }[]) =>
+  rpc<number>('dorm_publish', { p_term: term, p_class: classId, p_rows: rows })
+export const setRoomHead = (term: string, room: string, student: string) => rpc('set_room_head', { p_term: term, p_room: room, p_student: student })
+export const claimDormItem = (code: string, term: string) => rpc<{ kind: DormKind; no: number }>('claim_dorm_item', { p_code: code, p_term: term })
+export const setItemHolder = (item: string, student: string | null, term: string) => rpc('set_item_holder', { p_item: item, p_student: student, p_term: term })
+export const setItemState = (item: string, state: 'ok' | 'damaged', note: string) => rpc('set_item_state', { p_item: item, p_state: state, p_note: note })
+export const addDormRoom = async (r: { name: string; floor: number | null; capacity: number }, items: Record<DormKind, number>) => {
+  const room = (await ok(supabase.from('dorm_rooms').insert(r).select('id').single())) as { id: string }
+  const rows = (Object.entries(items) as [DormKind, number][]).flatMap(([kind, n]) => Array.from({ length: n }, (_, i) => ({ room_id: room.id, kind, no: i + 1 })))
+  if (rows.length) await ok(supabase.from('dorm_items').insert(rows))
+  return room.id
+}
+export const updateDormRoom = (id: string, r: Partial<Pick<DormRoom, 'name' | 'floor' | 'capacity' | 'active'>>) => ok(supabase.from('dorm_rooms').update(r).eq('id', id))
+export const addDormItem = (room: string, kind: DormKind, no: number) => ok(supabase.from('dorm_items').insert({ room_id: room, kind, no }))
+export const removeDormItem = (id: string) => ok(supabase.from('dorm_items').delete().eq('id', id))
+export const lastLinenRound = async (classId: string) =>
+  (await ok(supabase.from('dorm_linen_rounds').select('id, sent_at').eq('class_id', classId).order('sent_at', { ascending: false }).limit(1).maybeSingle())) as { id: number; sent_at: string } | null
+export const linenAnswers = (round: number) =>
+  ok(supabase.from('dorm_linen_answers').select('student_id, answer, note, answered_at').eq('round_id', round)) as Promise<{ student_id: string; answer: LinenAnswer; note: string | null; answered_at: string }[]>
+export const sendLinen = (classId: string, resend: boolean) => rpc<number>('send_linen', { p_class: classId, p_resend: resend })
+export const answerLinen = (round: number, answer: LinenAnswer) => rpc('answer_linen', { p_round: round, p_answer: answer, p_note: null })
+export const dormChecks = (date: string) => ok(supabase.from('dorm_checks').select('student_id, status').eq('on_date', date)) as Promise<{ student_id: string; status: 'present' | 'absent' | 'leave' }[]>
+export const markDormCheck = (date: string, rows: { student: string; status: 'present' | 'absent' | 'leave' }[]) => rpc<number>('mark_dorm_check', { p_date: date, p_rows: rows })
+export const dormClean = (from: string) => ok(supabase.from('dorm_clean').select('room_id, on_date, score').gte('on_date', from).order('on_date', { ascending: false })) as Promise<{ room_id: string; on_date: string; score: number }[]>
+export const setDormClean = (room: string, date: string, score: number) => ok(supabase.from('dorm_clean').upsert({ room_id: room, on_date: date, score }))
+export const listDormSwaps = () =>
+  ok(supabase.from('dorm_swaps').select('id, term, from_id, to_id, status, created_at, from:profiles!from_id(full_name), to:profiles!to_id(full_name)').order('created_at', { ascending: false }).limit(100)) as unknown as Promise<DormSwap[]>
+export const requestBedSwap = (to: string, term: string) => rpc('request_bed_swap', { p_to: to, p_term: term })
+export const answerBedSwap = (id: string, yes: boolean) => rpc('answer_bed_swap', { p_id: id, p_ok: yes })
+export const approveBedSwap = (id: string, yes: boolean) => rpc('approve_bed_swap', { p_id: id, p_ok: yes })
+export const listDormReports = () =>
+  ok(supabase.from('dorm_reports').select('id, item_id, student_id, body, created_at, resolved_at, student:profiles!student_id(full_name)').order('created_at', { ascending: false }).limit(200)) as unknown as Promise<DormReport[]>
+export const reportDormItem = (item: string, body: string) => ok(supabase.from('dorm_reports').insert({ item_id: item, body }))
+export const resolveDormReport = (id: string) => ok(supabase.from('dorm_reports').update({ resolved_at: new Date().toISOString() }).eq('id', id))

@@ -115,3 +115,38 @@ console.log('streak ok')
   assert.equal(noticeGroup({ title: 'Іс-шара расталды', body: null, link: '/a/1' }).key, 'sys')
   console.log('notices ok')
 }
+
+// dormitory placement
+import { allocate, flagsFor, historyFrom, prevTerm, termOf } from './dorm'
+assert.equal(termOf('2026-10-29'), '2026-2027-1')
+assert.equal(termOf('2026-11-03'), '2026-2027-2')
+assert.equal(termOf('2027-02-10'), '2026-2027-3')
+assert.equal(termOf('2027-04-10'), '2026-2027-4')
+assert.equal(prevTerm('2026-2027-1'), '2025-2026-4')
+assert.equal(prevTerm('2026-2027-3'), '2026-2027-2')
+{
+  // last term: a+b in r1, c+d in r2; now 4 boys, 2 rooms of 2 → the only clean answer swaps partners and rooms
+  const h = historyFrom([
+    { term: '2026-2027-1', student_id: 'a', room_id: 'r1' }, { term: '2026-2027-1', student_id: 'b', room_id: 'r1' },
+    { term: '2026-2027-1', student_id: 'c', room_id: 'r2' }, { term: '2026-2027-1', student_id: 'd', room_id: 'r2' },
+  ], '2026-2027-2')
+  const rooms = [{ id: 'r1', capacity: 2, others: [] }, { id: 'r2', capacity: 2, others: [] }]
+  const p = allocate(['a', 'b', 'c', 'd'], rooms, {}, h)
+  const f = flagsFor(p, rooms, h)
+  assert.ok(Object.values(f).every((x) => x.pair.length === 0), 'no repeated pair')
+  assert.ok(p.a !== p.b && p.c !== p.d)
+  // a pinned to r1 again gets the room flag, nobody is left out
+  const q = allocate(['a', 'b', 'c', 'd'], rooms, { a: 'r1' }, h)
+  assert.equal(q.a, 'r1')
+  assert.ok(flagsFor(q, rooms, h).a.room)
+  assert.ok(Object.values(q).every(Boolean))
+  // another class's boy already in r1 takes a bed: only one of ours fits there
+  const r = allocate(['a', 'b', 'c'], [{ id: 'r1', capacity: 2, others: ['z'] }, { id: 'r2', capacity: 2, others: [] }], {}, h)
+  assert.equal(Object.values(r).filter((x) => x === 'r1').length, 1)
+}
+import { dormCodeFrom, nextTerm } from './dorm'
+assert.equal(nextTerm('2026-2027-4'), '2027-2028-1')
+assert.equal(dormCodeFrom('https://x.io/app/#/dorm/item/D-AB12CD34'), 'D-AB12CD34')
+assert.equal(dormCodeFrom('d-ab12'), 'D-AB12')
+assert.equal(dormCodeFrom('L-3F9A2C'), null)
+console.log('dorm ok')

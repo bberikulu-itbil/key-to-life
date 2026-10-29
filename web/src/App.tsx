@@ -31,6 +31,7 @@ import Calendars from './screens/Calendars'
 import Timetable from './screens/Timetable'
 import MyClass from './screens/MyClass'
 import MyActivities from './screens/MyActivities'
+import Dorm from './screens/Dorm'
 import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
 import About from './screens/About'
@@ -119,6 +120,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'calendars') screen = <Calendars />
   else if (seg === 'timetable') screen = <Timetable classId={id} />
   else if (seg === 'class') screen = <MyClass classId={id} />
+  else if (seg === 'dorm') screen = <Dorm key={path} sub={id} arg={path.split('?')[0].split('/')[3]} />
   else if (seg === 'my') screen = <MyActivities kind={id} />
   else if (seg === 'chats' && id === 'system') screen = <Notifications key={path} group={new URLSearchParams(path.split('?')[1] ?? '').get('g') ?? undefined} />
   else if (seg === 'chats' && id === 'reports') screen = <Reports />
@@ -144,7 +146,7 @@ function Shell({ me }: { me: Me }) {
   else screen = <Feed query={path.split('?')[1] ?? ''} />
 
   const tabs = [['/', 'home', tx('Home')], ['/plan', 'clock', tx('Жоспар')], ['+', 'plus', tx('Әрекет')], ['/chats', 'chat', tx('Чаттар')], ['/profile', 'user', tx('Профиль')]] as const
-  const active = (p: string) => (p === '/profile' ? ['profile', 'adduser', 'about', 'feedback', 'certs', 'cert'].includes(seg) : p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'p', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
+  const active = (p: string) => (p === '/profile' ? ['profile', 'adduser', 'about', 'feedback', 'certs', 'cert', 'dorm'].includes(seg) : p === '/' ? path === '/' || path.startsWith('/?') || ['a', 'p', 'activities', 'lost', 'events', 'proposals', 'surveys', 'book', 'bookings', 'search', 'menu'].includes(seg) : p === '/chats' ? seg === 'chats' || seg === 'c' || seg === 'notifications' : path.startsWith(p))
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>

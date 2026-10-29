@@ -79,6 +79,8 @@ export default function Profile() {
         ['#/activities/mine', 'star', tx('Менің бастамаларым'), staff ? tx('Жетекшілік ететін және ұсынған') : tx('Жазылған, ұсынған, жауапты')],
         ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'users', tx('Менің сыныбым'), tx('Оқушылар, суреттер, кім сыртта')] as Link] : []),
         ['#/leaves', 'clock', staff ? tx('Рұқсаттар') : tx('Менің рұқсаттарым'), staff ? tx('Шешім күтетіндер және бүгін берілгендер') : undefined],
+        ...(me.dorm || (staff && (myClass.data || me.staff_kind === 'dorm_head' || me.role === 'deputy' || me.role === 'admin'))
+          ? [['#/dorm', 'home', tx('Жатақхана'), staff ? tx('Бөлмелер, орналастыру, постель, түгендеу') : tx('Бөлмем, орным, постель')] as Link] : []),
         ['#/bookings', 'grid', tx('Менің броньдарым')],
         ...(staff ? [] : [['#/certs', 'trophy', tx('Сертификаттарым')] as Link]),
         ['#/timetable', 'list', tx('Сабақ кестесі')],

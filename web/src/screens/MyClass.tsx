@@ -111,6 +111,11 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
         ))}
       </div>
 
+      <a href={`#/dorm?class=${cls.id}`} className="flex items-center gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 min-h-14">
+        <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="home" size={18} /></span>
+        <span className="flex-1 font-semibold">{tx('Жатақхана')}</span><Icon n="chev" className="text-muted" />
+      </a>
+
       {data.loading && !d ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : d && (
         <>
           {(outNow.length > 0 || pending.length > 0) && (

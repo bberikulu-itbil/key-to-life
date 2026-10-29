@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 — 2026-10-29
+
+Dormitory (profile → «Жатақхана», and on the class page):
+- Tutor, «Overview»: term picker, room cards («312 · 3/4 · ⚠ 1 bed not chosen»), room head, boys without a room, boys of the class who do not live in the dorm, evening roll call room by room, today's cleanliness score, bed-swap approvals.
+- Tutor, «Monitoring»: cleanliness scores for 30 days; linen-change answers (changed / later / won't / no answer) per room; send again to those who did not answer.
+- Tutor, «Settings»: beds chosen by QR or given automatically; bed swaps off / with the tutor's confirmation / free; linen reminder every N days at a set time; rooms with their beds, wardrobes and nightstands (good / damaged, holder, last holders of damaged items), students' fault reports; QR stickers printed one sheet per room.
+- Placement each term in 5 steps: who lives in the dorm → pin 1–2 boys by hand → how beds are given → random placement that avoids last terms' roommates (yellow mark) and rooms (blue mark), «Shuffle again» → publish (the boys are notified). Boys of other classes already in a room keep their beds.
+- Student: room, roommates and room head, own items; takes a bed, wardrobe, nightstand by scanning its QR (it is then his responsibility); answers the linen reminder; offers a bed swap to a roommate; reports a fault.
+- The «Dorm head» staff kind (set by the admin) sees and manages every class and room; guests from other schools in holidays are prepared in the database.
+- Database: migration 0048 (run it in the SQL Editor before deploying).
+
 ## 1.2.1 — 2026-10-23
 
 - «Publish» list: just the kinds, without the explanation lines.
