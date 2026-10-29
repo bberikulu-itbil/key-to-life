@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.5 — 2026-10-29
+
+- Profile reorganised: the top card shows «My responsibilities» (initiatives, places or attendance) and «My class»; tiles for Dorm, Duty and Timetable; rows «My bookings», «My permissions», «My calendars», «My achievements».
+
 ## 1.4.4 — 2026-10-29
 
 - Redesign, step 2: the profile. A navy card with the photo in a gold ring and the numbers in gold; the main sections (initiatives, permissions, class, dorm, bookings, certificates) as coloured 3D tiles; the other rows with coloured icons in each section's colour.

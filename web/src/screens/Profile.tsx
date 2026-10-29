@@ -3,7 +3,7 @@ import { attendanceRate, errText, listActivities, listResources, uploadStudentPh
 import { openTelegram } from '../lib/telegram'
 import { useMe, canAddUsers, isApprover } from '../App'
 import { Button, Card, Icon, PageHead, toast, useLoad } from '../components/ui'
-import { TILE, Tile, type ArtKind } from '../components/MenuArt'
+import { TILE, Tile } from '../components/MenuArt'
 import Avatar from '../components/Avatar'
 import { LangChips } from '../components/LangPicker'
 import { tx } from '../lib/i18n'
@@ -69,41 +69,35 @@ export default function Profile() {
             <p className="text-sm opacity-80 truncate">{me.school.name}{me.parliament ? tx(' · парламент мүшесі') : ''}</p>
           </div>
         </div>
-        <div className={`grid gap-2 ${staff ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          {!staff && <Stat value={stats.data?.rate == null ? '—' : `${stats.data.rate}%`} label={tx('Қатысу')} />}
-          <Stat value={stats.data ? String(stats.data.acts) : '—'} label={tx('Бастамаларым')} href="#/activities/mine" />
-          {staff && <Stat value={stats.data ? String(stats.data.rooms) : '—'} label={tx('Орындар')} href="#/bookings/places" />}
-          {staff && <Stat value={myClass.data?.name ?? '—'} label={tx('Сыныбым')} href={myClass.data ? `#/class/${myClass.data.id}` : undefined} />}
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <div className="rounded-[14px] bg-white/10 px-3 py-2.5 min-w-0">
+            <p className="text-xs opacity-80">{tx('Жауапкершілігім')}</p>
+            <div className="flex gap-4 mt-0.5">
+              <a href="#/activities/mine" className="min-w-0"><span className="text-xl font-bold tabular-nums text-gold">{stats.data ? stats.data.acts : '—'}</span> <span className="text-xs opacity-90">{tx('Бастамалар')}</span></a>
+              {staff ? <a href="#/bookings/places" className="min-w-0"><span className="text-xl font-bold tabular-nums text-gold">{stats.data ? stats.data.rooms : '—'}</span> <span className="text-xs opacity-90">{tx('Орындар')}</span></a>
+                : <span className="min-w-0"><span className="text-xl font-bold tabular-nums text-gold">{stats.data?.rate == null ? '—' : `${stats.data.rate}%`}</span> <span className="text-xs opacity-90">{tx('Қатысу')}</span></span>}
+            </div>
+          </div>
+          <Stat value={me.class?.name ?? myClass.data?.name ?? '—'} label={tx('Сыныбым')} href={myClass.data ? `#/class/${myClass.data.id}` : undefined} />
         </div>
       </div>
 
       {(() => {
         const dorm = me.dorm || (staff && (myClass.data || me.staff_kind === 'dorm_head' || me.role === 'deputy' || me.role === 'admin'))
-        const tiles: [string, ArtKind, string, Tint][] = [
-          ['#/activities/mine', 'idea', staff ? tx('Менің бастамаларым') : tx('Бастамаларым'), 'idea'],
-          ['#/leaves', 'pass', staff ? tx('Рұқсаттар') : tx('Менің рұқсаттарым'), 'pass'],
-          ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'user', tx('Сыныбым'), 'plan'] as [string, ArtKind, string, Tint]] : []),
-          ...(dorm ? [['#/dorm', 'bed', tx('Жатақхана'), 'bed'] as [string, ArtKind, string, Tint]] : []),
-          ['#/bookings', 'book', tx('Броньдар'), 'book'],
-          ...(staff ? [] : [['#/certs', 'cert', tx('Сертификат'), 'cert'] as [string, ArtKind, string, Tint]]),
-        ]
-        // the first two are wide; the rest go three to a row, and a short last row stretches
-        const rest = tiles.length - 2, tail = rest % 3
         return (
           <nav aria-label={tx('Жалпы')} className="grid grid-cols-6 gap-2.5">
-            {tiles.map(([href, art, title, tint], i) => {
-              const span = i < 2 ? 'col-span-3 h-28' : i - 2 >= rest - tail ? (tail === 1 ? 'col-span-6 h-24' : 'col-span-3 h-24') : 'col-span-2 h-24'
-              return <Tile key={href} href={href} art={art} size="mid" className={`${span} ${TILE[tint]}`} title={title} />
-            })}
+            {dorm && <Tile href="#/dorm" art="bed" className={`col-span-6 h-28 ${TILE.bed}`} title={tx('Жатақхана')} text={staff ? tx('Бөлмелер, орналастыру, тазалық') : tx('Бөлмем, орным, постель')} />}
+            {(staff || dorm) && <Tile href={staff ? '#/duty' : '#/dorm'} art="duty" size="mid" className={`col-span-3 h-28 ${TILE.duty}`} title={tx('Кезекшілік')} />}
+            <Tile href="#/timetable" art="clock" size="mid" className={`${staff || dorm ? 'col-span-3' : 'col-span-6'} h-28 ${TILE.clock}`} title={tx('Сабақ кестесі')} />
           </nav>
         )
       })()}
 
-      <Section title={tx('Жалпы')} links={[
-        ['#/timetable', 'list', tx('Сабақ кестесі'), undefined, 'plan'],
-        ['#/calendars', 'file', tx('Күнтізбелер'), tx('Жеке, сынып, мектеп · импорт/экспорт'), 'book'],
-        ...(staff ? [['#/duty', 'users', tx('Кезекшіліктер'), tx('Мұғалімдер мен орынбасарлар'), 'habit'] as Link] : []),
-        ['#/v/', 'qr', tx('QR тексеру'), tx('Рұқсат, бронь, сертификат, жатақхана заты'), 'qr'],
+      <Section title={tx('Менікі')} links={[
+        ['#/bookings', 'grid', tx('Менің броньдарым'), undefined, 'book'],
+        ['#/leaves', 'clock', staff ? tx('Рұқсаттар') : tx('Менің рұқсаттарым'), staff ? tx('Шешім күтетіндер және бүгін берілгендер') : undefined, 'pass'],
+        ['#/calendars', 'file', tx('Күнтізбелерім'), tx('Жеке, сынып, мектеп · импорт/экспорт'), 'plan'],
+        ...(staff ? [] : [['#/certs', 'trophy', tx('Жетістіктерім'), tx('Сертификаттар'), 'cert'] as Link]),
       ]} />
       {admin.length > 0 && <Section title={tx('Әкімшілік')} links={admin} />}
 
