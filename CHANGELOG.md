@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.3 — 2026-10-29
+
+- Redesign, step 1: the home page sections (Initiatives, Canteen, Lost & Found, Places, Surveys) use the same coloured tiles with 3D pictures as the «+» menu; one colour per section everywhere.
+
 ## 1.4.2 — 2026-10-29
 
 - «+» menu redrawn as coloured tiles with 3D pictures (drawn in SVG): a wide «QR check» on top; «Ask permission» and «Book» side by side; «Write in the feed» and «Propose an initiative» side by side; small «New plan» and «New habit» tiles marked beta.

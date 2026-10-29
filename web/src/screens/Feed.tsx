@@ -8,6 +8,7 @@ import Activities from './Activities'
 import { VoiceTabs } from './Surveys'
 import { AsWho, Comments, FeedCard, Original, RepostForm, asParams, canWriteFeed, defaultAs, ledActivities } from '../components/FeedCard'
 import { myRoles, type ActRole, type Activity } from '../lib/api'
+import { TILE, Tile } from '../components/MenuArt'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, type Tone } from '../components/ui'
 import { tx } from '../lib/i18n'
 
@@ -20,7 +21,6 @@ const PAGE_TITLE: Record<Page, string> = { lost: tx('Lost & Found'), events: tx(
 // old notification links (/?t=parliament) still land on the right page
 const LEGACY: Record<string, Page> = { lost: 'lost', upcoming: 'events', parliament: 'proposals' }
 // Бастамалар is the big tile on the left, the other four sit 2 × 2 next to it
-const QUICK: [string, string, string][] = [['search', tx('Lost & Found'), '/lost'], ['grid', tx('Places'), '/book'], ['utensils', tx('Асхана'), '/menu'], ['poll', tx('Сауалнама'), '/surveys']]
 const PROPOSAL: Record<PostStatus, [string, Tone]> = {
   open: [tx('Жаңа'), 'accent'], considering: [tx('Қаралуда'), 'warn'], accepted: [tx('Қабылданды'), 'ok'], rejected: [tx('Қабылданбады'), 'bad'], resolved: [tx('Жабылды'), 'muted'],
 }
@@ -98,17 +98,12 @@ export default function Feed({ query, page }: { query: string; page?: Page }) {
         </>
       )}
 
-      <nav aria-label={tx('Бөлімдер')} className="grid grid-cols-[1.3fr_1fr_1fr] grid-rows-2 gap-2">
-        <a href="#/events" className="row-span-2 min-w-0 grid content-between gap-2 rounded-lg bg-hero text-on-hero p-3 active:opacity-90">
-          <span className="size-10 rounded-md bg-gold text-on-gold grid place-items-center"><Icon n="star" size={22} /></span>
-          <span className="grid gap-0.5"><span className="text-base font-bold leading-tight break-words">{tx('Бастамалар')}</span>
-            <span className="text-xs opacity-90 leading-snug line-clamp-3">{tx('Жарыс, олимпиада, үйірме, клуб')}</span></span>
-        </a>
-        {QUICK.map(([icon, label, path]) => (
-          <a key={path} href={`#${path}`} className="min-w-0 grid justify-items-center content-center gap-1 min-h-[76px] rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-1 py-2 text-[13px] leading-tight font-semibold text-center active:bg-surface-2">
-            <span className="size-8 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span><span className="min-w-0 max-w-full truncate">{label}</span>
-          </a>
-        ))}
+      <nav aria-label={tx('Бөлімдер')} className="grid grid-cols-6 gap-2.5">
+        <Tile href="#/events" art="idea" className={`col-span-4 h-36 ${TILE.idea}`} title={tx('Бастамалар')} text={tx('Жарыс, олимпиада, үйірме, клуб')} />
+        <Tile href="#/menu" art="food" size="mid" className={`col-span-2 h-36 ${TILE.food}`} title={tx('Асхана')} />
+        <Tile href="#/lost" art="lost" size="mid" className={`col-span-2 h-28 ${TILE.lost}`} title={tx('Lost & Found')} />
+        <Tile href="#/book" art="place" size="mid" className={`col-span-2 h-28 ${TILE.book}`} title={tx('Places')} />
+        <Tile href="#/surveys" art="poll" size="mid" className={`col-span-2 h-28 ${TILE.poll}`} title={tx('Сауалнама')} />
       </nav>
 
       <div className="flex items-end gap-2 border-b border-line">

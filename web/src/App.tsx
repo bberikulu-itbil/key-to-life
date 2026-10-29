@@ -38,7 +38,7 @@ import About from './screens/About'
 import Certificate, { MyCertificates } from './screens/Certificate'
 import { MenuCard } from './components/HomeWidgets'
 import { GoalForm, HabitForm } from './components/Goals'
-import MenuArt, { type ArtKind } from './components/MenuArt'
+import { TILE, Tile } from './components/MenuArt'
 import { tx } from './lib/i18n'
 
 const Ctx = createContext<{ me: Me; refreshBadge: () => void }>(null!)
@@ -174,17 +174,17 @@ function Shell({ me }: { me: Me }) {
       {sheet === 'menu' && (
         <Sheet title={tx('Не істейміз?')} onClose={() => setSheet(null)}>
           <div className="grid grid-cols-6 gap-3">
-            <Tile art="qr" big className="col-span-6 h-32 bg-[linear-gradient(135deg,#22386e,#16264f)] text-white" title={tx('QR тексеру')} text={tx('Рұқсат, бронь, сертификат, жатақхана заты')} onClick={() => { setSheet(null); go('/v/') }} />
-            <Tile art="pass" className="col-span-3 h-36 bg-[linear-gradient(135deg,#4a7be3,#2f58b8)] text-white" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан') : tx('Өтініштер, бүгінгілер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
-            <Tile art="book" className="col-span-3 h-36 bg-[linear-gradient(135deg,#7a68e0,#5443bd)] text-white" title={tx('Броньдау')} text={tx('Кабинет, спортзал, шай бөлмесі')} onClick={() => { setSheet(null); go('/book') }} />
-            {voice.data && <Tile art="feed" className="col-span-3 h-36 bg-[linear-gradient(135deg,#ecc35c,#cf9d2e)] text-[#16264f]" title={tx('Лента жазу')} text={tx('Жаңалық, хабарландыру')} onClick={() => { setSheet(null); go('/?new=1') }} />}
-            <Tile art="idea" className={`${voice.data ? 'col-span-3 h-36' : 'col-span-6 h-28'} bg-[linear-gradient(135deg,#ef8f57,#d2652c)] text-white`} title={tx('Бастама ұсыну')} text={tx('Жарыс, үйірме, клуб, команда')} onClick={() => { setSheet(null); go('/a/new') }} />
+            <Tile art="qr" size="big" className={`col-span-6 h-32 ${TILE.qr}`} title={tx('QR тексеру')} text={tx('Рұқсат, бронь, сертификат, жатақхана заты')} onClick={() => { setSheet(null); go('/v/') }} />
+            <Tile art="pass" className={`col-span-3 h-36 ${TILE.pass}`} title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан') : tx('Өтініштер, бүгінгілер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
+            <Tile art="book" className={`col-span-3 h-36 ${TILE.book}`} title={tx('Броньдау')} text={tx('Кабинет, спортзал, шай бөлмесі')} onClick={() => { setSheet(null); go('/book') }} />
+            {voice.data && <Tile art="feed" className={`col-span-3 h-36 ${TILE.feed}`} title={tx('Лента жазу')} text={tx('Жаңалық, хабарландыру')} onClick={() => { setSheet(null); go('/?new=1') }} />}
+            <Tile art="idea" className={`${voice.data ? 'col-span-3 h-36' : 'col-span-6 h-28'} ${TILE.idea}`} title={tx('Бастама ұсыну')} text={tx('Жарыс, үйірме, клуб, команда')} onClick={() => { setSheet(null); go('/a/new') }} />
             {(() => {
               const span = me.role === 'admin' ? 'col-span-2' : 'col-span-3'
               return <>
-                <Tile art="plan" small className={`${span} bg-[linear-gradient(135deg,#3fb6a0,#23897a)] text-white`} title={tx('Жаңа жоспар')} beta onClick={() => setSheet('goal')} />
-                <Tile art="habit" small className={`${span} bg-[linear-gradient(135deg,#5cb876,#2f8a4c)] text-white`} title={tx('Жаңа әдет')} beta onClick={() => setSheet('habit')} />
-                {me.role === 'admin' && <Tile art="user" small className={`${span} bg-[linear-gradient(135deg,#76839c,#55627b)] text-white`} title={tx('Пайдаланушы қосу')} onClick={() => setSheet('adduser')} />}
+                <Tile art="plan" size="small" className={`${span} ${TILE.plan}`} title={tx('Жаңа жоспар')} beta onClick={() => setSheet('goal')} />
+                <Tile art="habit" size="small" className={`${span} ${TILE.habit}`} title={tx('Жаңа әдет')} beta onClick={() => setSheet('habit')} />
+                {me.role === 'admin' && <Tile art="user" size="small" className={`${span} ${TILE.user}`} title={tx('Пайдаланушы қосу')} onClick={() => setSheet('adduser')} />}
               </>
             })()}
           </div>
@@ -198,13 +198,4 @@ function Shell({ me }: { me: Me }) {
   )
 }
 
-/** A coloured tile of the «+» menu with its 3D picture in the corner. */
-const Tile = ({ art, title, text, onClick, className, big, small, beta }: { art: ArtKind; title: string; text?: string; onClick: () => void; className: string; big?: boolean; small?: boolean; beta?: boolean }) => (
-  <button type="button" onClick={onClick} className={`relative overflow-hidden rounded-[22px] text-left shadow-card active:scale-[.98] transition ${small ? 'h-[72px] px-3 py-2.5' : 'p-4'} ${className}`}>
-    <span className={`relative z-10 block font-bold leading-tight ${small ? 'text-[13px] max-w-[70%]' : big ? 'text-xl max-w-[60%]' : 'text-[17px] max-w-[75%]'}`}>{title}</span>
-    {beta && <span className="relative z-10 inline-block mt-1 rounded-full bg-white/25 px-1.5 text-[10px] font-semibold uppercase tracking-wide">beta</span>}
-    {text && <span className={`relative z-10 block mt-1 text-xs opacity-90 leading-snug ${big ? 'max-w-[58%]' : 'max-w-[56%]'}`}>{text}</span>}
-    <MenuArt kind={art} className={`absolute ${small ? '-right-1 -bottom-2 size-14' : big ? 'right-1 -top-1 size-36' : '-right-3 -bottom-4 size-[96px]'}`} />
-  </button>
-)
 
