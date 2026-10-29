@@ -1683,5 +1683,13 @@
  "Жатақхана: бөлмелер, әр тоқсанда рандом орналастыру (бұрынғы бөлмелес пен бөлме қайталанбайды).": "Yurt: odalar, her dönem rastgele yerleştirme (eski oda arkadaşı ve oda tekrarlanmaz).",
  "Оқушы төсек, шкаф, тумбочканы QR арқылы таңдайды; бүлінсе — сол оқушыдан сұралады.": "Öğrenci yatak, dolap, komodini QR ile seçer; hasar görürse ondan sorulur.",
  "Постель ауыстыру еске салғышы және жауаптар мониторингі; кешкі түгендеу бөлмелер бойынша.": "Çarşaf değişimi hatırlatması ve cevap takibi; odalara göre akşam yoklaması.",
- "Төсек алмасу, ақау туралы хабарлау, бөлме тазалығы ұпайы, QR парақтарын басып шығару.": "Yatak değişimi, arıza bildirimi, oda temizlik puanı, QR sayfalarını yazdırma."
+ "Төсек алмасу, ақау туралы хабарлау, бөлме тазалығы ұпайы, QR парақтарын басып шығару.": "Yatak değişimi, arıza bildirimi, oda temizlik puanı, QR sayfalarını yazdırma.",
+ "Сақтау · {0}/{1}": "Kaydet · {0}/{1}",
+ "Тазалық критерийлері": "Temizlik kriterleri",
+ "Критерий атауы": "Kriter adı",
+ "Ең жоғары балл": "En yüksek puan",
+ "Атауы және ең жоғары балы (1–10). Барлығы: {0} балл": "Adı ve en yüksek puanı (1–10). Toplam: {0} puan",
+ "Критерий қосу": "Kriter ekle",
+ "Критерий атаулары бос болмауы және қайталанбауы керек": "Kriter adları boş olmamalı ve tekrarlanmamalı",
+ "Критерий: атауы және 1–10 балл": "Kriter: ad ve 1–10 puan"
 }

@@ -5,7 +5,7 @@ import {
   lastLinenRound, linenAnswers, listClasses, listDormAssignments, listDormHolders, listDormItems, listDormReports, listDormRooms, listDormSwaps,
   markDormCheck, publishDorm, removeDormItem, reportDormItem, requestBedSwap, resolveDormReport, saveDormSettings, sendLinen, setDormClean,
   setDormResident, setItemState, setRoomHead, updateDormRoom,
-  type DormAssign, type DormItem, type DormKind, type DormResident, type DormRoom, type DormSettings, type LinenAnswer,
+  type DormAssign, type DormItem, type DormKind, type DormResident, type DormRoom, type DormSettings, type LinenAnswer, type CleanCriterion,
 } from '../lib/api'
 import { allocate, dormCodeFrom, flagsFor, historyFrom, itemUrl, nextTerm, prevTerm, termLabel, termOf, type Place } from '../lib/dorm'
 import { addDays, today } from '../lib/time'
@@ -165,9 +165,7 @@ const Stat = ({ value, label, warn }: { value: number | string; label: string; w
 
 function RoomPeople({ room, term, d, mine, onChanged }: { room: DormRoom; term: string; d: Data; mine: Set<string>; onChanged: () => void }) {
   const v = roomView(d, term, room.id)
-  const [score, setScore] = useState<number | null>(null)
   const head = async (sid: string) => { try { await setRoomHead(term, room.id, sid); toast(tx('Бөлме жауаптысы белгіленді')); onChanged() } catch (e) { toast(errText(e)) } }
-  const clean = async (n: number) => { try { await setDormClean(room.id, today(), n); setScore(n); toast(tx('Тазалық ұпайы сақталды')) } catch (e) { toast(errText(e)) } }
   return (
     <div className="grid grid-cols-1 gap-3">
       <Card className="p-0 divide-y divide-line">
@@ -180,11 +178,36 @@ function RoomPeople({ room, term, d, mine, onChanged }: { room: DormRoom; term: 
           </div>
         ))}
       </Card>
-      <p className="font-semibold">{tx('Бүгінгі тазалық ұпайы')}</p>
-      <div className="grid grid-cols-5 gap-2">{[1, 2, 3, 4, 5].map((n) => (
-        <button key={n} type="button" aria-pressed={score === n} onClick={() => clean(n)} className={`h-12 rounded-md font-bold ${score === n ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{n}</button>
-      ))}</div>
+      <CleanForm room={room.id} criteria={d.settings.clean_criteria} />
     </div>
+  )
+}
+
+/** Today's cleanliness: points for every criterion set in the settings; saving again the same day replaces it. */
+function CleanForm({ room, criteria }: { room: string; criteria: CleanCriterion[] }) {
+  const old = useLoad(() => dormClean(today()), [])
+  const [pts, setPts] = useState<Record<string, number>>({})
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { const x = old.data?.find((c) => c.room_id === room); if (x?.details) setPts(x.details) }, [old.data, room])
+  const total = criteria.reduce((n, c) => n + Math.min(c.max, pts[c.name] ?? 0), 0), max = criteria.reduce((n, c) => n + c.max, 0)
+  const save = async () => {
+    setBusy(true)
+    try { await setDormClean(room, today(), criteria, pts); toast(tx('Тазалық ұпайы сақталды')) } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <Card className="grid grid-cols-1 gap-3">
+      <p className="font-semibold">{tx('Бүгінгі тазалық ұпайы')}</p>
+      {criteria.map((c) => (
+        <div key={c.name} className="grid gap-1.5">
+          <p className="text-sm">{c.name} <span className="text-muted">· {pts[c.name] ?? 0}/{c.max}</span></p>
+          <div role="group" aria-label={c.name} className="flex flex-wrap gap-1.5">{Array.from({ length: c.max + 1 }, (_, n) => (
+            <button key={n} type="button" aria-pressed={(pts[c.name] ?? 0) === n} onClick={() => setPts({ ...pts, [c.name]: n })}
+              className={`size-10 rounded-md font-bold tabular-nums ${(pts[c.name] ?? 0) === n ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{n}</button>
+          ))}</div>
+        </div>
+      ))}
+      <Button loading={busy} onClick={save}>{tx('Сақтау · {0}/{1}', total, max)}</Button>
+    </Card>
   )
 }
 
@@ -247,11 +270,12 @@ function Monitoring({ cls, term, d }: { cls: Cls; term: string; d: Data }) {
         <Card className="p-0 divide-y divide-line">
           {rooms.map((r) => {
             const s = (clean.data ?? []).filter((c) => c.room_id === r.id)
-            const avg = s.length ? (s.reduce((n, c) => n + c.score, 0) / s.length).toFixed(1) : '—'
+            const sum = s.reduce((n, c) => n + c.max, 0)
+            const avg = sum ? `${Math.round((s.reduce((n, c) => n + c.score, 0) / sum) * 100)}%` : '—'
             return (
               <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="w-14 font-bold font-display">{r.name}</span>
-                <span className="flex-1 text-xs text-muted truncate">{s.slice(0, 7).map((c) => c.score).join(' · ') || tx('ұпай қойылмаған')}</span>
+                <span className="flex-1 text-xs text-muted truncate">{s.slice(0, 5).map((c) => `${c.score}/${c.max}`).join(' · ') || tx('ұпай қойылмаған')}</span>
                 <span className="text-lg font-bold tabular-nums">{avg}</span>
               </div>
             )
@@ -295,8 +319,10 @@ function Settings({ d, reload }: { d: Data; reload: () => void }) {
   const [room, setRoom] = useState<DormRoom | 'new' | null>(null)
   const history = useLoad(() => Promise.all([listDormHolders(true), listDormReports()]), [])
   const save = async () => {
+    const names = s.clean_criteria.map((c) => c.name.trim())
+    if (names.some((n) => !n) || new Set(names).size !== names.length) return toast(tx('Критерий атаулары бос болмауы және қайталанбауы керек'))
     setBusy(true)
-    try { await saveDormSettings(s); toast(tx('Сақталды')); reload() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+    try { await saveDormSettings({ ...s, clean_criteria: s.clean_criteria.map((c) => ({ ...c, name: c.name.trim() })) }); toast(tx('Сақталды')); reload() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   const damaged = d.items.filter((i) => i.state === 'damaged')
   const reports = (history.data?.[1] ?? []).filter((r) => !r.resolved_at)
@@ -314,6 +340,20 @@ function Settings({ d, reload }: { d: Data; reload: () => void }) {
           <Field label={tx('Уақыты')}>{(id) => <input id={id} type="time" value={s.linen_time.slice(0, 5)} onChange={(e) => setS({ ...s, linen_time: e.target.value })} className={inputCls} />}</Field>
         </div>
         <p className="text-sm text-muted -mt-1">{tx('Бос қалса — тек қолмен')}</p>
+        <p className="font-semibold">{tx('Тазалық критерийлері')}</p>
+        {s.clean_criteria.map((c, i) => {
+          const set = (v: Partial<CleanCriterion>) => setS({ ...s, clean_criteria: s.clean_criteria.map((x, j) => (j === i ? { ...x, ...v } : x)) })
+          return (
+            <div key={i} className="grid grid-cols-[1fr_5rem_auto] gap-2 items-center">
+              <input aria-label={tx('Критерий атауы')} value={c.name} maxLength={60} onChange={(e) => set({ name: e.target.value })} className={inputCls} />
+              <input aria-label={tx('Ең жоғары балл')} type="number" min={1} max={10} value={c.max} onChange={(e) => set({ max: Math.max(1, Math.min(10, Math.floor(+e.target.value) || 1)) })} className={inputCls} />
+              <button type="button" aria-label={tx('{0} өшіру', c.name)} disabled={s.clean_criteria.length < 2}
+                onClick={() => setS({ ...s, clean_criteria: s.clean_criteria.filter((_, j) => j !== i) })} className="size-11 grid place-items-center text-muted disabled:opacity-30"><Icon n="x" size={18} /></button>
+            </div>
+          )
+        })}
+        <p className="text-sm text-muted -mt-1">{tx('Атауы және ең жоғары балы (1–10). Барлығы: {0} балл', s.clean_criteria.reduce((n, c) => n + c.max, 0))}</p>
+        {s.clean_criteria.length < 12 && <Button kind="ghost" onClick={() => setS({ ...s, clean_criteria: [...s.clean_criteria, { name: '', max: 5 }] })}><Icon n="plus" size={18} />{tx('Критерий қосу')}</Button>}
         <Button loading={busy} onClick={save}>{tx('Сақтау')}</Button>
       </Card>
 

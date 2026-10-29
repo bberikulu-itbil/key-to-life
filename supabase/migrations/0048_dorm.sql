@@ -48,11 +48,8 @@ create or replace function dorm_room_editor(p_room uuid) returns boolean languag
   select exists (select 1 from dorm_rooms r where r.id = p_room and r.school_id = my_school() and (r.created_by = auth.uid() or is_dorm_head()))
 $$;
 alter table dorm_rooms enable row level security;
-drop policy if exists dr_read on dorm_rooms;
 create policy dr_read on dorm_rooms for select to authenticated using (school_id = my_school());
-drop policy if exists dr_insert on dorm_rooms;
 create policy dr_insert on dorm_rooms for insert to authenticated with check (school_id = my_school() and is_staff());
-drop policy if exists dr_update on dorm_rooms;
 create policy dr_update on dorm_rooms for update to authenticated using (dorm_room_editor(id)) with check (school_id = my_school());
 
 create table if not exists dorm_items (
@@ -66,9 +63,7 @@ create table if not exists dorm_items (
   unique (room_id, kind, no)
 );
 alter table dorm_items enable row level security;
-drop policy if exists di_read on dorm_items;
 create policy di_read on dorm_items for select to authenticated using (exists (select 1 from dorm_rooms r where r.id = room_id and r.school_id = my_school()));
-drop policy if exists di_write on dorm_items;
 create policy di_write on dorm_items for all to authenticated using (dorm_room_editor(room_id)) with check (dorm_room_editor(room_id));
 
 /* ---------- placement per term ---------- */
@@ -85,7 +80,6 @@ create table if not exists dorm_assignments (
 );
 create index if not exists dorm_assignments_room on dorm_assignments(term, room_id);
 alter table dorm_assignments enable row level security;
-drop policy if exists da_read on dorm_assignments;
 create policy da_read on dorm_assignments for select to authenticated using (school_id = my_school());
 
 -- who has held which bed, wardrobe or nightstand: damage is asked of the holder of that time
@@ -100,7 +94,6 @@ create table if not exists dorm_item_holders (
 create unique index if not exists dorm_item_holder_now on dorm_item_holders(item_id) where to_at is null;
 create index if not exists dorm_item_holders_student on dorm_item_holders(student_id) where to_at is null;
 alter table dorm_item_holders enable row level security;
-drop policy if exists dih_read on dorm_item_holders;
 create policy dih_read on dorm_item_holders for select to authenticated
   using (exists (select 1 from dorm_items i join dorm_rooms r on r.id = i.room_id where i.id = item_id and r.school_id = my_school()));
 
@@ -111,18 +104,24 @@ create table if not exists dorm_settings (
   swap text not null default 'confirm' check (swap in ('off', 'free', 'confirm')),
   linen_days int check (linen_days between 1 and 60),                          -- null: no automatic reminder
   linen_time time not null default '18:00',
-  linen_last date
+  linen_last date,
+  -- what a room's cleanliness is scored on, and the points each is worth
+  clean_criteria jsonb not null default '[{"name":"Төсек жиналған","max":5},{"name":"Еден таза","max":5},{"name":"Заттар орнында","max":5}]'
+    check (jsonb_typeof(clean_criteria) = 'array' and jsonb_array_length(clean_criteria) between 1 and 12)
 );
 alter table dorm_settings enable row level security;
-drop policy if exists ds_read on dorm_settings;
 create policy ds_read on dorm_settings for select to authenticated using (exists (select 1 from classes k where k.id = class_id and k.school_id = my_school()));
 
-create or replace function set_dorm_settings(p_class uuid, p_mode text, p_swap text, p_linen_days int, p_linen_time time) returns void
+create or replace function set_dorm_settings(p_class uuid, p_mode text, p_swap text, p_linen_days int, p_linen_time time, p_criteria jsonb) returns void
 language plpgsql security definer set search_path = public as $$
 begin
   if not dorm_class_keeper(p_class) then raise exception 'Құқығыңыз жоқ'; end if;
-  insert into dorm_settings (class_id, mode, swap, linen_days, linen_time) values (p_class, p_mode, p_swap, p_linen_days, coalesce(p_linen_time, '18:00'))
-    on conflict (class_id) do update set mode = excluded.mode, swap = excluded.swap, linen_days = excluded.linen_days, linen_time = excluded.linen_time;
+  if exists (select 1 from jsonb_array_elements(p_criteria) c where length(trim(coalesce(c->>'name', ''))) not between 1 and 60
+             or coalesce((c->>'max')::int, 0) not between 1 and 10) then
+    raise exception 'Критерий: атауы және 1–10 балл'; end if;
+  insert into dorm_settings (class_id, mode, swap, linen_days, linen_time, clean_criteria) values (p_class, p_mode, p_swap, p_linen_days, coalesce(p_linen_time, '18:00'), p_criteria)
+    on conflict (class_id) do update set mode = excluded.mode, swap = excluded.swap, linen_days = excluded.linen_days, linen_time = excluded.linen_time,
+      clean_criteria = excluded.clean_criteria;
 end $$;
 
 -- the free things of one kind in a room, lowest number first
@@ -227,7 +226,6 @@ create table if not exists dorm_swaps (
   created_at timestamptz not null default now()
 );
 alter table dorm_swaps enable row level security;
-drop policy if exists dsw_read on dorm_swaps;
 create policy dsw_read on dorm_swaps for select to authenticated using (auth.uid() in (from_id, to_id) or dorm_keeper(from_id));
 
 create or replace function dorm_do_swap(s dorm_swaps) returns void language plpgsql security definer set search_path = public as $$
@@ -294,9 +292,7 @@ create table if not exists dorm_linen_answers (
 );
 alter table dorm_linen_rounds enable row level security;
 alter table dorm_linen_answers enable row level security;
-drop policy if exists dlr_read on dorm_linen_rounds;
 create policy dlr_read on dorm_linen_rounds for select to authenticated using (exists (select 1 from classes k where k.id = class_id and k.school_id = my_school()));
-drop policy if exists dla_read on dorm_linen_answers;
 create policy dla_read on dorm_linen_answers for select to authenticated using (student_id = auth.uid() or dorm_keeper(student_id));
 
 -- a new round notifies every boy of the class who lives in the dorm; p_resend only reminds those who have not answered the last one
@@ -351,7 +347,6 @@ create table if not exists dorm_checks (
   primary key (on_date, student_id)
 );
 alter table dorm_checks enable row level security;
-drop policy if exists dc_read on dorm_checks;
 create policy dc_read on dorm_checks for select to authenticated using (student_id = auth.uid() or dorm_keeper(student_id));
 
 create or replace function mark_dorm_check(p_date date, p_rows jsonb) returns int language plpgsql security definer set search_path = public as $$
@@ -369,14 +364,14 @@ end $$;
 create table if not exists dorm_clean (
   room_id uuid not null references dorm_rooms(id) on delete cascade,
   on_date date not null,
-  score int not null check (score between 1 and 5),
+  score int not null check (score >= 0),                  -- the sum of the criteria's points
+  max int not null check (max between 1 and 120 and score <= max),
+  details jsonb,                                         -- {criterion name: points}
   scored_by uuid references profiles(id) on delete set null,
   primary key (room_id, on_date)
 );
 alter table dorm_clean enable row level security;
-drop policy if exists dcl_read on dorm_clean;
 create policy dcl_read on dorm_clean for select to authenticated using (exists (select 1 from dorm_rooms r where r.id = room_id and r.school_id = my_school()));
-drop policy if exists dcl_write on dorm_clean;
 create policy dcl_write on dorm_clean for all to authenticated using (is_staff() and exists (select 1 from dorm_rooms r where r.id = room_id and r.school_id = my_school()))
   with check (is_staff() and exists (select 1 from dorm_rooms r where r.id = room_id and r.school_id = my_school()));
 
@@ -391,13 +386,10 @@ create table if not exists dorm_reports (
   resolved_at timestamptz
 );
 alter table dorm_reports enable row level security;
-drop policy if exists drp_read on dorm_reports;
 create policy drp_read on dorm_reports for select to authenticated using (student_id = auth.uid() or (is_staff()
   and exists (select 1 from dorm_items i join dorm_rooms r on r.id = i.room_id where i.id = item_id and r.school_id = my_school())));
-drop policy if exists drp_insert on dorm_reports;
 create policy drp_insert on dorm_reports for insert to authenticated with check (student_id = auth.uid()
   and exists (select 1 from dorm_items i join dorm_rooms r on r.id = i.room_id where i.id = item_id and r.school_id = my_school()));
-drop policy if exists drp_update on dorm_reports;
 create policy drp_update on dorm_reports for update to authenticated using (is_staff()
   and exists (select 1 from dorm_items i join dorm_rooms r on r.id = i.room_id where i.id = item_id and r.school_id = my_school()));
 
@@ -414,7 +406,6 @@ create table if not exists dorm_guests (
   created_at timestamptz not null default now()
 );
 alter table dorm_guests enable row level security;
-drop policy if exists dg_all on dorm_guests;
 create policy dg_all on dorm_guests for all to authenticated using (school_id = my_school() and is_dorm_head()) with check (school_id = my_school() and is_dorm_head());
 
 /* ---------- the dorm head is set like a staff kind ---------- */

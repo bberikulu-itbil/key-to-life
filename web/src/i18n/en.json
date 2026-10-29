@@ -1683,5 +1683,13 @@
  "Жатақхана: бөлмелер, әр тоқсанда рандом орналастыру (бұрынғы бөлмелес пен бөлме қайталанбайды).": "Dorm: rooms, random placement every term (no repeated roommates or rooms).",
  "Оқушы төсек, шкаф, тумбочканы QR арқылы таңдайды; бүлінсе — сол оқушыдан сұралады.": "Students take a bed, wardrobe and nightstand by QR; if damaged, that student answers for it.",
  "Постель ауыстыру еске салғышы және жауаптар мониторингі; кешкі түгендеу бөлмелер бойынша.": "Linen-change reminders with answer tracking; evening roll call by rooms.",
- "Төсек алмасу, ақау туралы хабарлау, бөлме тазалығы ұпайы, QR парақтарын басып шығару.": "Bed swaps, fault reports, room cleanliness scores, printable QR sheets."
+ "Төсек алмасу, ақау туралы хабарлау, бөлме тазалығы ұпайы, QR парақтарын басып шығару.": "Bed swaps, fault reports, room cleanliness scores, printable QR sheets.",
+ "Сақтау · {0}/{1}": "Save · {0}/{1}",
+ "Тазалық критерийлері": "Cleanliness criteria",
+ "Критерий атауы": "Criterion name",
+ "Ең жоғары балл": "Max points",
+ "Атауы және ең жоғары балы (1–10). Барлығы: {0} балл": "Name and max points (1–10). Total: {0} points",
+ "Критерий қосу": "Add a criterion",
+ "Критерий атаулары бос болмауы және қайталанбауы керек": "Criterion names must not be empty or repeated",
+ "Критерий: атауы және 1–10 балл": "Criterion: a name and 1–10 points"
 }
