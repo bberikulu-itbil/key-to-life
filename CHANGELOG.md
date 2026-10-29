@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.2 — 2026-10-29
+
+- «+» menu redrawn as coloured tiles with 3D pictures (drawn in SVG): a wide «QR check» on top; «Ask permission» and «Book» side by side; «Write in the feed» and «Propose an initiative» side by side; small «New plan» and «New habit» tiles marked beta.
+- «Add a user» in the «+» menu only for admins (class teachers still find it in the profile).
+
 ## 1.4.1 — 2026-10-29
 
 - «+» menu: «QR» at the top right; «New plan (beta)» and «New habit (beta)» moved to the end.

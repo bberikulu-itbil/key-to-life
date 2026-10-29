@@ -1763,5 +1763,10 @@
  "Қате туралы хабарлау": "Report the problem",
  "Фонарик": "Torch",
  "QR тексеру: камера бірден толық экранда ашылады, фонарик бар, код төменде жазылады.": "QR check: the camera opens at once full screen, with a torch; the code can be typed at the bottom.",
- "Камера қосылмаса, қате туралы бір батырмамен хабарлауға болады.": "If the camera does not start, report it with one button."
+ "Камера қосылмаса, қате туралы бір батырмамен хабарлауға болады.": "If the camera does not start, report it with one button.",
+ "«+» мәзірі жаңа: түрлі түсті плиткалар мен 3D суреттер, QR тексеру ең жоғарыда.": "New «+» menu: coloured tiles with 3D pictures, QR check on top.",
+ "Сыртқа шығу, сабақтан": "Going out, from a lesson",
+ "Өтініштер, бүгінгілер": "Requests, today's",
+ "Жаңалық, хабарландыру": "News, announcement",
+ "Жарыс, үйірме, клуб, команда": "Contest, club, team"
 }
