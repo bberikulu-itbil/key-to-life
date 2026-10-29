@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.4 — 2026-10-29
+
+- Redesign, step 2: the profile. A navy card with the photo in a gold ring and the numbers in gold; the main sections (initiatives, permissions, class, dorm, bookings, certificates) as coloured 3D tiles; the other rows with coloured icons in each section's colour.
+
 ## 1.4.3 — 2026-10-29
 
 - Redesign, step 1: the home page sections (Initiatives, Canteen, Lost & Found, Places, Surveys) use the same coloured tiles with 3D pictures as the «+» menu; one colour per section everywhere.

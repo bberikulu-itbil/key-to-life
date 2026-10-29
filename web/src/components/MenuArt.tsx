@@ -3,7 +3,7 @@ import { useId, type ReactNode } from 'react'
 /* Small 3D-looking pictures for the «+» menu tiles, drawn in SVG: a light face, a darker extruded side,
    a soft shadow and a gloss. Original drawings, no assets. */
 
-export type ArtKind = 'qr' | 'pass' | 'book' | 'feed' | 'idea' | 'plan' | 'habit' | 'user' | 'lost' | 'place' | 'food' | 'poll'
+export type ArtKind = 'qr' | 'pass' | 'book' | 'feed' | 'idea' | 'plan' | 'habit' | 'user' | 'lost' | 'place' | 'food' | 'poll' | 'bed' | 'cert'
 
 export default function MenuArt({ kind, className = '' }: { kind: ArtKind; className?: string }) {
   const id = useId().replace(/:/g, '')
@@ -126,6 +126,26 @@ export default function MenuArt({ kind, className = '' }: { kind: ArtKind; class
         <circle cx="76" cy="28" r="11" fill={g('grn')} /><path d="m71 28 4 4 6-7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </g>}
 
+      {kind === 'bed' && <g>
+        <ellipse cx="50" cy="86" rx="34" ry="5" fill="#000" opacity=".15" />
+        <rect x="14" y="30" width="8" height="54" rx="4" fill={g('nv')} /><rect x="78" y="48" width="8" height="36" rx="4" fill={g('nv')} />
+        <rect x="18" y="54" width="66" height="18" rx="5" fill={g('ws')} transform="translate(0 4)" />
+        <rect x="18" y="54" width="66" height="18" rx="5" fill={g('w')} />
+        <path d="M44 48h40a6 6 0 0 1 6 6v4H44z" fill="#4a7be3" />
+        <rect x="24" y="42" width="20" height="12" rx="6" fill={g('ball')} />
+        <rect x="44" y="50" width="46" height="4" rx="2" fill="#fff" opacity=".5" />
+        <text x="66" y="34" fontSize="16" fontWeight="800" fill="#f6d77a">z</text><text x="76" y="24" fontSize="11" fontWeight="800" fill="#f6d77a">z</text>
+      </g>}
+
+      {kind === 'cert' && <g transform="rotate(-8 50 50)">
+        <rect x="16" y="22" width="68" height="50" rx="7" fill={g('ws')} transform="translate(4 5)" />
+        <rect x="16" y="22" width="68" height="50" rx="7" fill={g('w')} />
+        <rect x="22" y="28" width="56" height="38" rx="4" fill="none" stroke={g('gd')} strokeWidth="2.5" />
+        <rect x="30" y="36" width="28" height="4" rx="2" fill="#16264f" /><rect x="30" y="45" width="20" height="3" rx="1.5" fill="#aab4c8" />
+        <path d="M64 66l-5 16 7-4 4 7 3-17zM74 66l5 16-7-4-4 7-3-17z" fill="#d9463a" />
+        <circle cx="69" cy="62" r="10" fill={g('gball')} /><path d="m69 56 1.8 3.8 4 .5-3 2.8.8 4-3.6-2-3.6 2 .8-4-3-2.8 4-.5z" fill="#fff8de" />
+      </g>}
+
       {kind === 'user' && <g>
         <circle cx="50" cy="36" r="16" fill={g('ball')} />
         <path d="M22 84a28 24 0 0 1 56 0z" fill={g('ball')} />
@@ -164,4 +184,6 @@ export const TILE = {
   lost: 'bg-[linear-gradient(135deg,#38b2c9,#1d8aa1)] text-white',
   food: 'bg-[linear-gradient(135deg,#ee7d6e,#cc4f42)] text-white',
   poll: 'bg-[linear-gradient(135deg,#df6f9c,#b8467a)] text-white',
+  bed: 'bg-[linear-gradient(135deg,#5b8fd6,#3a64a8)] text-white',
+  cert: 'bg-[linear-gradient(135deg,#d8b04a,#a8801f)] text-white',
 } as const

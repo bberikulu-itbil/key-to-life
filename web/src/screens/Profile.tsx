@@ -3,21 +3,23 @@ import { attendanceRate, errText, listActivities, listResources, uploadStudentPh
 import { openTelegram } from '../lib/telegram'
 import { useMe, canAddUsers, isApprover } from '../App'
 import { Button, Card, Icon, PageHead, toast, useLoad } from '../components/ui'
+import { TILE, Tile, type ArtKind } from '../components/MenuArt'
 import Avatar from '../components/Avatar'
 import { LangChips } from '../components/LangPicker'
 import { tx } from '../lib/i18n'
 
 const ROLE: Record<string, string> = { student: tx('Оқушы'), teacher: tx('Мұғалім'), class_teacher: tx('Сынып жетекшісі'), deputy: tx('Тәрбие ісі жөніндегі орынбасар'), admin: tx('Әкімші') }
 
-type Link = [string, string, string, string?]
+type Tint = keyof typeof TILE
+type Link = [string, string, string, string?, Tint?]
 const Section = ({ title, links }: { title: string; links: Link[] }) => (
   <section className="grid gap-2">
     <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{title}</h2>
-    <nav aria-label={title} className="bg-surface rounded-lg shadow-card border border-[var(--card-line,transparent)] divide-y divide-line">
-      {links.map(([href, icon, label, hint]) => (
-        <a key={href} href={href} className="flex items-center gap-3 min-h-14 px-4 py-2">
-          <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span>
-          <span className="flex-1 min-w-0"><span className="block">{label}</span>{hint && <span className="block text-sm text-muted">{hint}</span>}</span>
+    <nav aria-label={title} className="bg-surface rounded-[22px] shadow-card border border-[var(--card-line,transparent)] divide-y divide-line overflow-hidden">
+      {links.map(([href, icon, label, hint, tint]) => (
+        <a key={href} href={href} className="flex items-center gap-3 min-h-14 px-4 py-2 active:bg-surface-2">
+          <span className={`size-9 rounded-[11px] grid place-items-center shadow-card ${TILE[tint ?? 'qr']}`}><Icon n={icon} size={18} /></span>
+          <span className="flex-1 min-w-0"><span className="block font-medium">{label}</span>{hint && <span className="block text-sm text-muted">{hint}</span>}</span>
           <Icon n="chev" className="text-muted" />
         </a>
       ))}
@@ -38,11 +40,11 @@ export default function Profile() {
   const [leaving, setLeaving] = useState(false)
   // approvals, sign-ups, complaints, new accounts: for class teachers, deputies and admins
   const admin: Link[] = [
-    ...(me.role === 'admin' || me.role === 'deputy' ? [['#/class', 'users', tx('Сыныптар мен қызметкерлер'), tx('Мұғалімдер, тәрбиешілер, қызметкерлер')] as Link] : []),
-    ...(isApprover(me) ? [['#/activities/review', 'check', tx('Растау күтуде'), tx('Оқушылардың бастама ұсыныстары')] as Link] : []),
-    ...(me.role === 'admin' || myClass.data?.teacher_id === me.id ? [['#/registrations', 'userplus', tx('Тіркелу өтініштері'), tx('Растауды күтетін жаңа аккаунттар')] as Link] : []),
-    ...(canAddUsers(me) ? [['#/adduser', 'userplus', tx('Пайдаланушы қосу'), me.role === 'class_teacher' ? tx('Өз сыныбыңызға оқушы тіркеу') : tx('Оқушы немесе мұғалім тіркеу')] as Link] : []),
-    ...(isApprover(me) ? [['#/chats/reports', 'flag', tx('Чат шағымдары')] as Link] : []),
+    ...(me.role === 'admin' || me.role === 'deputy' ? [['#/class', 'users', tx('Сыныптар мен қызметкерлер'), tx('Мұғалімдер, тәрбиешілер, қызметкерлер'), 'plan'] as Link] : []),
+    ...(isApprover(me) ? [['#/activities/review', 'check', tx('Растау күтуде'), tx('Оқушылардың бастама ұсыныстары'), 'idea'] as Link] : []),
+    ...(me.role === 'admin' || myClass.data?.teacher_id === me.id ? [['#/registrations', 'userplus', tx('Тіркелу өтініштері'), tx('Растауды күтетін жаңа аккаунттар'), 'pass'] as Link] : []),
+    ...(canAddUsers(me) ? [['#/adduser', 'userplus', tx('Пайдаланушы қосу'), me.role === 'class_teacher' ? tx('Өз сыныбыңызға оқушы тіркеу') : tx('Оқушы немесе мұғалім тіркеу'), 'user'] as Link] : []),
+    ...(isApprover(me) ? [['#/chats/reports', 'flag', tx('Чат шағымдары'), undefined, 'food'] as Link] : []),
   ]
   const [photo, setPhoto] = useState(me.photo)
   const [uploading, setUploading] = useState(false)
@@ -54,17 +56,17 @@ export default function Profile() {
   return (
     <div className="grid gap-3 pb-6">
       <PageHead title={tx('Профиль')} />
-      <Card className="grid gap-4">
+      <div className="rounded-[22px] p-4 bg-[linear-gradient(135deg,#22386e,#16264f)] text-white shadow-card grid gap-4">
         <div className="flex items-center gap-3">
           <label className={`relative shrink-0 cursor-pointer ${uploading ? 'opacity-50' : ''}`} aria-label={photo ? tx('Суретті ауыстыру') : tx('Сурет қосу')}>
-            <Avatar name={me.full_name} photo={photo} size={64} />
-            <span className="absolute -bottom-0.5 -right-0.5 size-6 rounded-full bg-accent text-on-accent grid place-items-center border-2 border-surface"><Icon n="plus" size={14} /></span>
+            <span className="block rounded-full ring-2 ring-gold"><Avatar name={me.full_name} photo={photo} size={64} /></span>
+            <span className="absolute -bottom-0.5 -right-0.5 size-6 rounded-full bg-gold text-on-gold grid place-items-center border-2 border-[#16264f]"><Icon n="plus" size={14} /></span>
             <input type="file" accept="image/*" className="sr-only" disabled={uploading} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
           </label>
           <div className="min-w-0 flex-1">
             <p className="text-lg font-bold leading-snug break-words">{me.full_name}</p>
-            <p className="text-sm text-muted">{me.title || ROLE[me.role]}{me.class ? ` · ${me.class.name}` : ''}</p>
-            <p className="text-sm text-muted truncate">{me.school.name}{me.parliament ? tx(' · парламент мүшесі') : ''}</p>
+            <p className="text-sm opacity-80">{me.title || ROLE[me.role]}{me.class ? ` · ${me.class.name}` : ''}</p>
+            <p className="text-sm opacity-80 truncate">{me.school.name}{me.parliament ? tx(' · парламент мүшесі') : ''}</p>
           </div>
         </div>
         <div className={`grid gap-2 ${staff ? 'grid-cols-3' : 'grid-cols-2'}`}>
@@ -73,20 +75,35 @@ export default function Profile() {
           {staff && <Stat value={stats.data ? String(stats.data.rooms) : '—'} label={tx('Орындар')} href="#/bookings/places" />}
           {staff && <Stat value={myClass.data?.name ?? '—'} label={tx('Сыныбым')} href={myClass.data ? `#/class/${myClass.data.id}` : undefined} />}
         </div>
-      </Card>
+      </div>
+
+      {(() => {
+        const dorm = me.dorm || (staff && (myClass.data || me.staff_kind === 'dorm_head' || me.role === 'deputy' || me.role === 'admin'))
+        const tiles: [string, ArtKind, string, Tint][] = [
+          ['#/activities/mine', 'idea', staff ? tx('Менің бастамаларым') : tx('Бастамаларым'), 'idea'],
+          ['#/leaves', 'pass', staff ? tx('Рұқсаттар') : tx('Менің рұқсаттарым'), 'pass'],
+          ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'user', tx('Сыныбым'), 'plan'] as [string, ArtKind, string, Tint]] : []),
+          ...(dorm ? [['#/dorm', 'bed', tx('Жатақхана'), 'bed'] as [string, ArtKind, string, Tint]] : []),
+          ['#/bookings', 'book', tx('Броньдар'), 'book'],
+          ...(staff ? [] : [['#/certs', 'cert', tx('Сертификат'), 'cert'] as [string, ArtKind, string, Tint]]),
+        ]
+        // the first two are wide; the rest go three to a row, and a short last row stretches
+        const rest = tiles.length - 2, tail = rest % 3
+        return (
+          <nav aria-label={tx('Жалпы')} className="grid grid-cols-6 gap-2.5">
+            {tiles.map(([href, art, title, tint], i) => {
+              const span = i < 2 ? 'col-span-3 h-28' : i - 2 >= rest - tail ? (tail === 1 ? 'col-span-6 h-24' : 'col-span-3 h-24') : 'col-span-2 h-24'
+              return <Tile key={href} href={href} art={art} size="mid" className={`${span} ${TILE[tint]}`} title={title} />
+            })}
+          </nav>
+        )
+      })()}
 
       <Section title={tx('Жалпы')} links={[
-        ['#/activities/mine', 'star', tx('Менің бастамаларым'), staff ? tx('Жетекшілік ететін және ұсынған') : tx('Жазылған, ұсынған, жауапты')],
-        ...(myClass.data ? [[`#/class/${myClass.data.id}`, 'users', tx('Менің сыныбым'), tx('Оқушылар, суреттер, кім сыртта')] as Link] : []),
-        ['#/leaves', 'clock', staff ? tx('Рұқсаттар') : tx('Менің рұқсаттарым'), staff ? tx('Шешім күтетіндер және бүгін берілгендер') : undefined],
-        ...(me.dorm || (staff && (myClass.data || me.staff_kind === 'dorm_head' || me.role === 'deputy' || me.role === 'admin'))
-          ? [['#/dorm', 'home', tx('Жатақхана'), staff ? tx('Бөлмелер, орналастыру, постель, түгендеу') : tx('Бөлмем, орным, постель')] as Link] : []),
-        ['#/bookings', 'grid', tx('Менің броньдарым')],
-        ...(staff ? [] : [['#/certs', 'trophy', tx('Сертификаттарым')] as Link]),
-        ['#/timetable', 'list', tx('Сабақ кестесі')],
-        ['#/calendars', 'file', tx('Күнтізбелер'), tx('Жеке, сынып, мектеп · импорт/экспорт')],
-        ...(staff ? [['#/duty', 'users', tx('Кезекшіліктер'), tx('Мұғалімдер мен орынбасарлар')] as Link] : []),
-        ['#/v/', 'check', tx('QR тексеру'), tx('Рұқсат, бронь, сертификат, жатақхана заты')],
+        ['#/timetable', 'list', tx('Сабақ кестесі'), undefined, 'plan'],
+        ['#/calendars', 'file', tx('Күнтізбелер'), tx('Жеке, сынып, мектеп · импорт/экспорт'), 'book'],
+        ...(staff ? [['#/duty', 'users', tx('Кезекшіліктер'), tx('Мұғалімдер мен орынбасарлар'), 'habit'] as Link] : []),
+        ['#/v/', 'qr', tx('QR тексеру'), tx('Рұқсат, бронь, сертификат, жатақхана заты'), 'qr'],
       ]} />
       {admin.length > 0 && <Section title={tx('Әкімшілік')} links={admin} />}
 
@@ -94,9 +111,9 @@ export default function Profile() {
       <Card className="grid gap-2"><p className="font-semibold">{tx('Тіл')}</p><LangChips signedIn /></Card>
       <TelegramCard staff={staff} />
       <Section title={tx('Қосымша жайлы')} links={[
-        ['#/about/news', 'megaphone', tx('Жаңалықтар'), tx('Соңғы нұсқада не өзгерді')],
-        ['#/about/tips', 'star', tx('Кеңестер'), tx('Қосымшаны тиімді қолдану')],
-        ['#/feedback', 'flag', tx('Қосымшаны дамытуға ұсыныс'), tx('Идея немесе қате туралы әзірлеушіге жазыңыз')],
+        ['#/about/news', 'megaphone', tx('Жаңалықтар'), tx('Соңғы нұсқада не өзгерді'), 'feed'],
+        ['#/about/tips', 'star', tx('Кеңестер'), tx('Қосымшаны тиімді қолдану'), 'habit'],
+        ['#/feedback', 'flag', tx('Қосымшаны дамытуға ұсыныс'), tx('Идея немесе қате туралы әзірлеушіге жазыңыз'), 'poll'],
       ]} />
       {leaving ? (
         <Card className="grid gap-3">
@@ -110,8 +127,8 @@ export default function Profile() {
 }
 
 const Stat = ({ value, label, href }: { value: string; label: string; href?: string }) => {
-  const body = <><span className="block text-xl font-bold tabular-nums">{value}</span><span className="block text-xs text-muted">{label}</span></>
-  return href ? <a href={href} className="rounded-md bg-surface-2 px-3 py-2.5">{body}</a> : <div className="rounded-md bg-surface-2 px-3 py-2.5">{body}</div>
+  const body = <><span className="block text-xl font-bold tabular-nums text-gold">{value}</span><span className="block text-xs opacity-80">{label}</span></>
+  return href ? <a href={href} className="rounded-[14px] bg-white/10 px-3 py-2.5">{body}</a> : <div className="rounded-[14px] bg-white/10 px-3 py-2.5">{body}</div>
 }
 
 function TelegramCard({ staff }: { staff: boolean }) {

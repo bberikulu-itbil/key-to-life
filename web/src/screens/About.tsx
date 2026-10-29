@@ -3,6 +3,9 @@ import { tx } from '../lib/i18n'
 
 // What changed, newest first. Keep it short: what a teacher or student notices.
 const NEWS: [string, string[]][] = [
+  ['1.4.4', [
+    tx('Профиль жаңа дизайнда: негізгі бөлімдер түрлі түсті плиткалар, қалғаны түрлі түсті иконкалармен.'),
+  ]],
   ['1.4.3', [
     tx('Басты бет бөлімдері «+» мәзірімен бірдей түрлі түсті плиткаларға ауысты.'),
   ]],
