@@ -41,6 +41,9 @@ import { GoalForm, HabitForm } from './components/Goals'
 import { TILE, Tile } from './components/MenuArt'
 import { tx } from './lib/i18n'
 
+// the canteen's Google Form for feedback
+const CANTEEN_FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSc4BWrq8LtQ3axHfn2gw2xrMQqmjfVLRgIlzYW6Uc9zVzFqxQ/viewform'
+
 const Ctx = createContext<{ me: Me; refreshBadge: () => void }>(null!)
 export const useMe = () => useContext(Ctx)
 
@@ -133,7 +136,9 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'events') screen = <Feed key="events" query="" page="events" />
   else if (seg === 'proposals') screen = <Feed key="proposals" query="" page="proposals" />
   else if (seg === 'p' && id) screen = <PostPage key={id} id={id} />
-  else if (seg === 'menu') screen = <div className="grid gap-3 pb-6"><PageHead title={tx('Асхана')} back /><MenuCard me={me} /></div>
+  else if (seg === 'menu') screen = <div className="grid gap-3 pb-6"><PageHead title={tx('Асхана')} back /><MenuCard me={me} />
+    <a href={CANTEEN_FORM} target="_blank" rel="noopener" onClick={(e) => { if (inTelegram && tg?.openLink) { e.preventDefault(); tg.openLink(CANTEEN_FORM) } }}
+      className="h-12 rounded-md bg-accent-soft text-accent font-semibold inline-flex items-center justify-center gap-2"><Icon n="chat" size={20} />{tx('Асхана туралы пікір жазу')}</a></div>
   else if (seg === 'feedback') screen = <Feedback />
   else if (seg === 'registrations') screen = <Registrations />
   else if (seg === 'surveys' && id === 'new') screen = <SurveyNew />

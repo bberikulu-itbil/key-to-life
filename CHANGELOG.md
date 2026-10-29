@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.7 — 2026-10-29
+
+- Canteen: «Leave feedback on the canteen» opens the canteen's Google Form (in the browser from Telegram).
+
 ## 1.4.6 — 2026-10-29
 
 - Profile: Dorm, Duty and Timetable tiles fit in one row.
