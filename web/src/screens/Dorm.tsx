@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import QRCode from 'qrcode'
 import {
   addDormItem, addDormRoom, answerBedSwap, answerLinen, approveBedSwap, claimDormItem, dormChecks, dormClean, dormResidents, errText, getDormSettings,
@@ -8,7 +8,7 @@ import {
   type DormAssign, type DormItem, type DormKind, type DormResident, type DormRoom, type DormSettings, type LinenAnswer, type CleanCriterion,
 } from '../lib/api'
 import { allocate, dormCodeFrom, flagsFor, historyFrom, itemUrl, nextTerm, prevTerm, termLabel, termOf, type Place } from '../lib/dorm'
-import { addDays, today } from '../lib/time'
+import { addDays, fmtDate, today } from '../lib/time'
 import { printPage } from '../lib/telegram'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
@@ -39,6 +39,7 @@ export default function Dorm({ sub, arg }: { sub?: string; arg?: string }) {
   const { me } = useMe()
   if (sub === 'item' && arg) return <ItemPage code={arg.toUpperCase()} />
   if (sub === 'qr') return <QrSheet room={arg} />
+  if (sub === 'door' && me.role !== 'student') return <DoorSheet room={arg} />
   if (me.role === 'student') return <StudentDorm />
   if (sub === 'place') return <PlaceWizard />
   return <TutorDorm />
@@ -358,7 +359,8 @@ function Settings({ d, reload }: { d: Data; reload: () => void }) {
       </Card>
 
       <div className="flex items-center gap-2 mt-1"><span className="flex-1"><H2>{tx('Бөлмелер · {0}', d.rooms.length)}</H2></span>
-        <Button kind="ghost" onClick={() => go('/dorm/qr/all')}><Icon n="file" size={18} />{tx('QR басып шығару')}</Button></div>
+        <Button kind="ghost" onClick={() => go('/dorm/qr/all')}><Icon n="file" size={18} />{tx('QR')}</Button>
+        <Button kind="ghost" onClick={() => go('/dorm/door/all')}><Icon n="list" size={18} />{tx('Есікке тізім')}</Button></div>
       <Card className="p-0 divide-y divide-line">
         {d.rooms.map((r) => {
           const items = d.items.filter((i) => i.room_id === r.id)
@@ -465,7 +467,8 @@ function RoomEdit({ room, d, canEdit, onChanged }: { room: DormRoom; d: Data; ca
       {canEdit && <div className="grid grid-cols-3 gap-2">{KINDS.map((k) => (
         <Button key={k} kind="ghost" onClick={() => run(addDormItem(room.id, k, Math.max(0, ...items.filter((i) => i.kind === k).map((i) => i.no)) + 1), reloadItems)}><Icon n="plus" size={16} />{KIND[k]}</Button>
       ))}</div>}
-      <Button kind="secondary" onClick={() => go(`/dorm/qr/${room.id}`)}><Icon n="file" size={18} />{tx('Осы бөлменің QR парағы')}</Button>
+      <div className="grid grid-cols-2 gap-2"><Button kind="secondary" onClick={() => go(`/dorm/qr/${room.id}`)}><Icon n="file" size={18} />{tx('QR парағы')}</Button>
+        <Button kind="secondary" onClick={() => go(`/dorm/door/${room.id}`)}><Icon n="list" size={18} />{tx('Есікке тізім')}</Button></div>
       {note && <DamageNote item={note} onDone={() => { setNote(null); reloadItems(); onChanged() }} />}
     </div>
   )
@@ -605,33 +608,107 @@ function PlaceWizard() {
   )
 }
 
-/* ---------- printed QR stickers, one sheet per room ---------- */
-function ItemQr({ code, label }: { code: string; label: string }) {
+/* ---------- printing: QR stickers and door lists, paper size and look chosen by the tutor ---------- */
+const PAPER: Record<string, [number, number]> = { A4: [210, 297], A5: [148, 210], A6: [105, 148] }
+type PrintOpts = { paper: string; w: number; h: number; qr: number; look: 'navy' | 'plain' | 'gold' }
+const PRINT_DEFAULT: PrintOpts = { paper: 'A4', w: 210, h: 297, qr: 45, look: 'navy' }
+function usePrintOpts() {
+  const [o, setO] = useState<PrintOpts>(() => { try { return { ...PRINT_DEFAULT, ...JSON.parse(localStorage.getItem('dorm-print') ?? '{}') } } catch { return PRINT_DEFAULT } })
+  const set = (v: Partial<PrintOpts>) => { const n = { ...o, ...v }; setO(n); try { localStorage.setItem('dorm-print', JSON.stringify(n)) } catch { /* private mode */ } }
+  return [o, set] as const
+}
+const mm = (v: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(+v) || lo))
+
+function PrintBar({ o, set, title, qr, looks }: { o: PrintOpts; set: (v: Partial<PrintOpts>) => void; title: string; qr?: boolean; looks?: boolean }) {
+  const num = (label: string, v: number, lo: number, hi: number, on: (n: number) => void) => (
+    <Field label={label}>{(id) => <input id={id} type="number" inputMode="numeric" min={lo} max={hi} value={v} onChange={(e) => on(mm(e.target.value, lo, hi))} className={inputCls} />}</Field>
+  )
+  return (
+    <div className="grid grid-cols-1 gap-3 print:hidden">
+      <PageHead title={title} back right={<Button onClick={printPage}><Icon n="file" size={18} />{tx('Басып шығару')}</Button>} />
+      <style>{`@page { size: ${o.w}mm ${o.h}mm; margin: 6mm } @media print { body { background: #fff } #root > div { min-height: 0 !important; padding-bottom: 0 !important } main { padding-top: 0 !important } * { -webkit-print-color-adjust: exact; print-color-adjust: exact } }`}</style>
+      <Card className="grid grid-cols-1 gap-3">
+        <p className="font-semibold">{tx('Қағаз өлшемі')}</p>
+        <Pick label={tx('Қағаз өлшемі')} value={o.paper} onChange={(paper) => set(PAPER[paper] ? { paper, w: PAPER[paper][0], h: PAPER[paper][1] } : { paper })}
+          items={[['A4', 'A4'], ['A5', 'A5'], ['A6', 'A6'], ['custom', tx('Өз өлшемім')]]} />
+        {o.paper === 'custom' && <div className="grid grid-cols-2 gap-2">{num(tx('Ені, мм'), o.w, 50, 420, (w) => set({ w }))}{num(tx('Биіктігі, мм'), o.h, 50, 600, (h) => set({ h }))}</div>}
+        {qr && num(tx('QR жапсырма өлшемі, мм'), o.qr, 20, 120, (q) => set({ qr: q }))}
+        {looks && <><p className="font-semibold">{tx('Дизайн')}</p>
+          <Pick label={tx('Дизайн')} value={o.look} onChange={(look) => set({ look })} items={[['navy', tx('Лицей (көк)')], ['gold', tx('Алтын жиек')], ['plain', tx('Қарапайым')]]} /></>}
+      </Card>
+    </div>
+  )
+}
+
+function ItemQr({ code, label, size }: { code: string; label: string; size: number }) {
   const [svg, setSvg] = useState('')
   useEffect(() => { QRCode.toString(itemUrl(code), { type: 'svg', margin: 0, color: { dark: '#000000', light: '#ffffff' } }).then(setSvg) }, [code])
   return (
-    <figure className="grid justify-items-center gap-1 rounded-md border border-line p-2 bg-white text-black break-inside-avoid">
+    <figure style={{ width: `${size}mm`, fontSize: `${Math.max(2.2, size / 14)}mm` }} className="grid justify-items-center gap-[1mm] rounded-md border border-line p-[2mm] bg-white text-black break-inside-avoid">
       <div role="img" aria-label={tx('{0} QR коды', label)} className="w-full aspect-square [&_svg]:w-full [&_svg]:h-full" dangerouslySetInnerHTML={{ __html: svg }} />
-      <figcaption className="text-center leading-tight"><span className="block text-sm font-bold">{label}</span><span className="block text-[10px] tracking-wider">{code}</span></figcaption>
+      <figcaption className="text-center leading-tight"><span className="block font-bold">{label}</span><span className="block text-[0.7em] tracking-wider">{code}</span></figcaption>
     </figure>
   )
 }
 
 function QrSheet({ room }: { room?: string }) {
   const d = useLoad(() => Promise.all([listDormRooms(), listDormItems()]), [])
+  const [o, set] = usePrintOpts()
   if (!d.data) return <><PageHead title={tx('QR парақтары')} back /><Skeleton /></>
   const [rooms, items] = d.data
   const list = rooms.filter((r) => r.active && (!room || room === 'all' || r.id === room))
   return (
-    <div className="grid grid-cols-1 gap-3 pb-6">
-      <div className="print:hidden"><PageHead title={tx('QR парақтары')} back right={<Button onClick={printPage}><Icon n="file" size={18} />{tx('Басып шығару')}</Button>} /></div>
+    <div className="grid grid-cols-1 gap-3 pb-6 print:pb-0">
+      <PrintBar o={o} set={set} title={tx('QR парақтары')} qr />
       {list.map((r) => (
-        <section key={r.id} className="grid gap-3 break-after-page">
+        <section key={r.id} className="grid gap-3 break-after-page last:break-after-auto">
           <h2 className="text-2xl font-bold font-display">{tx('Бөлме {0}', r.name)}</h2>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">{items.filter((i) => i.room_id === r.id).map((i) => <ItemQr key={i.id} code={i.code} label={`${r.name} · ${itemName(i)}`} />)}</div>
+          <div className="flex flex-wrap gap-[3mm]">{items.filter((i) => i.room_id === r.id).map((i) => <ItemQr key={i.id} code={i.code} label={`${r.name} · ${itemName(i)}`} size={o.qr} />)}</div>
         </section>
       ))}
       {!list.length && <Card><Empty icon="home" title={tx('Бөлмелер жоқ')} /></Card>}
+    </div>
+  )
+}
+
+/** A list for the room's door: who lives here this term. One paper per room. */
+function DoorSheet({ room }: { room?: string }) {
+  const term = termOf(today())
+  const d = useLoad(() => Promise.all([listDormRooms(), listDormAssignments()]), [])
+  const [o, set] = usePrintOpts()
+  if (!d.data) return <><PageHead title={tx('Есікке тізім')} back /><Skeleton /></>
+  const [rooms, assigns] = d.data
+  const list = rooms.filter((r) => r.active && (!room || room === 'all' || r.id === room))
+    .map((r) => ({ r, people: assigns.filter((a) => a.term === term && a.room_id === r.id).sort((a, b) => a.student.full_name.localeCompare(b.student.full_name)) }))
+    .filter((x) => x.people.length)
+  const u = Math.min(o.w, o.h * 0.75) / 100   // 1u ≈ 1% of the paper's short side
+  const look = { navy: { band: '#16264f', num: '#c9a23c', ink: '#16264f', frame: 'none' }, gold: { band: 'transparent', num: '#16264f', ink: '#16264f', frame: `${u * 1.6}mm solid #c9a23c` }, plain: { band: 'transparent', num: '#000', ink: '#000', frame: `${u * 0.4}mm solid #000` } }[o.look]
+  // on screen the paper is shrunk to fit the phone; printed at its real size
+  const zoom = Math.min(1, (window.innerWidth - 32) / (o.w * 3.78))
+  return (
+    <div className="grid grid-cols-1 gap-3 pb-6 print:pb-0 print:gap-0">
+      <PrintBar o={o} set={set} title={tx('Есікке тізім')} looks />
+      {!list.length && <Card><Empty icon="home" title={tx('Бұл тоқсанға әлі орналастырылмаған')} /></Card>}
+      {list.map(({ r, people }) => (
+        <section key={r.id} style={{ '--z': zoom, width: `${o.w - 12}mm`, height: `${o.h - 14}mm`, border: look.frame, color: look.ink, fontFamily: 'Inter, sans-serif' } as CSSProperties}
+          className="[zoom:var(--z)] print:[zoom:1] bg-white break-after-page last:break-after-auto overflow-hidden flex flex-col rounded-[2mm] print:rounded-none shadow-card print:shadow-none">
+          <div style={{ background: look.band, padding: `${u * 5}mm ${u * 6}mm`, color: o.look === 'navy' ? '#fff' : look.ink }} className="flex items-end justify-between gap-[2mm]">
+            <span style={{ fontSize: `${u * 4}mm` }} className="font-semibold uppercase tracking-wider">{tx('Бөлме')}</span>
+            <span style={{ fontSize: `${u * 22}mm`, color: look.num, lineHeight: 0.9 }} className="font-display font-bold">{r.name}</span>
+          </div>
+          <ol style={{ padding: `${u * 5}mm ${u * 6}mm`, fontSize: `${u * 5.2}mm`, gap: `${u * 2.6}mm` }} className="grid flex-1 content-start">
+            {people.map((p, i) => (
+              <li key={p.student_id} style={{ borderBottom: `${u * 0.2}mm solid #d8dce6`, paddingBottom: `${u * 2}mm` }} className="flex items-baseline gap-[2mm]">
+                <span style={{ width: `${u * 6}mm` }} className="tabular-nums opacity-60">{i + 1}.</span>
+                <span className="flex-1 font-semibold">{p.student.full_name}{p.is_head ? ' ★' : ''}</span>
+                <span className="opacity-70">{p.student.class?.name}</span>
+              </li>
+            ))}
+          </ol>
+          <p style={{ padding: `0 ${u * 6}mm ${u * 4}mm`, fontSize: `${u * 3}mm` }} className="opacity-70">
+            {[r.floor != null && tx('{0}-қабат', r.floor), termLabel(term), people.some((p) => p.is_head) && tx('★ — бөлме жауаптысы')].filter(Boolean).join(' · ')}</p>
+        </section>
+      ))}
     </div>
   )
 }
@@ -643,7 +720,8 @@ function ItemPage({ code }: { code: string }) {
   const d = useLoad(async () => {
     const [rooms, items, holders] = await Promise.all([listDormRooms(), listDormItems(), listDormHolders()])
     const item = items.find((i) => i.code === code)
-    return { item, room: rooms.find((r) => r.id === item?.room_id), holder: holders.find((h) => h.item_id === item?.id) }
+    const past = me.role === 'student' || !item ? [] : (await listDormHolders(true)).filter((h) => h.item_id === item.id && h.to_at)
+    return { item, room: rooms.find((r) => r.id === item?.room_id), holder: holders.find((h) => h.item_id === item?.id), past }
   }, [code])
   const [busy, setBusy] = useState(false)
   const claim = async () => {
@@ -664,6 +742,14 @@ function ItemPage({ code }: { code: string }) {
         <p className="text-sm text-muted">{mine ? tx('Бұл сіздің орныңыз') : v.holder ? tx('Иесі: {0}', v.holder.student.full_name) : tx('Бос')}</p>
         {me.role === 'student' && !v.holder && <><p className="text-sm">{tx('Алған соң бұл затқа сіз жауаптысыз: бүлінсе, сізден сұралады.')}</p><Button kind="gold" block loading={busy} onClick={claim}>{tx('Осы орынды аламын')}</Button></>}
       </Card>
+      {me.role !== 'student' && <>
+        <H2>{tx('Бұрынғы иелері · {0}', v.past.length)}</H2>
+        <Card className="p-0 divide-y divide-line">
+          {v.past.map((h) => <div key={h.id} className="flex items-center gap-3 px-4 py-2.5"><span className="flex-1 min-w-0 truncate font-medium">{h.student.full_name}</span>
+            <span className="text-xs text-muted tabular-nums">{termLabel(h.term)} · {fmtDate(h.from_at.slice(0, 10))}–{fmtDate(h.to_at!.slice(0, 10))}</span></div>)}
+          {!v.past.length && <p className="px-4 py-3 text-sm text-muted">{tx('Бұрын ешкім алмаған')}</p>}
+        </Card>
+      </>}
     </div>
   )
 }

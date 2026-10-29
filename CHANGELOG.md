@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.2 — 2026-10-29
+
+- Dorm item page: staff also see the item's past holders with their term and dates.
+- Printing: paper size (A4, A5, A6 or own width × height in mm); QR sticker size in mm.
+- Door list: each room's residents this term (class, room head ★, floor) on its own paper, in three looks — lyceum navy, gold frame, plain.
+
 ## 1.3.1 — 2026-10-29
 
 - «QR check» is in the «+» menu and the profile for everyone, students included.
