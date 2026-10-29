@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.8 — 2026-10-29
+
+- Opening animation with the BIL logo: the three books fall one by one, the ornament grows around them, the swallow flies in, «Key To Life» appears (about 2.5 s; a tap skips it; off with reduced motion). `?splash=fly` shows the other version: the swallow flies into the ornament.
+
 ## 1.4.7 — 2026-10-29
 
 - Canteen: «Leave feedback on the canteen» opens the canteen's Google Form (in the browser from Telegram).
