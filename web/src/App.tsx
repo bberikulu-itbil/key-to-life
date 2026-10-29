@@ -179,7 +179,7 @@ function Shell({ me }: { me: Me }) {
             <MenuItem icon="clock" title={tx('Рұқсат сұрау')} text={me.role === 'student' ? tx('Сыртқа шығу, сабақтан немесе бастамадан') : tx('Келген өтініштер және бүгін рұқсат берілгендер')} onClick={() => { setSheet(null); go(me.role === 'student' ? '/leave/new' : '/leaves') }} />
             <MenuItem icon="grid" title={tx('Броньдау')} text={tx('Кабинет, спортзал, шай бөлмесі')} onClick={() => { setSheet(null); go('/book') }} />
             <MenuItem icon="file" title={tx('Бастама ұсыну')} text={tx('Жарыс, олимпиада, үйірме, клуб, команда немесе мектеп іс-шарасы')} onClick={() => { setSheet(null); go('/a/new') }} />
-            {me.role !== 'student' && <MenuItem icon="check" title={tx('QR тексеру')} text={tx('Рұқсат немесе бронь кодын тексеру')} onClick={() => { setSheet(null); go('/v/') }} />}
+            <MenuItem icon="check" title={tx('QR тексеру')} text={tx('Рұқсат, бронь, сертификат, жатақхана заты')} onClick={() => { setSheet(null); go('/v/') }} />
             {canAddUsers(me) && <MenuItem icon="userplus" title={tx('Пайдаланушы қосу')} text={me.role === 'class_teacher' ? tx('Өз сыныбыңызға оқушы тіркеу') : tx('Оқушы немесе мұғалім тіркеу')} onClick={() => setSheet('adduser')} />}
           </div>
         </Sheet>

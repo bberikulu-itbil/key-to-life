@@ -1,6 +1,6 @@
 // Run: npx tsx src/lib/time.test.ts
 import assert from 'node:assert/strict'
-import { codeFrom } from './qr'
+import { codeFrom, routeFrom } from './qr'
 import { noticeGroup } from './notices'
 import { addDays, byCategory, cycleCode, streak, isSession, isoDow, lessonOn, rate, sessions, weekOf } from './time'
 
@@ -150,3 +150,12 @@ assert.equal(dormCodeFrom('https://x.io/app/#/dorm/item/D-AB12CD34'), 'D-AB12CD3
 assert.equal(dormCodeFrom('d-ab12'), 'D-AB12')
 assert.equal(dormCodeFrom('L-3F9A2C'), null)
 console.log('dorm ok')
+assert.equal(routeFrom('https://x.io/#/v/L-3F9A2C'), '/v/L-3F9A2C')
+assert.equal(routeFrom('b-12ab'), '/v/B-12AB')
+assert.equal(routeFrom('https://x.io/#/cert/C-1A2B3C'), '/cert/C-1A2B3C')
+assert.equal(routeFrom('c-1a2b3c'), '/cert/C-1A2B3C')
+assert.equal(routeFrom('https://x.io/#/dorm/item/D-AB12CD34'), '/dorm/item/D-AB12CD34')
+assert.equal(routeFrom('D-AB12'), '/dorm/item/D-AB12')
+assert.equal(routeFrom('https://x.io/#/a/0f8e2a9c-1b2c-4d5e-8f90-123456789abc'), '/a/0f8e2a9c-1b2c-4d5e-8f90-123456789abc')
+assert.equal(routeFrom('hello'), null)
+console.log('routeFrom ok')

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 — 2026-10-29
+
+- «QR check» is in the «+» menu and the profile for everyone, students included.
+- One scanner for every code of the app: passes, bookings, certificates, dorm items, initiatives; a typed code works the same way.
+- A student checking a pass sees whether it is valid now, whose it is and when, but not its reason or who allowed it (migration 0049).
+- Dorm: cleanliness criteria with their point scales set in the dorm settings.
+
 ## 1.3.0 — 2026-10-29
 
 Dormitory (profile → «Жатақхана», and on the class page):

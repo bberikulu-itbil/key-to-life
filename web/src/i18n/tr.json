@@ -1691,5 +1691,11 @@
  "Атауы және ең жоғары балы (1–10). Барлығы: {0} балл": "Adı ve en yüksek puanı (1–10). Toplam: {0} puan",
  "Критерий қосу": "Kriter ekle",
  "Критерий атаулары бос болмауы және қайталанбауы керек": "Kriter adları boş olmamalı ve tekrarlanmamalı",
- "Критерий: атауы және 1–10 балл": "Kriter: ad ve 1–10 puan"
+ "Критерий: атауы және 1–10 балл": "Kriter: ad ve 1–10 puan",
+ "Key To Life QR кодын көрсетіңіз": "Bir Key To Life QR kodu gösterin",
+ "Рұқсат, бронь, сертификат, жатақхана заты немесе бастама QR коды.": "İzin, rezervasyon, sertifika, yurt eşyası veya girişim QR kodu.",
+ "Рұқсат, бронь, сертификат, жатақхана заты": "İzin, rezervasyon, sertifika, yurt eşyası",
+ "«QR тексеру» «+» мәзірінде, оқушылар да тексере алады.": "«QR kontrol» «+» menüsünde; öğrenciler de kontrol edebilir.",
+ "Бір сканер барлық кодқа: рұқсат, бронь, сертификат, жатақхана заты, бастама.": "Tüm kodlar için tek tarayıcı: izin, rezervasyon, sertifika, yurt eşyası, girişim.",
+ "Жатақхана: тазалық критерийлері мен балдарын баптауларда қоюға болады.": "Yurt: temizlik kriterleri ve puanları ayarlardan belirlenir."
 }

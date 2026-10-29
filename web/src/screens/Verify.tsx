@@ -1,44 +1,38 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { errText, verifyCode } from '../lib/api'
 import { fmtDate } from '../lib/time'
-import { useMe } from '../App'
 import { LEAVE_CATEGORY } from './LeaveForm'
 import { LEAVE_STATUS, when } from './Leaves'
 import { Button, Card, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast } from '../components/ui'
 import Scanner from '../components/Scanner'
-import { codeFrom } from '../lib/qr'
+import { routeFrom } from '../lib/qr'
 import { tgScanQr } from '../lib/telegram'
 import { tx } from '../lib/i18n'
 
 type R = Record<string, string | boolean>
 
 export default function Verify({ code }: { code?: string }) {
-  const { me } = useMe()
   const [input, setInput] = useState(code ?? '')
   const [res, setRes] = useState<R | null | undefined>(undefined)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (!code || me.role === 'student') return
+    if (!code) return
     setBusy(true); setErr(''); setRes(undefined)
     verifyCode(code).then(setRes, (e) => setErr(errText(e))).finally(() => setBusy(false))
-  }, [code, me.role])
+  }, [code])
 
   const [scan, setScan] = useState(false)
   // one read is enough: close the camera and open the result
   const bad = useRef('')
   const onText = useCallback((t: string) => {
-    const cert = t.match(/#\/cert\/([A-Za-z0-9-]+)/)
-    if (cert) { setScan(false); go(`/cert/${cert[1].toUpperCase()}`); return true }
-    const c = codeFrom(t)
-    if (!c) { if (bad.current !== t) toast(tx('Бұл Key To Life QR коды емес')); bad.current = t; return false }
-    setScan(false); go(`/v/${c}`); return true
+    const to = routeFrom(t)
+    if (!to) { if (bad.current !== t) toast(tx('Бұл Key To Life QR коды емес')); bad.current = t; return false }
+    setScan(false); go(to); return true
   }, [])
-  const startScan = () => { if (!tgScanQr(tx('Рұқсат немесе бронь QR кодын көрсетіңіз'), onText)) setScan(true) }
-  const submit = (e: FormEvent) => { e.preventDefault(); const v = input.trim().toUpperCase(); if (v) go(v.startsWith('C-') ? `/cert/${v}` : `/v/${v}`) }
-
-  if (me.role === 'student') return <><PageHead title={tx('QR тексеру')} back /><Card><p>{tx('QR-ды тек мұғалімдер тексереді.')}</p></Card></>
+  const startScan = () => { if (!tgScanQr(tx('Key To Life QR кодын көрсетіңіз'), onText)) setScan(true) }
+  const submit = (e: FormEvent) => { e.preventDefault(); const to = routeFrom(input); if (to) go(to); else toast(tx('Бұл Key To Life QR коды емес')) }
 
   const ok = res?.valid_now === true
   const approved = res?.status === 'approved'
@@ -48,6 +42,7 @@ export default function Verify({ code }: { code?: string }) {
   return (
     <div className="grid gap-3 pb-6">
       <PageHead title={tx('QR тексеру')} back />
+      <p className="text-sm text-muted">{tx('Рұқсат, бронь, сертификат, жатақхана заты немесе бастама QR коды.')}</p>
       <Button block onClick={startScan}><Icon n="search" size={20} />{tx('Камерамен сканерлеу')}</Button>
       <form onSubmit={submit} className="grid grid-cols-[1fr_auto] gap-2 items-end">
         <Field label={tx('Немесе кодты жазыңыз')}>{(id, d) =>
@@ -65,7 +60,7 @@ export default function Verify({ code }: { code?: string }) {
             {res.type === 'leave' ? (
               <>
                 <p className="text-lg font-semibold">{res.student as string} <span className="text-sm text-muted">{res.class as string}</span></p>
-                <p>{res.kind === 'outside' ? tx('Сыртқа шығу') : tx('Сабақтан сұрану')} · {LEAVE_CATEGORY[res.category as string]}</p>
+                <p>{res.kind === 'outside' ? tx('Сыртқа шығу') : tx('Сабақтан сұрану')}{res.category ? ` · ${LEAVE_CATEGORY[res.category as string]}` : ''}</p>
                 <p className="tabular-nums">{when({ starts_at: res.starts_at as string, ends_at: res.ends_at as string })}</p>
                 <p className="text-sm text-muted">{LEAVE_STATUS[res.status as keyof typeof LEAVE_STATUS]?.[0]}{res.decided_by ? ` · ${res.decided_by}` : ''} · {res.code as string}</p>
               </>

@@ -1691,5 +1691,11 @@
  "Атауы және ең жоғары балы (1–10). Барлығы: {0} балл": "Name and max points (1–10). Total: {0} points",
  "Критерий қосу": "Add a criterion",
  "Критерий атаулары бос болмауы және қайталанбауы керек": "Criterion names must not be empty or repeated",
- "Критерий: атауы және 1–10 балл": "Criterion: a name and 1–10 points"
+ "Критерий: атауы және 1–10 балл": "Criterion: a name and 1–10 points",
+ "Key To Life QR кодын көрсетіңіз": "Show a Key To Life QR code",
+ "Рұқсат, бронь, сертификат, жатақхана заты немесе бастама QR коды.": "A pass, booking, certificate, dorm item or initiative QR code.",
+ "Рұқсат, бронь, сертификат, жатақхана заты": "Pass, booking, certificate, dorm item",
+ "«QR тексеру» «+» мәзірінде, оқушылар да тексере алады.": "«QR check» is in the «+» menu; students can check too.",
+ "Бір сканер барлық кодқа: рұқсат, бронь, сертификат, жатақхана заты, бастама.": "One scanner for every code: passes, bookings, certificates, dorm items, initiatives.",
+ "Жатақхана: тазалық критерийлері мен балдарын баптауларда қоюға болады.": "Dorm: cleanliness criteria and their points are set in the settings."
 }
