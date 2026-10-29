@@ -83,3 +83,9 @@ export function dormCodeFrom(text: string) {
   const m = text.trim().match(/#\/dorm\/item\/(D-[A-Za-z0-9]+)/) ?? text.trim().match(/^(D-[A-Za-z0-9]+)$/i)
   return m ? m[1].toUpperCase() : null
 }
+/** The Saturday of this weekend (Monday–Saturday look ahead, Sunday looks back); same rule as dorm_weekend_of in SQL. */
+export function weekendOf(iso: string) {
+  const d = new Date(`${iso}T12:00:00Z`), dow = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + (dow === 7 ? -1 : 6 - dow))
+  return d.toISOString().slice(0, 10)
+}

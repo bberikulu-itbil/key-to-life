@@ -3,12 +3,12 @@ import QRCode from 'qrcode'
 import {
   addDormItem, addDormRoom, answerBedSwap, answerLinen, approveBedSwap, claimDormItem, dormChecks, dormClean, dormResidents, errText, getDormSettings,
   lastLinenRound, linenAnswers, listClasses, listDormAssignments, listDormHolders, listDormItems, listDormReports, listDormRooms, listDormSwaps,
-  markDormCheck, publishDorm, removeDormItem, reportDormItem, requestBedSwap, resolveDormReport, saveDormSettings, sendLinen, setDormClean,
+  markDormCheck, publishDorm, listDormDuty, setDormDuty, listDormWeekend, setWeekendRoom, removeDormItem, reportDormItem, requestBedSwap, resolveDormReport, saveDormSettings, sendLinen, setDormClean,
   setDormResident, setItemState, setRoomHead, updateDormRoom,
   type DormAssign, type DormItem, type DormKind, type DormResident, type DormRoom, type DormSettings, type LinenAnswer, type CleanCriterion,
 } from '../lib/api'
-import { allocate, dormCodeFrom, flagsFor, historyFrom, itemUrl, nextTerm, prevTerm, termLabel, termOf, type Place } from '../lib/dorm'
-import { addDays, fmtDate, today } from '../lib/time'
+import { allocate, weekendOf, dormCodeFrom, flagsFor, historyFrom, itemUrl, nextTerm, prevTerm, termLabel, termOf, type Place } from '../lib/dorm'
+import { addDays, fmtDate, isoDow, today } from '../lib/time'
 import { printPage } from '../lib/telegram'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
@@ -112,6 +112,7 @@ function Overview({ cls, term, d, reload }: { cls: Cls; term: string; d: Data; r
   const [room, setRoom] = useState<DormRoom | null>(null)
   const [roll, setRoll] = useState(false)
   const swaps = useLoad(listDormSwaps, [])
+  const wk = useLoad(() => listDormWeekend(weekendOf(today())), [])
   const residents = d.residents.filter((s) => s.dorm)
   const mine = new Set(d.residents.map((s) => s.id))
   const placed = new Set(d.assigns.filter((a) => a.term === term && a.room_id && mine.has(a.student_id)).map((a) => a.student_id))
@@ -137,6 +138,14 @@ function Overview({ cls, term, d, reload }: { cls: Cls; term: string; d: Data; r
           <div className="grid grid-cols-2 gap-2"><Button onClick={() => decide(s.id, true)}>{tx('Растау')}</Button><Button kind="ghost" onClick={() => decide(s.id, false)}>{tx('Қабылдамау')}</Button></div>
         </Card>
       ))}
+      {(wk.data ?? []).some((x) => x.room_id && mine.has(x.student_id)) && (
+        <Card className="grid gap-1">
+          <p className="font-semibold">{tx('Апта соңы ауысулар · {0}', fmtDate(weekendOf(today())))}</p>
+          {wk.data!.filter((x) => x.room_id && mine.has(x.student_id)).map((x) => (
+            <p key={x.student_id} className="text-sm">{d.residents.find((r) => r.id === x.student_id)?.full_name} → {tx('Бөлме {0}', d.rooms.find((r) => r.id === x.room_id)?.name ?? '')}</p>
+          ))}
+        </Card>
+      )}
       <H2>{tx('Бөлмелер · {0}', rooms.length)}</H2>
       {!rooms.length ? <Card><Empty icon="home" title={tx('Бұл тоқсанға әлі орналастырылмаған')} text={tx('«Орналастыру» батырмасын басыңыз.')} /></Card> : (
         <div className="grid grid-cols-2 gap-2">
@@ -214,10 +223,18 @@ function CleanForm({ room, criteria }: { room: string; criteria: CleanCriterion[
 
 function RollCall({ rooms, term, d, onDone }: { rooms: DormRoom[]; term: string; d: Data; onDone: () => void }) {
   const marks = useLoad(() => dormChecks(today()), [])
+  const moves = useLoad(() => (isoDow(today()) >= 6 ? listDormWeekend(weekendOf(today())) : Promise.resolve([])), [])
   const [m, setM] = useState<Record<string, Check>>({})
   const [busy, setBusy] = useState(false)
   useEffect(() => { if (marks.data) setM(Object.fromEntries(marks.data.map((x) => [x.student_id, x.status]))) }, [marks.data])
-  const people = rooms.flatMap((r) => roomView(d, term, r.id).people.map((p) => ({ ...p, room: r.name })))
+  // on Saturday and Sunday a boy who moved for the weekend is checked in the room he moved to
+  const moved = new Map((moves.data ?? []).filter((x) => x.room_id).map((x) => [x.student_id, x.room_id!]))
+  const ids = new Set(rooms.map((r) => r.id))
+  const base = d.assigns.filter((a) => a.term === term && a.room_id && ids.has(a.room_id))
+  base.forEach((a) => moved.has(a.student_id) && ids.add(moved.get(a.student_id)!))
+  const shown = d.rooms.filter((r) => ids.has(r.id))
+  const people = d.assigns.filter((a) => a.term === term && a.room_id).map((a) => ({ ...a, room: moved.get(a.student_id) ?? a.room_id!, away: moved.has(a.student_id) }))
+    .filter((p) => ids.has(p.room))
   const next: Record<Check, Check> = { present: 'absent', absent: 'leave', leave: 'present' }
   const tone: Record<Check, string> = { present: 'bg-success-soft text-success', absent: 'bg-danger-soft text-danger', leave: 'bg-warning-soft text-warning' }
   const save = async () => {
@@ -225,18 +242,18 @@ function RollCall({ rooms, term, d, onDone }: { rooms: DormRoom[]; term: string;
     try { await markDormCheck(today(), people.map((p) => ({ student: p.student_id, status: m[p.student_id] ?? 'present' }))); toast(tx('Түгендеу сақталды')); onDone() }
     catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
-  if (marks.loading) return <Skeleton />
+  if (marks.loading || moves.loading) return <Skeleton />
   return (
     <div className="grid grid-cols-1 gap-3">
       <p className="text-sm text-muted">{tx('Бөлмеге кіріп, жоқ баланы басыңыз: Бар → Жоқ → Рұқсатпен.')}</p>
-      {rooms.map((r) => (
+      {shown.map((r) => (
         <div key={r.id} className="grid gap-1">
           <p className="font-semibold">{tx('Бөлме {0}', r.name)}</p>
-          {people.filter((p) => p.room === r.name).map((p) => {
+          {people.filter((p) => p.room === r.id).map((p) => {
             const s = m[p.student_id] ?? 'present'
             return (
               <button key={p.student_id} type="button" onClick={() => setM({ ...m, [p.student_id]: next[s] })} className="flex items-center gap-3 min-h-12 rounded-md bg-surface-2 px-3 text-left">
-                <span className="flex-1 min-w-0 truncate">{p.student.full_name}</span>
+                <span className="flex-1 min-w-0 truncate">{p.student.full_name}{p.away ? tx(' · апта соңы') : ''}</span>
                 <span className={`h-7 px-3 rounded-full text-xs font-semibold grid place-items-center ${tone[s]}`}>{CHECK[s]}</span>
               </button>
             )
@@ -315,6 +332,9 @@ function Monitoring({ cls, term, d }: { cls: Cls; term: string; d: Data }) {
 
 function Settings({ d, reload }: { d: Data; reload: () => void }) {
   const { me } = useMe()
+  const term = termOf(today())
+  const mine = new Set(d.residents.map((x) => x.id))
+  const placed = d.assigns.filter((a) => a.term === term && a.room_id && mine.has(a.student_id)).length
   const [s, setS] = useState<DormSettings>(d.settings)
   const [busy, setBusy] = useState(false)
   const [room, setRoom] = useState<DormRoom | 'new' | null>(null)
@@ -331,16 +351,28 @@ function Settings({ d, reload }: { d: Data; reload: () => void }) {
   const lastHolders = (item: string) => (history.data?.[0] ?? []).filter((h) => h.item_id === item).slice(0, 3)
   return (
     <>
+      <div className="rounded-lg p-4 bg-hero text-on-hero shadow-card grid gap-1">
+        <p className="text-sm opacity-80">{tx('Орналасудың қазіргі кезеңі')}</p>
+        <p className="text-lg font-bold">{termLabel(term)}</p>
+        <p className="text-sm">{s.period_from && s.period_to ? `${fmtDate(s.period_from)} – ${fmtDate(s.period_to)}` : tx('Күндері қойылмаған')} · {tx('{0} бала орналасқан', placed)}</p>
+      </div>
+
+      <H2>{tx('Орналастыру')}</H2>
       <Card className="grid grid-cols-1 gap-3">
-        <p className="font-semibold">{tx('Орын беру')}</p>
-        <Pick label={tx('Орын беру')} value={s.mode} onChange={(mode) => setS({ ...s, mode })} items={[['self', tx('Оқушы QR арқылы таңдайды')], ['auto', tx('Автоматты')]]} />
+        <p className="font-semibold">{tx('Орналасу уақыты')}</p>
+        <div className="grid grid-cols-2 gap-2 [&_input]:min-w-0">
+          <Field label={tx('Басы')}>{(id) => <input id={id} type="date" value={s.period_from ?? ''} onChange={(e) => setS({ ...s, period_from: e.target.value || null })} className={inputCls} />}</Field>
+          <Field label={tx('Соңы')}>{(id) => <input id={id} type="date" value={s.period_to ?? ''} min={s.period_from ?? undefined} onChange={(e) => setS({ ...s, period_to: e.target.value || null })} className={inputCls} />}</Field>
+        </div>
         <p className="font-semibold">{tx('Төсек алмасу')}</p>
         <Pick label={tx('Төсек алмасу')} value={s.swap} onChange={(swap) => setS({ ...s, swap })} items={[['off', tx('Рұқсат жоқ')], ['confirm', tx('Тәрбиеші растайды')], ['free', tx('Еркін')]]} />
-        <div className="grid grid-cols-2 gap-2">
-          <Field label={tx('Постель, әр … күн')}>{(id) => <input id={id} type="number" min={1} max={60} value={s.linen_days ?? ''} onChange={(e) => setS({ ...s, linen_days: e.target.value ? Math.min(60, Math.max(1, +e.target.value)) : null })} className={inputCls} />}</Field>
-          <Field label={tx('Уақыты')}>{(id) => <input id={id} type="time" value={s.linen_time.slice(0, 5)} onChange={(e) => setS({ ...s, linen_time: e.target.value })} className={inputCls} />}</Field>
-        </div>
-        <p className="text-sm text-muted -mt-1">{tx('Бос қалса — тек қолмен')}</p>
+        <Switch label={tx('Апта соңы орын ауысуға рұқсат')} hint={tx('Сенбі–жексенбіге оқушы басқа бөлмені таңдай алады, бос орын болса')} on={s.weekend_move} onChange={(weekend_move) => setS({ ...s, weekend_move })} />
+        <p className="text-sm text-muted">{tx('Орын беру тәсілі орналастыру кезінде таңдалады.')}</p>
+        <Button loading={busy} onClick={save}>{tx('Сақтау')}</Button>
+      </Card>
+
+      <H2>{tx('Тазалық')}</H2>
+      <Card className="grid grid-cols-1 gap-3">
         <p className="font-semibold">{tx('Тазалық критерийлері')}</p>
         {s.clean_criteria.map((c, i) => {
           const set = (v: Partial<CleanCriterion>) => setS({ ...s, clean_criteria: s.clean_criteria.map((x, j) => (j === i ? { ...x, ...v } : x)) })
@@ -355,12 +387,21 @@ function Settings({ d, reload }: { d: Data; reload: () => void }) {
         })}
         <p className="text-sm text-muted -mt-1">{tx('Атауы және ең жоғары балы (1–10). Барлығы: {0} балл', s.clean_criteria.reduce((n, c) => n + c.max, 0))}</p>
         {s.clean_criteria.length < 12 && <Button kind="ghost" onClick={() => setS({ ...s, clean_criteria: [...s.clean_criteria, { name: '', max: 5 }] })}><Icon n="plus" size={18} />{tx('Критерий қосу')}</Button>}
+        <p className="font-semibold">{tx('Постель ауыстыру уақыты')}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label={tx('Постель, әр … күн')}>{(id) => <input id={id} type="number" min={1} max={60} value={s.linen_days ?? ''} onChange={(e) => setS({ ...s, linen_days: e.target.value ? Math.min(60, Math.max(1, +e.target.value)) : null })} className={inputCls} />}</Field>
+          <Field label={tx('Уақыты')}>{(id) => <input id={id} type="time" value={s.linen_time.slice(0, 5)} onChange={(e) => setS({ ...s, linen_time: e.target.value })} className={inputCls} />}</Field>
+        </div>
+        <p className="text-sm text-muted -mt-1">{tx('Бос қалса — тек қолмен')}</p>
         <Button loading={busy} onClick={save}>{tx('Сақтау')}</Button>
       </Card>
+      <DutyRoster term={term} d={d} />
 
-      <div className="flex items-center gap-2 mt-1"><span className="flex-1"><H2>{tx('Бөлмелер · {0}', d.rooms.length)}</H2></span>
-        <Button kind="ghost" onClick={() => go('/dorm/qr/all')}><Icon n="file" size={18} />{tx('QR')}</Button>
-        <Button kind="ghost" onClick={() => go('/dorm/door/all')}><Icon n="list" size={18} />{tx('Есікке тізім')}</Button></div>
+      <H2>{tx('Бөлмелер · {0}', d.rooms.length)}</H2>
+      <div className="grid grid-cols-2 gap-2">
+        <Button kind="secondary" onClick={() => go('/dorm/qr/all')}><Icon n="file" size={18} />{tx('QR парағы')}</Button>
+        <Button kind="secondary" onClick={() => go('/dorm/door/all')}><Icon n="list" size={18} />{tx('Есікке тізім')}</Button>
+      </div>
       <Card className="p-0 divide-y divide-line">
         {d.rooms.map((r) => {
           const items = d.items.filter((i) => i.room_id === r.id)
@@ -405,6 +446,59 @@ function Settings({ d, reload }: { d: Data; reload: () => void }) {
       {room && room !== 'new' && <Sheet title={tx('Бөлме {0}', room.name)} onClose={() => setRoom(null)}>
         <RoomEdit room={room} d={d} canEdit={room.created_by === me.id || isHead(me)} onChanged={() => { reload(); history.reload() }} /></Sheet>}
     </>
+  )
+}
+
+const DAYS = [tx('Дүйсенбі'), tx('Сейсенбі'), tx('Сәрсенбі'), tx('Бейсенбі'), tx('Жұма'), tx('Сенбі'), tx('Жексенбі')]
+
+/** Who is on duty in each room on each weekday this term; «Fill in» rotates the class's boys over the free days. */
+function DutyRoster({ term, d }: { term: string; d: Data }) {
+  const duty = useLoad(() => listDormDuty(term), [term])
+  const [edit, setEdit] = useState<Record<string, (string | null)[]>>({})
+  const [busy, setBusy] = useState(false)
+  const mine = new Set(d.residents.map((x) => x.id))
+  const rooms = d.rooms.filter((r) => d.assigns.some((a) => a.term === term && a.room_id === r.id && mine.has(a.student_id)))
+  const saved = (room: string) => Array.from({ length: 7 }, (_, i) => duty.data?.find((x) => x.room_id === room && x.weekday === i + 1)?.student_id ?? null)
+  const days = (room: string) => edit[room] ?? saved(room)
+  const fill = () => setEdit(Object.fromEntries(rooms.map((r) => {
+    const cur = saved(r.id)
+    const kids = roomView(d, term, r.id).people.filter((p) => mine.has(p.student_id)).map((p) => p.student_id)
+    let k = 0
+    // a day held by another class's boy stays his
+    return [r.id, cur.map((x) => (x && !mine.has(x) ? x : kids.length ? kids[k++ % kids.length] : null))]
+  })))
+  const save = async () => {
+    setBusy(true)
+    try {
+      for (const r of rooms) if (edit[r.id]) await setDormDuty(term, r.id, edit[r.id].map((sid, i) => ({ weekday: i + 1, student: sid })).filter((x) => !x.student || mine.has(x.student)))
+      toast(tx('Кезекшілік кестесі сақталды')); setEdit({}); duty.reload()
+    } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <Card className="grid grid-cols-1 gap-3">
+      <p className="font-semibold">{tx('Кезекшілік кестесі')}</p>
+      {!rooms.length ? <p className="text-sm text-muted">{tx('Алдымен балаларды бөлмелерге орналастырыңыз.')}</p> : <>
+        <Button kind="secondary" onClick={fill}><Icon n="repeat" size={18} />{tx('Кезекпен толтыру')}</Button>
+        {rooms.map((r) => {
+          const people = roomView(d, term, r.id).people
+          return (
+            <div key={r.id} className="grid gap-1.5">
+              <p className="font-bold font-display">{tx('Бөлме {0}', r.name)}</p>
+              {days(r.id).map((sid, i) => (
+                <label key={i} className="grid grid-cols-[6.5rem_1fr] items-center gap-2 text-sm">
+                  <span className="text-muted">{DAYS[i]}</span>
+                  <select value={sid ?? ''} disabled={!!sid && !mine.has(sid)} onChange={(e) => setEdit({ ...edit, [r.id]: days(r.id).map((x, j) => (j === i ? e.target.value || null : x)) })}
+                    className="h-10 rounded-md border border-input bg-surface px-2">
+                    <option value="">—</option>{people.map((p) => <option key={p.student_id} value={p.student_id}>{p.student.full_name}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+          )
+        })}
+        <Button loading={busy} disabled={!Object.keys(edit).length} onClick={save}>{tx('Сақтау')}</Button>
+      </>}
+    </Card>
   )
 }
 
@@ -754,6 +848,32 @@ function ItemPage({ code }: { code: string }) {
   )
 }
 
+/** Student: in which room he stays this Saturday–Sunday. */
+function WeekendMove({ term, own, rooms, current, onDone }: { term: string; own: DormRoom; rooms: DormRoom[]; current: string | null; onDone: () => void }) {
+  const [room, setRoom] = useState(current ?? '')
+  const [busy, setBusy] = useState(false)
+  const save = async (r: string | null) => {
+    setBusy(true)
+    try { await setWeekendRoom(term, r); toast(r ? tx('Апта соңы бөлмеңіз сақталды') : tx('Өз бөлмеңізде қаласыз')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  const w = weekendOf(today())
+  return (
+    <>
+      <H2>{tx('Апта соңы · {0}–{1}', fmtDate(w), fmtDate(addDays(w, 1)))}</H2>
+      <Card className="grid gap-2">
+        <p className="text-sm">{current ? tx('Сіз апта соңы {0}-бөлмедесіз', rooms.find((r) => r.id === current)?.name ?? '') : tx('Сіз өз бөлмеңізде ({0}) қаласыз', own.name)}</p>
+        <select aria-label={tx('Апта соңы бөлмесі')} value={room} onChange={(e) => setRoom(e.target.value)} className={inputCls}>
+          <option value="">{tx('Бөлмені таңдаңыз')}</option>{rooms.filter((r) => r.active && r.id !== own.id).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+        <div className="grid grid-cols-2 gap-2">
+          <Button kind="secondary" disabled={!room || room === current} loading={busy} onClick={() => save(room)}>{tx('Ауысамын')}</Button>
+          <Button kind="ghost" disabled={!current} onClick={() => { setRoom(''); save(null) }}>{tx('Өз бөлмемде')}</Button>
+        </div>
+      </Card>
+    </>
+  )
+}
+
 /* ---------- student ---------- */
 function StudentDorm() {
   const { me } = useMe()
@@ -762,7 +882,8 @@ function StudentDorm() {
   const d = useLoad(async () => {
     const [rooms, items, assigns, holders, swaps, settings, round] = await Promise.all([listDormRooms(), listDormItems(), listDormAssignments(), listDormHolders(),
       listDormSwaps(), classId ? getDormSettings(classId) : null, classId ? lastLinenRound(classId) : null])
-    return { rooms, items, assigns, holders, swaps, settings, round, answers: round ? await linenAnswers(round.id) : [] }
+    const [answers, duty, weekend] = await Promise.all([round ? linenAnswers(round.id) : [], listDormDuty(term), listDormWeekend(weekendOf(today()))])
+    return { rooms, items, assigns, holders, swaps, settings, round, answers, duty, weekend }
   }, [me.id])
   const [scan, setScan] = useState(false)
   const [busy, setBusy] = useState('')
@@ -818,6 +939,15 @@ function StudentDorm() {
         })}
       </Card>
       {missing.length > 0 && v.settings?.mode !== 'auto' && <Button kind="gold" loading={busy === 'claim'} onClick={() => setScan(true)}><Icon n="search" size={18} />{tx('QR сканерлеп орын таңдау')}</Button>}
+
+      {v.duty.some((x) => x.student_id === me.id) && (
+        <Card className="flex items-center gap-3">
+          <span className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center"><Icon n="check" /></span>
+          <span className="flex-1"><span className="block font-semibold">{tx('Кезекшілік күндерім')}</span>
+            <span className="block text-sm text-muted">{v.duty.filter((x) => x.student_id === me.id).sort((a, b) => a.weekday - b.weekday).map((x) => DAYS[x.weekday - 1]).join(', ')}</span></span>
+        </Card>
+      )}
+      {v.settings?.weekend_move && <WeekendMove term={term} own={room} rooms={v.rooms} current={v.weekend.find((x) => x.student_id === me.id)?.room_id ?? null} onDone={d.reload} />}
 
       {v.round && (
         <>

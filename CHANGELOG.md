@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0 — 2026-10-29
+
+Dorm settings regrouped into Placement, Cleanliness and Rooms, under a card with the current placement period:
+- Placement: the period's start and end dates; bed swaps; «allow weekend room changes». How beds are given is chosen only in the placement wizard.
+- Weekend room change: when allowed, a boy picks another room with a free bed for this Saturday–Sunday (or stays in his own); the tutor sees the moves on the overview, and the weekend roll call counts each boy in the room he moved to.
+- Cleanliness: criteria, linen-change times, and a room duty roster per weekday (filled by rotation, editable; another class's boy keeps his day). A boy sees his duty days.
+- Rooms: QR sheets and door lists.
+- Migration 0050.
+
 ## 1.3.2 — 2026-10-29
 
 - Dorm item page: staff also see the item's past holders with their term and dates.
