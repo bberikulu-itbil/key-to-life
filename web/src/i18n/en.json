@@ -2016,5 +2016,11 @@
  "{0} аккаунтын тізімнен алып тастау": "Remove {0} from the list",
  "Басқа аккаунт қосу": "Add another account",
  "Аккаунттар тек осы құрылғыда сақталады. Басқа аккаунтқа кіргенде, бұл аккаунт тізімде қалады.": "Accounts are kept only on this device. When you sign in to another one, this one stays in the list.",
- "Аккаунт ауыстыру: бір құрылғыда бірнеше аккаунтпен кіріп, Профильдегі «Аккаунт ауыстыру» арқылы бір басумен ауысуға болады.": "Switch account: sign in with several accounts on one device and switch in one tap from Profile → «Switch account»."
+ "Аккаунт ауыстыру: бір құрылғыда бірнеше аккаунтпен кіріп, Профильдегі «Аккаунт ауыстыру» арқылы бір басумен ауысуға болады.": "Switch account: sign in with several accounts on one device and switch in one tap from Profile → «Switch account».",
+ "Бөлмелер, түнгі тексеру, тазалық": "Rooms, evening roll call, cleanliness",
+ "Сынып күнтізбесі": "Class calendar",
+ "Тәрбие сағаттары, оқиғалар, фото": "Class hours, events, photos",
+ "{0} сұрау шешім күтуде": "{0} requests waiting",
+ "Сұраулар, кім сыртта, қатысу": "Requests, who's out, attendance",
+ "Оқушымен жеке сөйлесу, тест нәтижелері": "One-on-one talks, test results"
 }

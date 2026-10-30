@@ -2016,5 +2016,11 @@
  "{0} аккаунтын тізімнен алып тастау": "{0} hesabını listeden kaldır",
  "Басқа аккаунт қосу": "Başka hesap ekle",
  "Аккаунттар тек осы құрылғыда сақталады. Басқа аккаунтқа кіргенде, бұл аккаунт тізімде қалады.": "Hesaplar yalnızca bu cihazda saklanır. Başka hesaba girdiğinizde bu hesap listede kalır.",
- "Аккаунт ауыстыру: бір құрылғыда бірнеше аккаунтпен кіріп, Профильдегі «Аккаунт ауыстыру» арқылы бір басумен ауысуға болады.": "Hesap değiştirme: bir cihazda birkaç hesapla giriş yapıp Profil → «Hesap değiştir» ile tek dokunuşla geçin."
+ "Аккаунт ауыстыру: бір құрылғыда бірнеше аккаунтпен кіріп, Профильдегі «Аккаунт ауыстыру» арқылы бір басумен ауысуға болады.": "Hesap değiştirme: bir cihazda birkaç hesapla giriş yapıp Profil → «Hesap değiştir» ile tek dokunuşla geçin.",
+ "Бөлмелер, түнгі тексеру, тазалық": "Odalar, akşam yoklaması, temizlik",
+ "Сынып күнтізбесі": "Sınıf takvimi",
+ "Тәрбие сағаттары, оқиғалар, фото": "Rehberlik saatleri, etkinlikler, fotoğraflar",
+ "{0} сұрау шешім күтуде": "{0} talep bekliyor",
+ "Сұраулар, кім сыртта, қатысу": "Talepler, kim dışarıda, devam",
+ "Оқушымен жеке сөйлесу, тест нәтижелері": "Öğrenciyle birebir, test sonuçları"
 }

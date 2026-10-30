@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12.1 — 2026-10-31
+
+- Менің сыныбым: one list instead of four tiles and loose rows — Жатақхана, Сынып ресурстары, Сынып күнтізбесі, Рұқсаттар (shows waiting requests), Жеке кездесулер (in place of «Тапсырма»), Сынып кеңесі. The class chat moved to a button next to the class name.
+
 ## 1.12.0 — 2026-10-31
 
 - Several accounts on one device: Профиль → «Аккаунт ауыстыру» lists the accounts signed in here; one tap switches, «Басқа аккаунт қосу» opens the login while keeping the current one, an account can be removed from the list. «Шығу» signs out this account and moves to another saved one if there is one.

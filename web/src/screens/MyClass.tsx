@@ -61,6 +61,7 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
   const nowMs = Date.now()
   const outNow = (d?.leaves ?? []).filter((l) => ids.has(l.student_id) && l.status === 'approved' && new Date(l.starts_at).getTime() <= nowMs)
   const pending = (d?.leaves ?? []).filter((l) => ids.has(l.student_id) && l.status.startsWith('pending'))
+  const mineOrDeputy = cls?.teacher_id === me.id || cls?.tutor_id === me.id || deputy
   const todayLessons = (d?.lessons ?? []).filter((l) => lessonOn(l, today(), d?.breaks ?? []))
   const hmNow = new Date().toTimeString().slice(0, 5)
   const olympiads = useMemo(() => {
@@ -95,6 +96,7 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
             <p className="text-lg font-bold">{tx('{0} сыныбы', cls.name)}</p>
             <p className="text-sm text-muted">{d ? tx('{0} оқушы', d.students.length) : '…'}{cls.teacher_id === me.id ? tx(' · сіз сынып жетекшісісіз') : cls.tutor_id === me.id ? tx(' · сіз тәрбиешісіз') : ''}</p>
           </div>
+          <button type="button" onClick={openChat} aria-label={tx('Сынып чаты')} className="size-11 shrink-0 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n="chat" size={20} /></button>
         </div>
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
           <dt className="text-muted">{tx('Сынып жетекшісі')}</dt><dd className="font-medium">{name(cls.teacher_id) ?? '—'}</dd>
@@ -103,32 +105,22 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
         {deputy && d && <Button kind="secondary" onClick={() => setStaffOpen(true)}><Icon n="settings" size={18} />{tx('Мұғалімдерді өзгерту')}</Button>}
       </Card>
 
-      <div className="grid grid-cols-4 gap-2">
-        {([['chat', tx('Сынып чаты'), openChat], ['clock', tx('Күнтізбе'), () => go(`/calendars?class=${encodeURIComponent(cls.id)}`)], ['check', tx('Тапсырма'), () => go('/plan')], ['file', tx('Рұқсаттар'), () => go('/leaves')]] as const).map(([icon, label, fn]) => (
-          <button key={label} type="button" onClick={fn} className="grid justify-items-center gap-1.5 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] py-3 px-1 text-xs font-semibold">
-            <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={18} /></span>{label}
-          </button>
-        ))}
-      </div>
-
-      <a href={`#/dorm?class=${cls.id}`} className="flex items-center gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 min-h-14">
-        <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="home" size={18} /></span>
-        <span className="flex-1 font-semibold">{tx('Жатақхана')}</span><Icon n="chev" className="text-muted" />
-      </a>
-      {(cls.teacher_id === me.id || cls.tutor_id === me.id || deputy) && <>
-        <a href={`#/resources/${cls.id}`} className="flex items-center gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 min-h-14">
-          <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="book" size={18} /></span>
-          <span className="flex-1"><span className="block font-semibold">{tx('Сынып ресурстары')}</span><span className="block text-xs text-muted">{tx('Кітаптар, фильмдер, шаралар, сынып қоры')}</span></span><Icon n="chev" className="text-muted" />
-        </a>
-        <a href={`#/journal/${cls.id}`} className="flex items-center gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 min-h-14">
-          <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="file" size={18} /></span>
-          <span className="flex-1"><span className="block font-semibold">{tx('Журнал және күнтізбе')}</span><span className="block text-xs text-muted">{tx('Тәрбие сағаттары, сынып күнтізбесі, фото')}</span></span><Icon n="chev" className="text-muted" />
-        </a>
-        <a href={`#/council/${cls.id}`} className="flex items-center gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 min-h-14">
-          <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="lock" size={18} /></span>
-          <span className="flex-1"><span className="block font-semibold">{tx('Сынып кеңесі')}</span><span className="block text-xs text-muted">{tx('Жазбалар, жиналыс, тапсырмалар, ата-аналар')}</span></span><Icon n="chev" className="text-muted" />
-        </a>
-      </>}
+      <Card className="p-0 overflow-hidden">
+        <ul className="divide-y divide-line">{([
+          [`#/dorm?class=${cls.id}`, 'home', tx('Жатақхана'), tx('Бөлмелер, түнгі тексеру, тазалық'), true],
+          [`#/resources/${cls.id}`, 'book', tx('Сынып ресурстары'), tx('Кітаптар, фильмдер, шаралар, сынып қоры'), mineOrDeputy],
+          [`#/journal/${cls.id}`, 'file', tx('Сынып күнтізбесі'), tx('Тәрбие сағаттары, оқиғалар, фото'), mineOrDeputy],
+          ['#/leaves', 'clock', tx('Рұқсаттар'), pending.length ? tx('{0} сұрау шешім күтуде', pending.length) : tx('Сұраулар, кім сыртта, қатысу'), true],
+          [`#/mentor?class=${cls.id}`, 'user', tx('Жеке кездесулер'), tx('Оқушымен жеке сөйлесу, тест нәтижелері'), mineOrDeputy],
+          [`#/council/${cls.id}`, 'lock', tx('Сынып кеңесі'), tx('Жазбалар, жиналыс, тапсырмалар, ата-аналар'), mineOrDeputy],
+        ] as const).filter((r) => r[4]).map(([href, icon, label, sub]) => (
+          <li key={href}><a href={href} className="flex items-center gap-3 px-4 min-h-16 py-2">
+            <span className="size-10 shrink-0 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n={icon} size={20} /></span>
+            <span className="flex-1 min-w-0"><span className="block font-semibold">{label}</span><span className={`block text-xs ${href === '#/leaves' && pending.length ? 'text-warning font-semibold' : 'text-muted'}`}>{sub}</span></span>
+            <Icon n="chev" className="text-muted" />
+          </a></li>
+        ))}</ul>
+      </Card>
 
       {data.loading && !d ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : d && (
         <>
