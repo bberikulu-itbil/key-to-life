@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.1 — 2026-10-30
+
+- Tests: the author gets «Нәтиже | Өзім тапсыру» and can take their own test; the answer is saved and shows among the results.
+
 ## 1.7.0 — 2026-10-30
 
 - Surveys: template «Холланд мамандық тесті» — the 42 pairs of jobs in the original order, in Kazakh and Russian; the child taps the job they like more. Results: the Holland code (three strongest RIASEC letters) and the six counts out of 14, and the 42 answers as 1 (left) / 2 (right). Migration 0053.

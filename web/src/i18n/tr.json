@@ -1821,5 +1821,8 @@
  "Холланд": "Holland",
  "Алдын ала көру: жауаптар сақталмайды.": "Önizleme: cevaplar kaydedilmez.",
  "Барлық сұраққа жауап берсеңіз, нәтиже осында шығады.": "Tüm soruları cevaplayınca sonuç burada görünür.",
- "Сауалнамада үшінші дайын үлгі: Холланд мамандық тесті — 42 жұп мамандық. Мұғалімдер үш тестті де «Дайын тесттер» бөлімінде өзі тапсырып көре алады.": "Anketlerde üçüncü şablon: Holland meslek testi — 42 meslek çifti. Öğretmenler üç testi de «Hazır testler» bölümünde kendileri deneyebilir."
+ "Сауалнамада үшінші дайын үлгі: Холланд мамандық тесті — 42 жұп мамандық. Мұғалімдер үш тестті де «Дайын тесттер» бөлімінде өзі тапсырып көре алады.": "Anketlerde üçüncü şablon: Holland meslek testi — 42 meslek çifti. Öğretmenler üç testi de «Hazır testler» bölümünde kendileri deneyebilir.",
+ "Көрініс": "Görünüm",
+ "Өзім тапсыру": "Kendim çözeyim",
+ "Тест сауалнамасын жасаған мұғалім оны «Өзім тапсыру» арқылы өзі де тапсыра алады, жауабы нәтижеде көрінеді.": "Testi gönderen öğretmen «Kendim çözeyim» ile kendisi de çözebilir; cevabı sonuçlarda görünür."
 }

@@ -83,12 +83,16 @@ export function SurveyView({ id }: { id: string }) {
   const { me } = useMe()
   const s = useLoad(() => getSurvey(id), [id])
   const [tl, setTl] = useMbtiLang()
+  const [mode, setMode] = useState<'results' | 'take'>('results')
   if (s.loading && !s.data) return <><PageHead title={tx('Сауалнама')} back /><Skeleton /></>
   if (s.error || !s.data) return <><PageHead title={tx('Сауалнама')} back /><ErrorBox text={s.error ?? tx('Табылмады')} /></>
   const v = s.data
   // Hafta Sonu: staff only read the results
   const owner = v.author_id === me.id || me.role === 'deputy' || me.role === 'admin' || (v.kind === 'weekend' && me.role !== 'student')
-  const test = !owner && v.questions.some(testOf)
+  const isTest = v.questions.some(testOf)
+  // the author of a test can take it too; their answer shows among the results
+  const answering = !owner || (isTest && mode === 'take')
+  const test = isTest && answering
   return (
     <div className="grid gap-3 pb-6">
       <PageHead title={tx('Сауалнама')} back right={test ? <MbtiLangSwitch value={tl} onChange={setTl} /> : undefined} />
@@ -97,7 +101,8 @@ export function SurveyView({ id }: { id: string }) {
         {v.description && <p className="whitespace-pre-line text-sm">{tx(v.description)}</p>}
         <p className="text-xs text-muted">{audLabel(v)} · {v.author.full_name}{v.anonymous ? tx(' · анонимді: автор аттарды көрмейді') : ''}</p>
       </Card>
-      {owner ? <Results s={v} onChange={s.reload} canClose={v.author_id === me.id || me.role === 'deputy' || me.role === 'admin'} /> : <Answer s={v} onDone={s.reload} tl={tl} />}
+      {owner && isTest && <Chips label={tx('Көрініс')} value={mode} onChange={setMode} items={[['results', tx('Нәтиже')], ['take', tx('Өзім тапсыру')]]} />}
+      {!answering ? <Results s={v} onChange={s.reload} canClose={v.author_id === me.id || me.role === 'deputy' || me.role === 'admin'} /> : <Answer s={v} onDone={() => { s.reload(); setMode('results') }} tl={tl} />}
     </div>
   )
 }

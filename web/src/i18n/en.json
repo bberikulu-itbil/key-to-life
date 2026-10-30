@@ -1821,5 +1821,8 @@
  "Холланд": "Holland",
  "Алдын ала көру: жауаптар сақталмайды.": "Preview: answers are not saved.",
  "Барлық сұраққа жауап берсеңіз, нәтиже осында шығады.": "Answer every question and the result will show here.",
- "Сауалнамада үшінші дайын үлгі: Холланд мамандық тесті — 42 жұп мамандық. Мұғалімдер үш тестті де «Дайын тесттер» бөлімінде өзі тапсырып көре алады.": "Surveys: a third template, the Holland career test — 42 pairs of jobs. Teachers can take all three tests themselves under «Ready-made tests»."
+ "Сауалнамада үшінші дайын үлгі: Холланд мамандық тесті — 42 жұп мамандық. Мұғалімдер үш тестті де «Дайын тесттер» бөлімінде өзі тапсырып көре алады.": "Surveys: a third template, the Holland career test — 42 pairs of jobs. Teachers can take all three tests themselves under «Ready-made tests».",
+ "Көрініс": "View",
+ "Өзім тапсыру": "Take it myself",
+ "Тест сауалнамасын жасаған мұғалім оны «Өзім тапсыру» арқылы өзі де тапсыра алады, жауабы нәтижеде көрінеді.": "A teacher who sent a test can take it too with «Take it myself»; their answer shows in the results."
 }
