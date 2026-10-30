@@ -35,6 +35,7 @@ import Dorm from './screens/Dorm'
 import Council from './screens/Council'
 import Mentor from './screens/Mentor'
 import Journal from './screens/Journal'
+import Resources from './screens/Resources'
 import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
 import About from './screens/About'
@@ -128,6 +129,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'timetable') screen = <Timetable classId={id} />
   else if (seg === 'class') screen = <MyClass classId={id} />
   else if (seg === 'mentor') screen = <Mentor key={path} studentId={id} classId={new URLSearchParams(path.split('?')[1] ?? '').get('class') ?? undefined} />
+  else if (seg === 'resources') screen = <Resources key={path} classId={id} />
   else if (seg === 'journal') screen = <Journal key={path} classId={id} />
   else if (seg === 'council') screen = <Council key={path} classId={id} />
   else if (seg === 'dorm') screen = <Dorm key={path} sub={id} arg={path.split('?')[0].split('/')[3]} />
@@ -165,7 +167,7 @@ function Shell({ me }: { me: Me }) {
     <Ctx.Provider value={{ me, refreshBadge }}>
       <SideNav me={me} seg={seg} active={active} badge={badge} onPlus={() => setSheet('menu')} />
       <div className="min-h-dvh pb-[calc(80px+env(safe-area-inset-bottom))] lg:pb-8 lg:pl-72">
-        <main className={`mx-auto ${['council', 'mentor', 'journal'].includes(seg) ? 'max-w-[640px] lg:max-w-[1100px]' : 'max-w-[640px]'} pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]`}>{screen}</main>
+        <main className={`mx-auto ${['council', 'mentor', 'journal', 'resources'].includes(seg) ? 'max-w-[640px] lg:max-w-[1100px]' : 'max-w-[640px]'} pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]`}>{screen}</main>
       </div>
       <nav aria-label={tx('Негізгі мәзір')} className="print:hidden lg:hidden fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto max-w-[640px] grid grid-cols-5 h-16 items-center">
@@ -219,9 +221,6 @@ function SideNav({ me, seg, active, badge, onPlus }: { me: Me; seg: string; acti
     <a key={href} href={`#${href}`} aria-current={on ? 'page' : undefined}
       className={`flex items-center gap-3 h-11 px-3 rounded-md text-sm ${on ? 'bg-accent-soft text-accent font-semibold' : 'hover:bg-surface-2'}`}><Icon n={icon} size={20} /><span className="flex-1">{label}</span>{extra}</a>
   )
-  const soon = (icon: string, label: string) => (
-    <span key={label} aria-disabled="true" className="flex items-center gap-3 h-11 px-3 rounded-md text-sm text-muted"><Icon n={icon} size={20} /><span className="flex-1 whitespace-nowrap">{label}</span><span className="text-[11px]">{tx('жақында')}</span></span>
-  )
   return (
     <aside aria-label={tx('Бүйір мәзір')} className="print:hidden hidden lg:flex fixed inset-y-0 left-0 z-30 w-72 flex-col gap-1 overflow-y-auto border-r border-line bg-surface p-3">
       <p className="px-3 py-3 text-lg font-bold">Key To Life</p>
@@ -230,11 +229,12 @@ function SideNav({ me, seg, active, badge, onPlus }: { me: Me; seg: string; acti
       {link('/plan', 'clock', tx('Жоспар'), active('/plan'))}
       {link('/chats', 'chat', tx('Чаттар'), active('/chats'), badge > 0 ? <span className="min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center">{badge > 9 ? '9+' : badge}</span> : null)}
       {link('/profile', 'user', tx('Профиль'), active('/profile') && seg !== 'dorm')}
+      {me.role === 'student' && me.class && link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
       {me.role !== 'student' && <>
         <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted">{tx('Сыныпты басқару')}</p>
         {link('/class', 'users', tx('Менің сыныбым'), seg === 'class')}
         {link('/dorm', 'home', tx('Жатақхана'), seg === 'dorm')}
-        {soon('book', tx('Сынып ресурстары'))}
+        {link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
         {link('/journal', 'file', tx('Журнал және күнтізбе'), seg === 'journal')}
         {link('/mentor', 'user', tx('Жеке кездесулер'), seg === 'mentor')}
         {link('/council', 'lock', tx('Сынып кеңесі'), seg === 'council')}

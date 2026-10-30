@@ -190,3 +190,8 @@ assert.equal(HOLLAND.length, 42)
 for (let g = 0; g < 42; g += 3) assert.equal(new Set(HOLLAND_SIDES.slice(g, g + 3).flat()).size, 6)
 assert.deepEqual(hollandScore(HOLLAND_SIDES.map((p) => (p[0] === 'I' ? -1 : p[1] === 'I' ? 1 : -1))).counts[1], 14)
 console.log('holland ok')
+
+import { fundTotals } from './money'
+// numeric columns arrive from PostgREST as strings
+assert.deepEqual(fundTotals([{ amount: '10000', planned: false }, { amount: -2500, planned: false }, { amount: '-4000.50', planned: true }]), { balance: 7500, planned: -4000.5, after: 3499.5 })
+console.log('fund ok')

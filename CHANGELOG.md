@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.11.0 — 2026-10-30
+
+- «Сынып ресурстары» (`/resources`), for the class's students and staff: a book and film library (students suggest and their suggestion waits for approval, staff add directly; «Оқып жатырмын / Оқыдым», «Көремін / Көрдім»; «reading» adds a «Күніне 20 бет оқу» habit to the student's own tracker; classmates who finished it with avatars; short reviews); film club screenings (tick who watched → a yellow entry in the class calendar, counted as watched); shopping lists for class events (item, price, amount, the student in charge, who can tick it bought); the class fund (income, spending, planned spending, balance after plans). Students reach it from Профиль. Migration 0057.
+- The desktop sidebar's «Сыныпты басқару» group is complete.
+
 ## 1.10.0 — 2026-10-30
 
 - «Журнал және күнтізбе» (`/journal`), staff only: a class-hour log (date, direction, topic, who led it, absent students, optional group, note; filter by direction and topic) and a month calendar colour-coded red (exams, school events), blue (one-on-ones), green (class hours), yellow (film, sport), purple (parent meetings, home visits). A day opens its entries, lets you add an event, and shows and adds photos of that day. Migration 0056.
