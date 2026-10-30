@@ -115,12 +115,16 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
         <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="home" size={18} /></span>
         <span className="flex-1 font-semibold">{tx('Жатақхана')}</span><Icon n="chev" className="text-muted" />
       </a>
-      {(cls.teacher_id === me.id || cls.tutor_id === me.id || deputy) && (
+      {(cls.teacher_id === me.id || cls.tutor_id === me.id || deputy) && <>
+        <a href={`#/journal/${cls.id}`} className="flex items-center gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 min-h-14">
+          <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="file" size={18} /></span>
+          <span className="flex-1"><span className="block font-semibold">{tx('Журнал және күнтізбе')}</span><span className="block text-xs text-muted">{tx('Тәрбие сағаттары, сынып күнтізбесі, фото')}</span></span><Icon n="chev" className="text-muted" />
+        </a>
         <a href={`#/council/${cls.id}`} className="flex items-center gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 min-h-14">
           <span className="size-9 rounded-sm bg-accent-soft text-accent grid place-items-center"><Icon n="lock" size={18} /></span>
           <span className="flex-1"><span className="block font-semibold">{tx('Сынып кеңесі')}</span><span className="block text-xs text-muted">{tx('Жазбалар, жиналыс, тапсырмалар, ата-аналар')}</span></span><Icon n="chev" className="text-muted" />
         </a>
-      )}
+      </>}
 
       {data.loading && !d ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : d && (
         <>

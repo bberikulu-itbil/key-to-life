@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10.0 — 2026-10-30
+
+- «Журнал және күнтізбе» (`/journal`), staff only: a class-hour log (date, direction, topic, who led it, absent students, optional group, note; filter by direction and topic) and a month calendar colour-coded red (exams, school events), blue (one-on-ones), green (class hours), yellow (film, sport), purple (parent meetings, home visits). A day opens its entries, lets you add an event, and shows and adds photos of that day. Migration 0056.
+
 ## 1.9.0 — 2026-10-30
 
 - «Жеке кездесулер» (`/mentor`): staff see the class with each student's next/last meeting; a student's page shows their MBTI type, top multiple intelligences and Holland code, a meeting planner with «Оқушыға көрсету / Тек ұстаздарға», the outcome (action items for the student, a private note), and a history of class council notes tagged with them and talks with parents. Students see their own meetings and action items (Профиль → Жеке кездесулерім) and get a notification, a reminder an hour before and the outcome. Migration 0055.

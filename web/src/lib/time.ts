@@ -23,7 +23,7 @@ export const MARK_LABEL: Record<Mark, string> = { present: tx('Келді'), lat
 /** Plan categories for the overview: camps, Çalışma study sessions, olympiad (KBO) stages. */
 export const PLAN_CAT: Record<'camp' | 'calisma' | 'olympiad' | 'other', string> = { camp: tx('Camp'), calisma: tx('Çalışma'), olympiad: tx('КБО / Олимпиада'), other: tx('Басқа') }
 export const WD_SHORT = [tx('Дс'), tx('Сс'), tx('Ср'), tx('Бс'), tx('Жм'), tx('Сн'), tx('Жс')]   // ISO 1..7
-const MONTHS = [tx('қаңтар'), tx('ақпан'), tx('наурыз'), tx('сәуір'), tx('мамыр'), tx('маусым'), tx('шілде'), tx('тамыз'), tx('қыркүйек'), tx('қазан'), tx('қараша'), tx('желтоқсан')]
+export const MONTHS = [tx('қаңтар'), tx('ақпан'), tx('наурыз'), tx('сәуір'), tx('мамыр'), tx('маусым'), tx('шілде'), tx('тамыз'), tx('қыркүйек'), tx('қазан'), tx('қараша'), tx('желтоқсан')]
 
 // Dates are plain 'YYYY-MM-DD' strings in the school's local day; build them from local parts, never toISOString (UTC).
 export const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`

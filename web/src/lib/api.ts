@@ -709,3 +709,25 @@ export const finishMentorMeeting = (id: string, actions: string, notes: string) 
   ok(supabase.from('mentor_meetings').update({ actions: actions || null, notes: notes || null, done_at: new Date().toISOString() }).eq('id', id))
 export const removeMentorMeeting = (id: string) => ok(supabase.from('mentor_meetings').delete().eq('id', id))
 export const myMentorMeetings = () => rpc<{ id: string; starts_at: string; topic: string; actions: string | null; done_at: string | null; staff_name: string | null }[]>('my_mentor_meetings', {})
+
+/* ---------- class journal and calendar ---------- */
+export type ClassHour = { id: string; on_date: string; direction: string; topic: string; led_by: string | null; absent: string[]; grp: string | null; note: string | null }
+export type ClassEvent = { id: string; on_date: string; at_time: string | null; kind: 'school' | 'fun' | 'parents'; title: string }
+export type ClassPhoto = { id: string; on_date: string; path: string }
+export const listJournal = async (classId: string) => {
+  const [hours, events, photos, meetings, contacts] = await Promise.all([
+    ok(supabase.from('class_hours').select('id, on_date, direction, topic, led_by, absent, grp, note').eq('class_id', classId).order('on_date', { ascending: false }).limit(500)),
+    ok(supabase.from('class_events').select('id, on_date, at_time, kind, title').eq('class_id', classId).order('on_date').limit(1000)),
+    ok(supabase.from('class_photos').select('id, on_date, path').eq('class_id', classId).order('created_at').limit(2000)),
+    classMentorMeetings(classId),
+    ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('class_id', classId).in('channel', ['meeting', 'visit']).limit(500)),
+  ])
+  return { hours, events, photos, meetings, contacts } as { hours: ClassHour[]; events: ClassEvent[]; photos: ClassPhoto[]; meetings: MentorMeeting[]; contacts: ParentContact[] }
+}
+export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok(supabase.from('class_hours').insert(row))
+export const removeClassHour = (id: string) => ok(supabase.from('class_hours').delete().eq('id', id))
+export const addClassEvent = (row: Omit<ClassEvent, 'id'> & { class_id: string }) => ok(supabase.from('class_events').insert(row))
+export const removeClassEvent = (id: string) => ok(supabase.from('class_events').delete().eq('id', id))
+export const addClassPhoto = async (class_id: string, on_date: string, me: string, file: File) =>
+  ok(supabase.from('class_photos').insert({ class_id, on_date, path: await uploadPhoto(me, file) }))
+export const removeClassPhoto = (id: string) => ok(supabase.from('class_photos').delete().eq('id', id))

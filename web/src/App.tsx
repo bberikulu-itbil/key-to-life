@@ -34,6 +34,7 @@ import MyActivities from './screens/MyActivities'
 import Dorm from './screens/Dorm'
 import Council from './screens/Council'
 import Mentor from './screens/Mentor'
+import Journal from './screens/Journal'
 import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
 import About from './screens/About'
@@ -127,6 +128,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'timetable') screen = <Timetable classId={id} />
   else if (seg === 'class') screen = <MyClass classId={id} />
   else if (seg === 'mentor') screen = <Mentor key={path} studentId={id} classId={new URLSearchParams(path.split('?')[1] ?? '').get('class') ?? undefined} />
+  else if (seg === 'journal') screen = <Journal key={path} classId={id} />
   else if (seg === 'council') screen = <Council key={path} classId={id} />
   else if (seg === 'dorm') screen = <Dorm key={path} sub={id} arg={path.split('?')[0].split('/')[3]} />
   else if (seg === 'my') screen = <MyActivities kind={id} />
@@ -163,7 +165,7 @@ function Shell({ me }: { me: Me }) {
     <Ctx.Provider value={{ me, refreshBadge }}>
       <SideNav me={me} seg={seg} active={active} badge={badge} onPlus={() => setSheet('menu')} />
       <div className="min-h-dvh pb-[calc(80px+env(safe-area-inset-bottom))] lg:pb-8 lg:pl-72">
-        <main className={`mx-auto ${seg === 'council' || seg === 'mentor' ? 'max-w-[640px] lg:max-w-[1100px]' : 'max-w-[640px]'} pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]`}>{screen}</main>
+        <main className={`mx-auto ${['council', 'mentor', 'journal'].includes(seg) ? 'max-w-[640px] lg:max-w-[1100px]' : 'max-w-[640px]'} pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]`}>{screen}</main>
       </div>
       <nav aria-label={tx('Негізгі мәзір')} className="print:hidden lg:hidden fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto max-w-[640px] grid grid-cols-5 h-16 items-center">
@@ -233,7 +235,7 @@ function SideNav({ me, seg, active, badge, onPlus }: { me: Me; seg: string; acti
         {link('/class', 'users', tx('Менің сыныбым'), seg === 'class')}
         {link('/dorm', 'home', tx('Жатақхана'), seg === 'dorm')}
         {soon('book', tx('Сынып ресурстары'))}
-        {soon('file', tx('Журнал және күнтізбе'))}
+        {link('/journal', 'file', tx('Журнал және күнтізбе'), seg === 'journal')}
         {link('/mentor', 'user', tx('Жеке кездесулер'), seg === 'mentor')}
         {link('/council', 'lock', tx('Сынып кеңесі'), seg === 'council')}
       </>}
