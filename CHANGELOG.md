@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1 — 2026-10-30
+
+- MBTI test: a ҚАЗ / РУС switch at the top right shows the questions in one language; the choice is kept on the phone.
+
 ## 1.5.0 — 2026-10-30
 
 - Surveys: ready-made template «MBTI мінез тесті» — the same 70 questions, reworded for children, in Kazakh and Russian, answered on 7 circles. Results show each child's type with the strength of every side, and the 70 answers as circle positions 1–7 to type into the original site. Migration 0051.

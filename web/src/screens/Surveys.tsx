@@ -4,7 +4,7 @@ import { chatTime, fmtDate } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
-import { MbtiAnswer, MbtiResults } from '../components/Mbti'
+import { MbtiAnswer, MbtiLangSwitch, MbtiResults, useMbtiLang, type MbtiLang } from '../components/Mbti'
 import { MBTI } from '../lib/mbti'
 
 const AUD: Record<Survey['audience'], string> = { all: tx('Бүкіл мектеп'), students: tx('Барлық оқушылар'), staff: tx('Мұғалімдер'), class: tx('Сынып'), activity: tx('Бастама') }
@@ -56,25 +56,27 @@ export default function Surveys() {
 export function SurveyView({ id }: { id: string }) {
   const { me } = useMe()
   const s = useLoad(() => getSurvey(id), [id])
+  const [tl, setTl] = useMbtiLang()
   if (s.loading && !s.data) return <><PageHead title={tx('Сауалнама')} back /><Skeleton /></>
   if (s.error || !s.data) return <><PageHead title={tx('Сауалнама')} back /><ErrorBox text={s.error ?? tx('Табылмады')} /></>
   const v = s.data
   // Hafta Sonu: staff only read the results
   const owner = v.author_id === me.id || me.role === 'deputy' || me.role === 'admin' || (v.kind === 'weekend' && me.role !== 'student')
+  const test = !owner && v.questions.some((q) => q.type === 'mbti')
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title={tx('Сауалнама')} back />
+      <PageHead title={tx('Сауалнама')} back right={test ? <MbtiLangSwitch value={tl} onChange={setTl} /> : undefined} />
       <Card className="grid gap-1">
         <h1 className="text-xl font-bold break-words">{v.title}</h1>
         {v.description && <p className="whitespace-pre-line text-sm">{tx(v.description)}</p>}
         <p className="text-xs text-muted">{audLabel(v)} · {v.author.full_name}{v.anonymous ? tx(' · анонимді: автор аттарды көрмейді') : ''}</p>
       </Card>
-      {owner ? <Results s={v} onChange={s.reload} canClose={v.author_id === me.id || me.role === 'deputy' || me.role === 'admin'} /> : <Answer s={v} onDone={s.reload} />}
+      {owner ? <Results s={v} onChange={s.reload} canClose={v.author_id === me.id || me.role === 'deputy' || me.role === 'admin'} /> : <Answer s={v} onDone={s.reload} tl={tl} />}
     </div>
   )
 }
 
-function Answer({ s, onDone }: { s: Survey; onDone: () => void }) {
+function Answer({ s, onDone, tl }: { s: Survey; onDone: () => void; tl: MbtiLang }) {
   const prev = (s.mine[0]?.answers ?? []) as unknown[]
   const draftKey = `survey-draft-${s.id}`
   const [a, setA] = useState<unknown[]>(() => {
@@ -101,7 +103,7 @@ function Answer({ s, onDone }: { s: Survey; onDone: () => void }) {
   return (
     <div className="grid gap-3">
       {prev.length > 0 && <p className="text-sm rounded-md bg-success-soft text-success p-3">{tx('Жауап бердіңіз.{0}', open ? tx(' Сауалнама жабылғанша өзгертуге болады.') : '')}</p>}
-      {s.questions.map((q, i) => q.type === 'mbti' ? <MbtiAnswer key={i} value={a[i] as (number | null)[]} onChange={(v) => put(i, v)} disabled={!open} /> : (
+      {s.questions.map((q, i) => q.type === 'mbti' ? <MbtiAnswer key={i} value={a[i] as (number | null)[]} onChange={(v) => put(i, v)} disabled={!open} lang={tl} /> : (
         <Card key={i} className="grid gap-2">
           <p className="font-semibold">{i + 1}. {tx(q.q)}</p>
           {q.type === 'text' ? (

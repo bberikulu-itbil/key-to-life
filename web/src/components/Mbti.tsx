@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { MBTI, MBTI_AXES, mbtiScore } from '../lib/mbti'
 import { Button, Card, toast } from './ui'
-import { tx } from '../lib/i18n'
+import { lang as appLang, tx } from '../lib/i18n'
 
 /* The 70-item test inside a survey: every question in Kazakh and Russian, seven circles from the left choice to the right one. */
 
@@ -13,7 +13,29 @@ const circle = (v: number, on: boolean) => {
 }
 const WHERE = [tx('толық сол жақ'), tx('көбіне сол жақ'), tx('сәл сол жақ'), tx('ортасы'), tx('сәл оң жақ'), tx('көбіне оң жақ'), tx('толық оң жақ')]
 
-export function MbtiAnswer({ value, onChange, disabled }: { value: (number | null)[]; onChange: (v: (number | null)[]) => void; disabled?: boolean }) {
+/** Which language the test is shown in: Kazakh with Russian below, or Russian only. Kept on this phone. */
+export type MbtiLang = 'kk' | 'ru'
+export function useMbtiLang() {
+  const [l, setL] = useState<MbtiLang>(() => {
+    try { const v = localStorage.getItem('mbti-lang'); if (v === 'kk' || v === 'ru') return v } catch { /* private mode */ }
+    return appLang === 'ru' ? 'ru' : 'kk'
+  })
+  const set = (v: MbtiLang) => { setL(v); try { localStorage.setItem('mbti-lang', v) } catch { /* private mode */ } }
+  return [l, set] as const
+}
+export function MbtiLangSwitch({ value, onChange }: { value: MbtiLang; onChange: (v: MbtiLang) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Тіл · Язык" className="flex rounded-full bg-surface-2 p-1 text-sm font-semibold">
+      {(['kk', 'ru'] as const).map((l) => (
+        <button key={l} type="button" role="radio" aria-checked={value === l} onClick={() => onChange(l)}
+          className={`h-8 px-3 rounded-full transition-colors ${value === l ? 'bg-surface text-accent shadow-sm' : 'text-muted'}`}>{l === 'kk' ? 'ҚАЗ' : 'РУС'}</button>
+      ))}
+    </div>
+  )
+}
+
+export function MbtiAnswer({ value, onChange, disabled, lang = 'kk' }: { value: (number | null)[]; onChange: (v: (number | null)[]) => void; disabled?: boolean; lang?: MbtiLang }) {
+  const ru = lang === 'ru'
   const done = value.filter((v) => v != null).length
   const pick = (i: number, v: number) => {
     const first = value[i] == null
@@ -24,26 +46,25 @@ export function MbtiAnswer({ value, onChange, disabled }: { value: (number | nul
   return (
     <div className="grid grid-cols-1 gap-3">
       <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-[var(--bg)]/95 backdrop-blur">
-        <div className="flex items-center justify-between text-sm font-semibold"><span>Сұрақтар · Вопросы</span><span className="tabular-nums">{done} / {MBTI.length}</span></div>
+        <div className="flex items-center justify-between text-sm font-semibold"><span>{ru ? 'Вопросы' : 'Сұрақтар'}</span><span className="tabular-nums">{done} / {MBTI.length}</span></div>
         <div className="mt-1.5 h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full bg-accent transition-all" style={{ width: `${(100 * done) / MBTI.length}%` }} /></div>
       </div>
       <Card className="grid gap-1 bg-accent-soft">
         {/* the test is always shown in both languages, whatever the app's language */}
-        <p className="text-sm">Дұрыс не бұрыс жауап жоқ. Өзіңе қайсысы жақын болса, сол жаққа жақын шеңберді таңда. Екеуі де бірдей болса — ортасын.</p>
-        <p className="text-xs text-muted">Правильных и неправильных ответов нет. Выбери кружок ближе к тому, что больше похоже на тебя. Если одинаково — средний.</p>
+        <p className="text-sm">{ru ? 'Правильных и неправильных ответов нет. Выбери кружок ближе к тому, что больше похоже на тебя. Если одинаково — средний.'
+          : 'Дұрыс не бұрыс жауап жоқ. Өзіңе қайсысы жақын болса, сол жаққа жақын шеңберді таңда. Екеуі де бірдей болса — ортасын.'}</p>
       </Card>
       {MBTI.map((it, i) => (
         <Card key={i} className={`grid gap-3 scroll-mt-24 ${value[i] == null ? '' : 'opacity-90'}`}>
           <div id={`mbti-${i}`} className="grid gap-0.5">
             <p className="text-xs text-muted tabular-nums">{i + 1} / {MBTI.length}</p>
-            <p className="font-semibold text-[17px] leading-snug">{it.q[0]}</p>
-            <p className="text-sm text-muted">{it.q[1]}</p>
+            <p className="font-semibold text-[17px] leading-snug">{it.q[ru ? 1 : 0]}</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><p className="text-[15px] font-medium leading-snug" style={{ color: LEFT }}>{it.a[0]}</p><p className="text-xs text-muted leading-snug">{it.a[1]}</p></div>
-            <div className="text-right"><p className="text-[15px] font-medium leading-snug" style={{ color: RIGHT }}>{it.b[0]}</p><p className="text-xs text-muted leading-snug">{it.b[1]}</p></div>
+            <p className="text-[15px] font-medium leading-snug" style={{ color: LEFT }}>{it.a[ru ? 1 : 0]}</p>
+            <p className="text-right text-[15px] font-medium leading-snug" style={{ color: RIGHT }}>{it.b[ru ? 1 : 0]}</p>
           </div>
-          <div role="radiogroup" aria-label={it.q[0]} className="flex items-center justify-between px-1">
+          <div role="radiogroup" aria-label={it.q[ru ? 1 : 0]} className="flex items-center justify-between px-1">
             {[-3, -2, -1, 0, 1, 2, 3].map((v) => (
               <button key={v} type="button" role="radio" aria-checked={value[i] === v} disabled={disabled} onClick={() => pick(i, v)}
                 aria-label={`${i + 1}: ${WHERE[v + 3]}`} className="grid place-items-center size-11 disabled:opacity-60">
