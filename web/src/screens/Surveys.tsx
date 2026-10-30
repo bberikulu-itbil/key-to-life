@@ -4,8 +4,11 @@ import { chatTime, fmtDate } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
+import { MbtiAnswer, MbtiResults } from '../components/Mbti'
+import { MBTI } from '../lib/mbti'
 
 const AUD: Record<Survey['audience'], string> = { all: tx('Бүкіл мектеп'), students: tx('Барлық оқушылар'), staff: tx('Мұғалімдер'), class: tx('Сынып'), activity: tx('Бастама') }
+const count = (s: Survey) => s.questions.reduce((n, q) => n + (q.type === 'mbti' ? MBTI.length : 1), 0)
 const isOpen = (s: Survey) => !s.closed && (!s.closes_at || new Date(s.closes_at) > new Date())
 const audLabel = (s: Survey) => s.audience === 'class' ? tx('{0} сыныбы', s.class?.name ?? '') : s.audience === 'activity' ? s.activity?.title ?? tx('Бастама') : AUD[s.audience]
 
@@ -42,7 +45,7 @@ export default function Surveys() {
             {s.anonymous && <span className="text-muted">{tx('Анонимді')}</span>}
           </div>
           <h3 className="mt-2 font-semibold text-lg break-words">{s.title}</h3>
-          <p className="text-sm text-muted">{tx('{0} · {1} сұрақ · {2}{3}', audLabel(s), s.questions.length, s.author.full_name, s.closes_at ? tx(' · {0} дейін', fmtDate(s.closes_at.slice(0, 10))) : '')}</p>
+          <p className="text-sm text-muted">{tx('{0} · {1} сұрақ · {2}{3}', audLabel(s), count(s), s.author.full_name, s.closes_at ? tx(' · {0} дейін', fmtDate(s.closes_at.slice(0, 10))) : '')}</p>
         </a>
       ))}
     </div>
@@ -73,20 +76,32 @@ export function SurveyView({ id }: { id: string }) {
 
 function Answer({ s, onDone }: { s: Survey; onDone: () => void }) {
   const prev = (s.mine[0]?.answers ?? []) as unknown[]
-  const [a, setA] = useState<unknown[]>(s.questions.map((q, i) => prev[i] ?? (q.type === 'multi' ? [] : q.type === 'text' ? '' : null)))
+  const draftKey = `survey-draft-${s.id}`
+  const [a, setA] = useState<unknown[]>(() => {
+    // a long test is kept on this phone until it is sent
+    let draft: unknown[] | null = null
+    try { draft = prev.length ? null : JSON.parse(localStorage.getItem(draftKey) ?? 'null') } catch { /* private mode */ }
+    return s.questions.map((q, i) => prev[i] ?? draft?.[i] ?? (q.type === 'multi' ? [] : q.type === 'text' ? '' : q.type === 'mbti' ? Array(MBTI.length).fill(null) : null))
+  })
   const [busy, setBusy] = useState(false)
   const open = isOpen(s)
-  const put = (i: number, v: unknown) => setA(a.map((x, j) => (j === i ? v : x)))
+  const put = (i: number, v: unknown) => { const n = a.map((x, j) => (j === i ? v : x)); setA(n); try { localStorage.setItem(draftKey, JSON.stringify(n)) } catch { /* private mode */ } }
   const send = async () => {
-    const miss = s.questions.findIndex((q, i) => (q.type === 'single' ? a[i] === null : q.type === 'multi' ? !(a[i] as number[]).length : !(a[i] as string).trim()))
+    const gap = s.questions.findIndex((q, i) => q.type === 'mbti' && (a[i] as (number | null)[]).some((v) => v == null))
+    if (gap >= 0) {
+      const k = (a[gap] as (number | null)[]).findIndex((v) => v == null)
+      document.getElementById(`mbti-${k}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return toast(tx('{0}-сұраққа жауап беріңіз', k + 1))
+    }
+    const miss = s.questions.findIndex((q, i) => (q.type === 'single' ? a[i] === null : q.type === 'multi' ? !(a[i] as number[]).length : q.type === 'text' ? !(a[i] as string).trim() : false))
     if (miss >= 0) return toast(tx('{0}-сұраққа жауап беріңіз', miss + 1))
     setBusy(true)
-    try { await answerSurvey(s.id, a); toast(tx('Жауабыңыз қабылданды')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+    try { await answerSurvey(s.id, a); try { localStorage.removeItem(draftKey) } catch { /* private mode */ } toast(tx('Жауабыңыз қабылданды')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
     <div className="grid gap-3">
       {prev.length > 0 && <p className="text-sm rounded-md bg-success-soft text-success p-3">{tx('Жауап бердіңіз.{0}', open ? tx(' Сауалнама жабылғанша өзгертуге болады.') : '')}</p>}
-      {s.questions.map((q, i) => (
+      {s.questions.map((q, i) => q.type === 'mbti' ? <MbtiAnswer key={i} value={a[i] as (number | null)[]} onChange={(v) => put(i, v)} disabled={!open} /> : (
         <Card key={i} className="grid gap-2">
           <p className="font-semibold">{i + 1}. {tx(q.q)}</p>
           {q.type === 'text' ? (
@@ -118,7 +133,7 @@ function Results({ s, onChange, canClose }: { s: Survey; onChange: () => void; c
         <div className="flex-1"><p className="text-2xl font-bold tabular-nums">{rows.length}</p><p className="text-xs text-muted">{tx('жауап')}</p></div>
         {canClose && <Button kind="secondary" onClick={toggle}>{isOpen(s) ? tx('Жабу') : tx('Қайта ашу')}</Button>}
       </Card>
-      {r.loading && !r.data ? <Skeleton /> : r.error ? <ErrorBox text={r.error} /> : s.questions.map((q, i) => (
+      {r.loading && !r.data ? <Skeleton /> : r.error ? <ErrorBox text={r.error} /> : s.questions.map((q, i) => q.type === 'mbti' ? <MbtiResults key={i} rows={rows} at={i} /> : (
         <Card key={i} className="grid gap-2">
           <p className="font-semibold">{i + 1}. {tx(q.q)}</p>
           {q.type === 'text' ? (
@@ -159,8 +174,8 @@ export function SurveyNew() {
   const putQ = (i: number, v: Partial<Question>) => setQs(qs.map((q, j) => (j === i ? { ...q, ...v } : q)))
   const save = async () => {
     if (f.title.trim().length < 3) return toast(tx('Атауын жазыңыз'))
-    const questions = qs.map((q) => ({ q: q.q.trim(), type: q.type, ...(q.type === 'text' ? {} : { options: (q.options ?? []).map((o) => o.trim()).filter(Boolean) }) }))
-    if (questions.some((q) => q.q.length < 2 || (q.type !== 'text' && (q.options?.length ?? 0) < 2))) return toast(tx('Әр сұрақты және кемінде 2 жауап нұсқасын толтырыңыз'))
+    const questions = qs.map((q) => ({ q: q.q.trim(), type: q.type, ...(q.type === 'text' || q.type === 'mbti' ? {} : { options: (q.options ?? []).map((o) => o.trim()).filter(Boolean) }) }))
+    if (questions.some((q) => q.q.length < 2 || ((q.type === 'single' || q.type === 'multi') && (q.options?.length ?? 0) < 2))) return toast(tx('Әр сұрақты және кемінде 2 жауап нұсқасын толтырыңыз'))
     const target = f.target || (f.audience === 'class' ? opts.data?.classes[0]?.id : f.audience === 'activity' ? opts.data?.acts[0]?.id : '')
     if ((f.audience === 'class' || f.audience === 'activity') && !target) return toast(tx('Кімге жіберетініңізді таңдаңыз'))
     setBusy(true)
@@ -175,6 +190,8 @@ export function SurveyNew() {
   return (
     <div className="grid gap-3 pb-8">
       <PageHead title={tx('Жаңа сауалнама')} back />
+      {!qs.some((q) => q.type === 'mbti') && <button type="button" onClick={() => { setF({ ...f, title: f.title || tx('Мінез типі тесті (MBTI)'), description: f.description || tx('70 қысқа сұрақ, шамамен 15 минут. Дұрыс не бұрыс жауап жоқ.') }); setQs([{ q: tx('Мінез типі тесті · 70 сұрақ'), type: 'mbti' }]) }}
+        className="rounded-lg bg-accent-soft text-accent p-4 text-left grid gap-1"><span className="font-semibold">{tx('Дайын үлгі: MBTI мінез тесті')}</span><span className="text-sm">{tx('70 сұрақ, қазақша және орысша, балаға түсінікті тілмен')}</span></button>}
       <Card className="grid gap-4">
         <Field label={tx('Атауы')}>{(id) => <input id={id} value={f.title} maxLength={140} onChange={(e) => setF({ ...f, title: e.target.value })} className={inputCls} placeholder={tx('Асхана мәзірі туралы')} />}</Field>
         <Field label={tx('Түсіндірме')}>{(id) => <textarea id={id} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} className={`${inputCls} h-20 py-2`} />}</Field>
@@ -195,7 +212,12 @@ export function SurveyNew() {
         </div>
       </Card>
 
-      {qs.map((q, i) => (
+      {qs.map((q, i) => q.type === 'mbti' ? (
+        <Card key={i} className="flex items-center gap-3">
+          <span className="flex-1"><span className="block font-semibold">{tx('Мінез типі тесті · 70 сұрақ')}</span><span className="block text-sm text-muted">{tx('Оқушы әр сұраққа 7 шеңбердің бірін таңдайды; нәтижеде типі мен 70 жауабы көрінеді')}</span></span>
+          <button type="button" onClick={() => setQs([{ q: '', type: 'single', options: ['', ''] }])} aria-label={tx('Тестті алып тастау')} className="size-11 grid place-items-center text-muted"><Icon n="x" size={18} /></button>
+        </Card>
+      ) : (
         <Card key={i} className="grid gap-3">
           <div className="flex items-center gap-2">
             <span className="font-semibold">{tx('{0}-сұрақ', i + 1)}</span>
@@ -218,7 +240,7 @@ export function SurveyNew() {
           )}
         </Card>
       ))}
-      {qs.length < 30 && <Button kind="secondary" onClick={() => setQs([...qs, { q: '', type: 'single', options: ['', ''] }])}>{tx('Сұрақ қосу')}</Button>}
+      {qs.length < 30 && !qs.some((q) => q.type === 'mbti') && <Button kind="secondary" onClick={() => setQs([...qs, { q: '', type: 'single', options: ['', ''] }])}>{tx('Сұрақ қосу')}</Button>}
       <Button block loading={busy} onClick={save}>{tx('Жіберу')}</Button>
     </div>
   )

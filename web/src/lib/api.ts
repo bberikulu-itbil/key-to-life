@@ -518,7 +518,7 @@ export const createProposal = (to: 'parliament' | 'admin' | 'teacher', teacher: 
   rpc<string>('create_proposal', { p_to: to, p_teacher: teacher, p_title: title, p_body: body })
 
 /* ---------- surveys ---------- */
-export type Question = { q: string; type: 'single' | 'multi' | 'text'; options?: string[] }
+export type Question = { q: string; type: 'single' | 'multi' | 'text' | 'mbti'; options?: string[] }
 export type Survey = { id: string; author_id: string; title: string; description: string | null; questions: Question[]; audience: 'all' | 'students' | 'staff' | 'class' | 'activity'
   class_id: string | null; activity_id: string | null; anonymous: boolean; closes_at: string | null; closed: boolean; created_at: string; kind: 'weekend' | null
   author: { full_name: string }; class: { name: string } | null; activity: { title: string } | null; mine: { answers: unknown[] }[] }

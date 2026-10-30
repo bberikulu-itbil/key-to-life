@@ -165,3 +165,14 @@ assert.equal(weekendOf('2026-10-31'), '2026-10-31')
 assert.equal(weekendOf('2026-11-01'), '2026-10-31')
 assert.equal(weekendOf('2026-11-02'), '2026-11-07')
 console.log('weekend ok')
+import { MBTI, mbtiScore } from './mbti'
+assert.equal(MBTI.length, 70)
+assert.equal(mbtiScore(Array(70).fill(-3)).type, 'ESTJ')
+assert.equal(mbtiScore(Array(70).fill(3)).type, 'INFP')
+assert.equal(mbtiScore(Array(70).fill(0)).type, 'XXXX')
+{ // only the E/I column (items 1, 8, 15 … ) leans right
+  const a = Array.from({ length: 70 }, (_, i) => (i % 7 === 0 ? 2 : -1))
+  const r = mbtiScore(a)
+  assert.equal(r.type, 'ISTJ'); assert.equal(r.pct[0], 17); assert.equal(r.pct[1], 67)
+}
+console.log('mbti ok')
