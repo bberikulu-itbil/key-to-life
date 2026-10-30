@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.0 — 2026-10-30
+
+- «Сынып кеңесі» (`/council`): the class teacher and tutor's closed workspace (deputies can look in). Notes with @student tags and a student filter; open notes become the next meeting's agenda; a meeting gets reminders a day and an hour before, and its minutes go to the archive; a three-column task board with owner and deadline; a log of talks with parents. Migration 0054.
+- Wide screens (≥1024 px): a left sidebar with the main tabs and «Сыныпты басқару» (Менің сыныбым, Жатақхана, Сынып кеңесі; Сынып ресурстары, Журнал және күнтізбе, Жеке кездесулер marked «жақында»).
+
 ## 1.7.1 — 2026-10-30
 
 - Tests: the author gets «Нәтиже | Өзім тапсыру» and can take their own test; the answer is saved and shows among the results.

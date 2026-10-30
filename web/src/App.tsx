@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { getMe, listActivities, myChatFlags, myChats, myRoles, myRegistration, setMyLang, supabase, tgLink, unreadCount, type Me, type Registration } from './lib/api'
 import Registrations from './screens/Registrations'
@@ -32,6 +32,7 @@ import Timetable from './screens/Timetable'
 import MyClass from './screens/MyClass'
 import MyActivities from './screens/MyActivities'
 import Dorm from './screens/Dorm'
+import Council from './screens/Council'
 import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
 import About from './screens/About'
@@ -124,6 +125,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'calendars') screen = <Calendars />
   else if (seg === 'timetable') screen = <Timetable classId={id} />
   else if (seg === 'class') screen = <MyClass classId={id} />
+  else if (seg === 'council') screen = <Council key={path} classId={id} />
   else if (seg === 'dorm') screen = <Dorm key={path} sub={id} arg={path.split('?')[0].split('/')[3]} />
   else if (seg === 'my') screen = <MyActivities kind={id} />
   else if (seg === 'chats' && id === 'system') screen = <Notifications key={path} group={new URLSearchParams(path.split('?')[1] ?? '').get('g') ?? undefined} />
@@ -157,10 +159,11 @@ function Shell({ me }: { me: Me }) {
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>
-      <div className="min-h-dvh pb-[calc(80px+env(safe-area-inset-bottom))]">
-        <main className="mx-auto max-w-[640px] pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]">{screen}</main>
+      <SideNav me={me} seg={seg} active={active} badge={badge} onPlus={() => setSheet('menu')} />
+      <div className="min-h-dvh pb-[calc(80px+env(safe-area-inset-bottom))] lg:pb-8 lg:pl-72">
+        <main className={`mx-auto ${seg === 'council' ? 'max-w-[640px] lg:max-w-[1100px]' : 'max-w-[640px]'} pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]`}>{screen}</main>
       </div>
-      <nav aria-label={tx('Негізгі мәзір')} className="print:hidden fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
+      <nav aria-label={tx('Негізгі мәзір')} className="print:hidden lg:hidden fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto max-w-[640px] grid grid-cols-5 h-16 items-center">
           {tabs.map(([p, icon, label]) =>
             p === '+' ? (
@@ -205,3 +208,33 @@ function Shell({ me }: { me: Me }) {
 }
 
 
+
+/** Wide screens: the main tabs and, for staff, the class management sections on the left. */
+function SideNav({ me, seg, active, badge, onPlus }: { me: Me; seg: string; active: (p: string) => boolean; badge: number; onPlus: () => void }) {
+  const link = (href: string, icon: string, label: string, on: boolean, extra?: ReactNode) => (
+    <a key={href} href={`#${href}`} aria-current={on ? 'page' : undefined}
+      className={`flex items-center gap-3 h-11 px-3 rounded-md text-sm ${on ? 'bg-accent-soft text-accent font-semibold' : 'hover:bg-surface-2'}`}><Icon n={icon} size={20} /><span className="flex-1">{label}</span>{extra}</a>
+  )
+  const soon = (icon: string, label: string) => (
+    <span key={label} aria-disabled="true" className="flex items-center gap-3 h-11 px-3 rounded-md text-sm text-muted"><Icon n={icon} size={20} /><span className="flex-1 whitespace-nowrap">{label}</span><span className="text-[11px]">{tx('жақында')}</span></span>
+  )
+  return (
+    <aside aria-label={tx('Бүйір мәзір')} className="print:hidden hidden lg:flex fixed inset-y-0 left-0 z-30 w-72 flex-col gap-1 overflow-y-auto border-r border-line bg-surface p-3">
+      <p className="px-3 py-3 text-lg font-bold">Key To Life</p>
+      <button type="button" onClick={onPlus} className="mb-2 flex items-center justify-center gap-2 h-11 rounded-md bg-hero text-gold font-semibold"><Icon n="plus" size={20} />{tx('Әрекет')}</button>
+      {link('/', 'home', tx('Home'), active('/'))}
+      {link('/plan', 'clock', tx('Жоспар'), active('/plan'))}
+      {link('/chats', 'chat', tx('Чаттар'), active('/chats'), badge > 0 ? <span className="min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center">{badge > 9 ? '9+' : badge}</span> : null)}
+      {link('/profile', 'user', tx('Профиль'), active('/profile') && seg !== 'dorm')}
+      {me.role !== 'student' && <>
+        <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted">{tx('Сыныпты басқару')}</p>
+        {link('/class', 'users', tx('Менің сыныбым'), seg === 'class')}
+        {link('/dorm', 'home', tx('Жатақхана'), seg === 'dorm')}
+        {soon('book', tx('Сынып ресурстары'))}
+        {soon('file', tx('Журнал және күнтізбе'))}
+        {soon('user', tx('Жеке кездесулер'))}
+        {link('/council', 'lock', tx('Сынып кеңесі'), seg === 'council')}
+      </>}
+    </aside>
+  )
+}

@@ -662,3 +662,29 @@ export const listDormReports = () =>
   ok(supabase.from('dorm_reports').select('id, item_id, student_id, body, created_at, resolved_at, student:profiles!student_id(full_name)').order('created_at', { ascending: false }).limit(200)) as unknown as Promise<DormReport[]>
 export const reportDormItem = (item: string, body: string) => ok(supabase.from('dorm_reports').insert({ item_id: item, body }))
 export const resolveDormReport = (id: string) => ok(supabase.from('dorm_reports').update({ resolved_at: new Date().toISOString() }).eq('id', id))
+
+/* ---------- class council: the teacher and tutor's closed workspace ---------- */
+export type CouncilNote = { id: string; author_id: string | null; body: string; student_ids: string[]; meeting_id: string | null; resolved_at: string | null; created_at: string }
+export type CouncilMeeting = { id: string; starts_at: string; minutes: string | null; done_at: string | null }
+export type CouncilTask = { id: string; title: string; status: 'todo' | 'doing' | 'done'; assignee_id: string | null; due_on: string | null; created_at: string }
+export type ParentContact = { id: string; student_id: string; staff_id: string | null; on_date: string; channel: 'phone' | 'meeting' | 'chat' | 'visit'; summary: string }
+export const listCouncil = async (classId: string) => {
+  const [notes, meetings, tasks, contacts] = await Promise.all([
+    ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at').eq('class_id', classId).order('created_at', { ascending: false }).limit(300)),
+    ok(supabase.from('council_meetings').select('id, starts_at, minutes, done_at').eq('class_id', classId).order('starts_at', { ascending: false }).limit(100)),
+    ok(supabase.from('council_tasks').select('id, title, status, assignee_id, due_on, created_at').eq('class_id', classId).order('created_at')),
+    ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('class_id', classId).order('on_date', { ascending: false }).limit(300)),
+  ])
+  return { notes, meetings, tasks, contacts } as { notes: CouncilNote[]; meetings: CouncilMeeting[]; tasks: CouncilTask[]; contacts: ParentContact[] }
+}
+export const addCouncilNote = (class_id: string, body: string, student_ids: string[]) => ok(supabase.from('council_notes').insert({ class_id, body, student_ids }))
+export const removeCouncilNote = (id: string) => ok(supabase.from('council_notes').delete().eq('id', id))
+export const resolveCouncilNotes = (ids: string[], meeting_id: string | null) =>
+  ok(supabase.from('council_notes').update({ resolved_at: new Date().toISOString(), meeting_id }).in('id', ids))
+export const addCouncilMeeting = (class_id: string, starts_at: string) => ok(supabase.from('council_meetings').insert({ class_id, starts_at }))
+export const finishCouncilMeeting = (id: string, minutes: string) => ok(supabase.from('council_meetings').update({ minutes, done_at: new Date().toISOString() }).eq('id', id))
+export const removeCouncilMeeting = (id: string) => ok(supabase.from('council_meetings').delete().eq('id', id))
+export const addCouncilTask = (row: { class_id: string; title: string; assignee_id: string | null; due_on: string | null }) => ok(supabase.from('council_tasks').insert(row))
+export const setCouncilTask = (id: string, status: CouncilTask['status']) => ok(supabase.from('council_tasks').update({ status }).eq('id', id))
+export const removeCouncilTask = (id: string) => ok(supabase.from('council_tasks').delete().eq('id', id))
+export const addParentContact = (row: { class_id: string; student_id: string; on_date: string; channel: ParentContact['channel']; summary: string }) => ok(supabase.from('parent_contacts').insert(row))
