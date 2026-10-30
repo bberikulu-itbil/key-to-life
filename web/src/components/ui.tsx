@@ -165,7 +165,7 @@ export function Toaster() {
 
 export const PageHead = ({ title, back, right }: { title: string; back?: boolean; right?: ReactNode }) => (
   <div className="flex items-center gap-1 min-h-14">
-    {back && <button type="button" onClick={goBack} aria-label={tx('Артқа')} className="tg-hide size-11 -ml-3 grid place-items-center"><Icon n="back" /></button>}
+    {back && <button type="button" onClick={goBack} aria-label={tx('Артқа')} className="size-11 -ml-3 grid place-items-center"><Icon n="back" /></button>}
     <h1 className="flex-1 text-xl font-bold text-balance">{title}</h1>
     {right}
   </div>

@@ -37,7 +37,7 @@ export default function ChatRoom({ id }: { id: string }) {
   return (
     <div className="grid gap-2 pb-2">
       <div className="sticky top-0 z-10 -mx-4 -mt-2 px-4 py-2 bg-hero text-on-hero flex items-center gap-2 min-h-16">
-        <button type="button" onClick={() => go('/chats')} aria-label={tx('Чаттарға оралу')} className="tg-hide size-10 grid place-items-center rounded-md bg-white/10"><Icon n="back" /></button>
+        <button type="button" onClick={() => go('/chats')} aria-label={tx('Чаттарға оралу')} className="size-10 grid place-items-center rounded-md bg-white/10"><Icon n="back" /></button>
         <span className="size-10 rounded-full bg-white/10 grid place-items-center shrink-0" aria-hidden><Icon n={KIND_ICON[c.kind]} size={20} /></span>
         <button type="button" onClick={() => setSheet({ kind: 'info' })} className="flex-1 min-w-0 text-left">
           <span className="block font-bold truncate">{c.title}</span>

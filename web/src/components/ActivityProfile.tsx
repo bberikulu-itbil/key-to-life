@@ -42,7 +42,7 @@ export function ProfileHeader({ a, me, nav, members, awards, canEdit, badges, on
         <span aria-hidden className="absolute -right-20 -top-16 size-64 rounded-full border border-white/10" />
         <span aria-hidden className="absolute right-6 top-16 size-32 rounded-full border border-white/10" />
         <div className="relative flex items-center gap-2 min-h-14">
-          <button type="button" onClick={goBack} aria-label={tx('Артқа')} className="tg-hide size-11 grid place-items-center rounded-md bg-white/10"><Icon n="back" /></button>
+          <button type="button" onClick={goBack} aria-label={tx('Артқа')} className="size-11 grid place-items-center rounded-md bg-white/10"><Icon n="back" /></button>
           <span className="flex-1" />
           {nav}
         </div>
