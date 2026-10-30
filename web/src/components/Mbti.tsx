@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { MBTI, MBTI_AXES, mbtiScore } from '../lib/mbti'
+import { MBTI, MBTI_AXES, mbtiScore, type MbtiItem } from '../lib/mbti'
+import { MI_KINDS, miScore } from '../lib/mi'
 import { Button, Card, toast } from './ui'
 import { lang as appLang, tx } from '../lib/i18n'
 
@@ -11,6 +12,10 @@ const circle = (v: number, on: boolean) => {
   const c = v < 0 ? LEFT : v > 0 ? RIGHT : '#94a3b8'
   return { width: SIZES[v + 3], height: SIZES[v + 3], borderColor: c, background: on ? c : 'transparent' }
 }
+const INTRO: [string, string] = ['Дұрыс не бұрыс жауап жоқ. Өзіңе қайсысы жақын болса, сол жаққа жақын шеңберді таңда. Екеуі де бірдей болса — ортасын.',
+  'Правильных и неправильных ответов нет. Выбери кружок ближе к тому, что больше похоже на тебя. Если одинаково — средний.']
+export const MI_INTRO: [string, string] = ['Дұрыс не бұрыс жауап жоқ. Сөйлем саған қаншалық сәйкес келеді? Мүлде келіспесең — ең сол жақ, толық келіссең — ең оң жақ, екіұдай болсаң — ортасы.',
+  'Правильных и неправильных ответов нет. Насколько фраза про тебя? Совсем не согласен — крайний левый кружок, полностью согласен — крайний правый, не уверен — средний.']
 const WHERE = [tx('толық сол жақ'), tx('көбіне сол жақ'), tx('сәл сол жақ'), tx('ортасы'), tx('сәл оң жақ'), tx('көбіне оң жақ'), tx('толық оң жақ')]
 
 /** Which language the test is shown in: Kazakh with Russian below, or Russian only. Kept on this phone. */
@@ -34,7 +39,7 @@ export function MbtiLangSwitch({ value, onChange }: { value: MbtiLang; onChange:
   )
 }
 
-export function MbtiAnswer({ value, onChange, disabled, lang = 'kk' }: { value: (number | null)[]; onChange: (v: (number | null)[]) => void; disabled?: boolean; lang?: MbtiLang }) {
+export function MbtiAnswer({ value, onChange, disabled, lang = 'kk', items = MBTI, intro = INTRO }: { value: (number | null)[]; onChange: (v: (number | null)[]) => void; disabled?: boolean; lang?: MbtiLang; items?: MbtiItem[]; intro?: [string, string] }) {
   const ru = lang === 'ru'
   const done = value.filter((v) => v != null).length
   const pick = (i: number, v: number) => {
@@ -46,18 +51,17 @@ export function MbtiAnswer({ value, onChange, disabled, lang = 'kk' }: { value: 
   return (
     <div className="grid grid-cols-1 gap-3">
       <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-[var(--bg)]/95 backdrop-blur">
-        <div className="flex items-center justify-between text-sm font-semibold"><span>{ru ? 'Вопросы' : 'Сұрақтар'}</span><span className="tabular-nums">{done} / {MBTI.length}</span></div>
-        <div className="mt-1.5 h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full bg-accent transition-all" style={{ width: `${(100 * done) / MBTI.length}%` }} /></div>
+        <div className="flex items-center justify-between text-sm font-semibold"><span>{ru ? 'Вопросы' : 'Сұрақтар'}</span><span className="tabular-nums">{done} / {items.length}</span></div>
+        <div className="mt-1.5 h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full bg-accent transition-all" style={{ width: `${(100 * done) / items.length}%` }} /></div>
       </div>
       <Card className="grid gap-1 bg-accent-soft">
         {/* the test is always shown in both languages, whatever the app's language */}
-        <p className="text-sm">{ru ? 'Правильных и неправильных ответов нет. Выбери кружок ближе к тому, что больше похоже на тебя. Если одинаково — средний.'
-          : 'Дұрыс не бұрыс жауап жоқ. Өзіңе қайсысы жақын болса, сол жаққа жақын шеңберді таңда. Екеуі де бірдей болса — ортасын.'}</p>
+        <p className="text-sm">{intro[ru ? 1 : 0]}</p>
       </Card>
-      {MBTI.map((it, i) => (
+      {items.map((it, i) => (
         <Card key={i} className={`grid gap-3 scroll-mt-24 ${value[i] == null ? '' : 'opacity-90'}`}>
           <div id={`mbti-${i}`} className="grid gap-0.5">
-            <p className="text-xs text-muted tabular-nums">{i + 1} / {MBTI.length}</p>
+            <p className="text-xs text-muted tabular-nums">{i + 1} / {items.length}</p>
             <p className="font-semibold text-[17px] leading-snug">{it.q[ru ? 1 : 0]}</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -84,9 +88,6 @@ export function MbtiResults({ rows, at }: { rows: { respondent: string | null; c
   const list = rows.map((r) => ({ ...r, ans: (r.answers[at] ?? []) as number[] })).map((r) => ({ ...r, s: mbtiScore(r.ans) }))
   const counts = new Map<string, number>()
   for (const r of list) counts.set(r.s.type, (counts.get(r.s.type) ?? 0) + 1)
-  const copy = async (ans: number[]) => {
-    try { await navigator.clipboard.writeText(ans.map((v, k) => `${k + 1}: ${v + 4}`).join('\n')); toast(tx('Көшірілді')) } catch { toast(tx('Көшіру мүмкін болмады')) }
-  }
   return (
     <div className="grid grid-cols-1 gap-3">
       <Card className="grid gap-2">
@@ -114,19 +115,65 @@ export function MbtiResults({ rows, at }: { rows: { respondent: string | null; c
             <Button kind="ghost" onClick={() => setOpen(open === k ? null : k)}>{open === k ? tx('Жасыру') : tx('70 жауап')}</Button>
             <Button kind="secondary" onClick={() => copy(r.ans)}>{tx('Көшіру')}</Button>
           </div>
-          {open === k && (
-            <>
-              <p className="text-xs text-muted">{tx('Сан — сайттағы шеңбердің реті: 1 = ең сол жақ, 4 = ортасы, 7 = ең оң жақ.')}</p>
-              <div className="grid grid-cols-7 gap-1">
-                {r.ans.map((v, q) => (
-                  <div key={q} className="rounded-md bg-surface-2 px-1 py-1 text-center">
-                    <span className="block text-[10px] text-muted tabular-nums">{q + 1}</span>
-                    <span className="block text-sm font-bold tabular-nums" style={{ color: v < 0 ? LEFT : v > 0 ? RIGHT : undefined }}>{v + 4}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+          {open === k && <AnswerGrid ans={r.ans} />}
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+const copy = async (ans: number[]) => {
+  try { await navigator.clipboard.writeText(ans.map((v, k) => `${k + 1}: ${v + 4}`).join('\n')); toast(tx('Көшірілді')) } catch { toast(tx('Көшіру мүмкін болмады')) }
+}
+function AnswerGrid({ ans }: { ans: number[] }) {
+  return (
+    <>
+      <p className="text-xs text-muted">{tx('Сан — сайттағы шеңбердің реті: 1 = ең сол жақ, 4 = ортасы, 7 = ең оң жақ.')}</p>
+      <div className="grid grid-cols-7 gap-1">
+        {ans.map((v, q) => (
+          <div key={q} className="rounded-md bg-surface-2 px-1 py-1 text-center">
+            <span className="block text-[10px] text-muted tabular-nums">{q + 1}</span>
+            <span className="block text-sm font-bold tabular-nums" style={{ color: v < 0 ? LEFT : v > 0 ? RIGHT : undefined }}>{v + 4}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** Multiple intelligences: each child's nine scores, strongest first, and the 90 circles to type into the original site. */
+export function MiResults({ rows, at }: { rows: { respondent: string | null; class_name: string | null; answers: unknown[] }[]; at: number }) {
+  const [open, setOpen] = useState<number | null>(null)
+  const ru = appLang === 'ru'
+  const list = rows.map((r) => ({ ...r, ans: (r.answers[at] ?? []) as number[] })).map((r) => ({ ...r, s: miScore(r.ans) }))
+  const top = (s: number[]) => s.map((v, k) => [k, v]).sort((a, b) => b[1] - a[1])
+  // how many children have each intelligence as their strongest
+  const lead = Array(9).fill(0)
+  for (const r of list) lead[top(r.s)[0][0]]++
+  return (
+    <div className="grid grid-cols-1 gap-3">
+      <Card className="grid gap-2">
+        <p className="font-semibold">{tx('Ең күшті жағы')}</p>
+        <div className="flex flex-wrap gap-2">{top(lead).filter(([, n]) => n).map(([k, n]) => (
+          <span key={k} className="h-8 px-3 rounded-full bg-accent-soft text-accent font-semibold text-sm grid place-items-center tabular-nums">{MI_KINDS[k][ru ? 1 : 0]} · {n}</span>
+        ))}</div>
+        <p className="text-xs text-muted">{tx('Есеп шамамен: түпнұсқа сайт басқаша есептеуі мүмкін. Нәтижені баламен әңгімелесу үшін қолданыңыз, белгі ретінде емес.')}</p>
+      </Card>
+      {list.map((r, k) => (
+        <Card key={k} className="grid gap-2.5">
+          <span className="min-w-0"><span className="block font-semibold truncate">{r.respondent ?? tx('Аноним')}</span>{r.class_name && <span className="block text-xs text-muted">{r.class_name}</span>}</span>
+          {top(r.s).map(([x, v], j) => (
+            <div key={x} className="grid grid-cols-[8.5rem_1fr_2.5rem] items-center gap-2 text-sm">
+              <span className={`truncate ${j < 3 ? 'font-semibold' : 'text-muted'}`}>{MI_KINDS[x][ru ? 1 : 0]}</span>
+              <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${v}%`, background: j < 3 ? RIGHT : '#94a3b8' }} /></div>
+              <span className="text-right tabular-nums text-muted">{v}%</span>
+            </div>
+          ))}
+          <div className="grid grid-cols-2 gap-2">
+            <Button kind="ghost" onClick={() => setOpen(open === k ? null : k)}>{open === k ? tx('Жасыру') : tx('{0} жауап', r.ans.length)}</Button>
+            <Button kind="secondary" onClick={() => copy(r.ans)}>{tx('Көшіру')}</Button>
+          </div>
+          {open === k && <AnswerGrid ans={r.ans} />}
         </Card>
       ))}
     </div>

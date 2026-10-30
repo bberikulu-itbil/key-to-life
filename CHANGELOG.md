@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.0 — 2026-10-30
+
+- Surveys: template «Көптік интеллект тесті» — the 90-statement Multiple Intelligences survey in the original order, reworded for children in Kazakh and Russian, answered on 7 circles (disagree … agree). Results: each child's nine intelligences strongest first, the class's strongest sides, and the 90 answers as circle positions 1–7. Migration 0052.
+
 ## 1.5.1 — 2026-10-30
 
 - MBTI test: a ҚАЗ / РУС switch at the top right shows the questions in one language; the choice is kept on the phone.

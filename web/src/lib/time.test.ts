@@ -176,3 +176,10 @@ assert.equal(mbtiScore(Array(70).fill(0)).type, 'XXXX')
   assert.equal(r.type, 'ISTJ'); assert.equal(r.pct[0], 17); assert.equal(r.pct[1], 67)
 }
 console.log('mbti ok')
+
+import { MI, miKind, miScore } from './mi'
+assert.equal(MI.length, 90)
+assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7, 8].map((k) => MI.filter((_, i) => miKind(i) === k).length), Array(9).fill(10))
+assert.deepEqual(miScore(Array(90).fill(3)), Array(9).fill(100))
+assert.deepEqual(miScore(Array(90).fill(-3)), Array(9).fill(0))
+console.log('mi ok')
