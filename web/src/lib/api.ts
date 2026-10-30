@@ -62,6 +62,36 @@ export const signIn = (iin: string, password: string) =>
   ok(supabase.auth.signInWithPassword({ email: emailFor(iin.trim()), password }))
 export const signOut = () => supabase.auth.signOut()
 
+/* ---------- several accounts on one device ---------- */
+// shortcut: the other accounts' tokens sit in localStorage, like the active session itself; a revoked one is dropped when picked
+export type SavedAccount = { id: string; name: string; photo: string | null; role: Role; access_token: string; refresh_token: string }
+const ACCOUNTS = 'ktl-accounts'
+export const savedAccounts = (): SavedAccount[] => { try { return JSON.parse(localStorage.getItem(ACCOUNTS) ?? '[]') } catch { return [] } }
+const putAccounts = (list: SavedAccount[]) => { try { localStorage.setItem(ACCOUNTS, JSON.stringify(list)) } catch { /* private mode */ } }
+/** Keeps the signed-in account's latest tokens; the name and photo come once the profile has loaded. */
+export function rememberAccount(s: { user: { id: string }; access_token: string; refresh_token: string }, me?: { full_name: string; photo: string | null; role: Role }) {
+  const list = savedAccounts(), old = list.find((a) => a.id === s.user.id)
+  if (!old && !me) return
+  const row = { ...(old as SavedAccount), ...(me ? { name: me.full_name, photo: me.photo, role: me.role } : {}), id: s.user.id, access_token: s.access_token, refresh_token: s.refresh_token }
+  putAccounts([row, ...list.filter((a) => a.id !== s.user.id)])
+}
+export const forgetAccount = (id: string) => putAccounts(savedAccounts().filter((a) => a.id !== id))
+export async function switchAccount(id: string) {
+  const a = savedAccounts().find((x) => x.id === id)
+  const { error } = a ? await supabase.auth.setSession({ access_token: a.access_token, refresh_token: a.refresh_token }) : { error: new Error('') }
+  if (error) { forgetAccount(id); throw new Error(tx('Бұл аккаунттың кіру мерзімі өтіп кеткен, қайта кіріңіз')) }
+  location.hash = '#/'; location.reload()
+}
+/** Opens the login screen while this account stays saved (only this device's session ends). */
+export const addAccount = () => supabase.auth.signOut({ scope: 'local' })
+/** Signs this account out; when another one is saved, moves to it. */
+export async function signOutAndSwitch(id: string) {
+  forgetAccount(id)
+  await supabase.auth.signOut()
+  const next = savedAccounts()[0]
+  if (next) await switchAccount(next.id).catch(() => {})
+}
+
 export const getMe = (id: string) =>
   ok(supabase.from('profiles').select('id, full_name, role, title, subject, staff_kind, dorm, school_id, parliament, photo, lang, class:classes!class_id(id, name, grade, teacher_id), school:schools(name)')
     .eq('id', id).single()) as unknown as Promise<Me>

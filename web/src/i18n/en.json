@@ -2009,5 +2009,12 @@
  "Не үшін: жарна, шай кешіне, сыйлыққа…": "What for: dues, tea party, a gift…",
  "Сынып қорының кірісі мен шығысы осында жазылады.": "The class fund's income and expenses are kept here.",
  " · жоспар": " · planned",
- "Сынып ресурстары: кітап пен фильм кітапханасы (оқушылар ұсынады, мұғалім мақұлдайды, «Оқып жатырмын» күнделікті оқу әдетін қосады), киноклуб, шараға сатып алу тізімі және сынып қоры.": "Class resources: a book and film library (students suggest, staff approve; «Reading» adds a daily reading habit), film club, shopping lists for events and the class fund."
+ "Сынып ресурстары: кітап пен фильм кітапханасы (оқушылар ұсынады, мұғалім мақұлдайды, «Оқып жатырмын» күнделікті оқу әдетін қосады), киноклуб, шараға сатып алу тізімі және сынып қоры.": "Class resources: a book and film library (students suggest, staff approve; «Reading» adds a daily reading habit), film club, shopping lists for events and the class fund.",
+ "Бұл аккаунттың кіру мерзімі өтіп кеткен, қайта кіріңіз": "This account's sign-in has expired, please sign in again",
+ "Аккаунт ауыстыру": "Switch account",
+ "Қазір осы аккаунттасыз": "You're using this account",
+ "{0} аккаунтын тізімнен алып тастау": "Remove {0} from the list",
+ "Басқа аккаунт қосу": "Add another account",
+ "Аккаунттар тек осы құрылғыда сақталады. Басқа аккаунтқа кіргенде, бұл аккаунт тізімде қалады.": "Accounts are kept only on this device. When you sign in to another one, this one stays in the list.",
+ "Аккаунт ауыстыру: бір құрылғыда бірнеше аккаунтпен кіріп, Профильдегі «Аккаунт ауыстыру» арқылы бір басумен ауысуға болады.": "Switch account: sign in with several accounts on one device and switch in one tap from Profile → «Switch account»."
 }

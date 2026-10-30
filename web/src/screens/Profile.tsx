@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { attendanceRate, errText, listActivities, listResources, uploadStudentPhoto, listClasses, signOut, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
+import { attendanceRate, errText, listActivities, listResources, uploadStudentPhoto, listClasses, addAccount, forgetAccount, savedAccounts, signOutAndSwitch, switchAccount, tgLinkUrl, tgStatus, tgUnlink } from '../lib/api'
 import { openTelegram } from '../lib/telegram'
 import { useMe, canAddUsers, isApprover } from '../App'
-import { Button, Card, Icon, PageHead, toast, useLoad } from '../components/ui'
+import { Button, Card, Icon, PageHead, Sheet, toast, useLoad } from '../components/ui'
 import { TILE, Tile } from '../components/MenuArt'
 import Avatar from '../components/Avatar'
 import { LangChips } from '../components/LangPicker'
 import { tx } from '../lib/i18n'
 
-const ROLE: Record<string, string> = { student: tx('Оқушы'), teacher: tx('Мұғалім'), class_teacher: tx('Сынып жетекшісі'), deputy: tx('Тәрбие ісі жөніндегі орынбасар'), admin: tx('Әкімші') }
 
 type Tint = keyof typeof TILE
 type Link = [string, string, string, string?, Tint?]
@@ -38,6 +37,7 @@ export default function Profile() {
   }, [me.id])
   const myClass = useLoad(async () => (staff ? (await listClasses()).find((c) => c.teacher_id === me.id || c.tutor_id === me.id) ?? null : null), [me.id])
   const [leaving, setLeaving] = useState(false)
+  const [accounts, setAccounts] = useState(false)
   // approvals, sign-ups, complaints, new accounts: for class teachers, deputies and admins
   const admin: Link[] = [
     ...(me.role === 'admin' || me.role === 'deputy' ? [['#/class', 'users', tx('Сыныптар мен қызметкерлер'), tx('Мұғалімдер, тәрбиешілер, қызметкерлер'), 'plan'] as Link] : []),
@@ -114,9 +114,15 @@ export default function Profile() {
       {leaving ? (
         <Card className="grid gap-3">
           <p className="font-semibold">{tx('Аккаунттан шығасыз ба?')}</p>
-          <div className="grid grid-cols-2 gap-2"><Button kind="danger" onClick={() => signOut()}>{tx('Шығу')}</Button><Button kind="secondary" onClick={() => setLeaving(false)}>{tx('Жоқ')}</Button></div>
+          <div className="grid grid-cols-2 gap-2"><Button kind="danger" onClick={() => signOutAndSwitch(me.id)}>{tx('Шығу')}</Button><Button kind="secondary" onClick={() => setLeaving(false)}>{tx('Жоқ')}</Button></div>
         </Card>
-      ) : <Button kind="ghost" onClick={() => setLeaving(true)}>{tx('Шығу')}</Button>}
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <Button kind="secondary" onClick={() => setAccounts(true)}><Icon n="users" size={18} />{tx('Аккаунт ауыстыру')}</Button>
+          <Button kind="ghost" onClick={() => setLeaving(true)}>{tx('Шығу')}</Button>
+        </div>
+      )}
+      {accounts && <Accounts onClose={() => setAccounts(false)} />}
       <p className="text-center text-xs text-muted">{tx('Нұсқа {0}', __APP_VERSION__)}</p>
     </div>
   )
@@ -152,5 +158,39 @@ function TelegramCard({ staff }: { staff: boolean }) {
       </div>
       <div className="flex gap-2"><Button loading={busy} onClick={link}>{tx('Байланыстыру')}</Button><Button kind="ghost" onClick={st.reload}>{tx('Тексеру')}</Button></div>
     </Card>
+  )
+}
+
+const ROLE: Record<string, string> = { student: tx('Оқушы'), teacher: tx('Мұғалім'), class_teacher: tx('Сынып жетекшісі'), deputy: tx('Орынбасар'), admin: tx('Әкімші') }
+
+/** Accounts signed in on this device: switch in one tap, add another, or forget one. */
+function Accounts({ onClose }: { onClose: () => void }) {
+  const { me } = useMe()
+  const [list, setList] = useState(savedAccounts)
+  const [busy, setBusy] = useState('')
+  const pick = async (id: string) => {
+    setBusy(id)
+    try { await switchAccount(id) } catch (e) { toast(errText(e)); setList(savedAccounts()); setBusy('') }
+  }
+  return (
+    <Sheet title={tx('Аккаунт ауыстыру')} onClose={onClose}>
+      <div className="grid gap-2">
+        <ul className="grid gap-2">{list.map((a) => {
+          const current = a.id === me.id
+          return (
+            <li key={a.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${current ? 'bg-accent-soft' : 'bg-surface-2'}`}>
+              <button type="button" disabled={current || !!busy} onClick={() => pick(a.id)} className="flex flex-1 min-w-0 items-center gap-3 text-left min-h-11">
+                <Avatar name={a.name} photo={a.photo} size={40} />
+                <span className="flex-1 min-w-0"><span className="block font-semibold truncate">{a.name}</span><span className="block text-xs text-muted">{current ? tx('Қазір осы аккаунттасыз') : ROLE[a.role] ?? a.role}</span></span>
+                {current ? <Icon n="check" className="text-accent" /> : busy === a.id ? <span className="size-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden /> : <Icon n="chev" className="text-muted" />}
+              </button>
+              {!current && <button type="button" aria-label={tx('{0} аккаунтын тізімнен алып тастау', a.name)} onClick={() => { forgetAccount(a.id); setList(savedAccounts()) }} className="size-9 grid place-items-center rounded-md text-muted hover:bg-surface"><Icon n="x" size={16} /></button>}
+            </li>
+          )
+        })}</ul>
+        <Button kind="secondary" onClick={() => addAccount()}><Icon n="plus" size={18} />{tx('Басқа аккаунт қосу')}</Button>
+        <p className="text-xs text-muted">{tx('Аккаунттар тек осы құрылғыда сақталады. Басқа аккаунтқа кіргенде, бұл аккаунт тізімде қалады.')}</p>
+      </div>
+    </Sheet>
   )
 }

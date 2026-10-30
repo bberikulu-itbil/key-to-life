@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12.0 — 2026-10-31
+
+- Several accounts on one device: Профиль → «Аккаунт ауыстыру» lists the accounts signed in here; one tap switches, «Басқа аккаунт қосу» opens the login while keeping the current one, an account can be removed from the list. «Шығу» signs out this account and moves to another saved one if there is one.
+
 ## 1.11.0 — 2026-10-30
 
 - «Сынып ресурстары» (`/resources`), for the class's students and staff: a book and film library (students suggest and their suggestion waits for approval, staff add directly; «Оқып жатырмын / Оқыдым», «Көремін / Көрдім»; «reading» adds a «Күніне 20 бет оқу» habit to the student's own tracker; classmates who finished it with avatars; short reviews); film club screenings (tick who watched → a yellow entry in the class calendar, counted as watched); shopping lists for class events (item, price, amount, the student in charge, who can tick it bought); the class fund (income, spending, planned spending, balance after plans). Students reach it from Профиль. Migration 0057.

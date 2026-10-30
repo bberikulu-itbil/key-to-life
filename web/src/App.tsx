@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { getMe, listActivities, myChatFlags, myChats, myRoles, myRegistration, setMyLang, supabase, tgLink, unreadCount, type Me, type Registration } from './lib/api'
+import { getMe, rememberAccount, listActivities, myChatFlags, myChats, myRoles, myRegistration, setMyLang, supabase, tgLink, unreadCount, type Me, type Registration } from './lib/api'
 import Registrations from './screens/Registrations'
 import { Pending } from './screens/Register'
 import { chosen, lang, rememberLang, setLang } from './lib/i18n'
@@ -62,7 +62,7 @@ export default function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data } = supabase.auth.onAuthStateChange((_e, s) => { setSession(s); if (s) rememberAccount(s) })
     return () => data.subscription.unsubscribe()
   }, [])
   useEffect(() => {
@@ -74,6 +74,7 @@ export default function App() {
     })
   }, [session?.user.id])
   // a language picked on another device follows the account; one picked here is saved to it (the bot uses it)
+  useEffect(() => { if (me && session) rememberAccount(session, me) }, [me, session])
   useEffect(() => {
     if (!me) return
     // same language as now: just keep it, no reload
