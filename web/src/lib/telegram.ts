@@ -49,9 +49,28 @@ export function openTelegram(url: string) {
   else window.open(url, '_blank', 'noopener')
 }
 
-/** Back one screen. A screen opened from a bot link has no page behind it in the webview, so then go up to its parent. */
+/** A stable parent for a screen opened directly from a bot link. */
+function telegramParent(hash: string) {
+  const path = hash.slice(1).split('?')[0]
+  if (path.startsWith('/surveys/')) return '#/surveys'
+  if (path === '/surveys' || path === '/proposals') return '#/'
+  if (path.startsWith('/c/') || path.startsWith('/chats/')) return '#/chats'
+  if (path === '/chats' || path === '/notifications') return '#/'
+  if (path.startsWith('/bookings')) return '#/book'
+  if (path.startsWith('/book')) return '#/'
+  if (path === '/leave/new' || path === '/leaves' || path === '/v') return '#/'
+  if (path.startsWith('/a/') || path.startsWith('/activities/') || path.startsWith('/p/')) return '#/'
+  if (path.startsWith('/class/') || path.startsWith('/dorm') || path.startsWith('/cert')) return '#/profile'
+  return '#/'
+}
+
+/** Back one screen. Telegram WebViews may not have an in-app history entry, so use a parent route there. */
 export function goBack() {
   const at = location.hash
+  if (inTelegram) {
+    const parent = telegramParent(at)
+    if (parent !== at) { location.hash = parent; return }
+  }
   const up = () => { if (location.hash === at) location.hash = at.startsWith('#/c/') ? '#/chats' : '#/' }
   if (history.length > 1) { history.back(); setTimeout(up, 250) } else up()
 }
