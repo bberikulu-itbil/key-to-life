@@ -183,3 +183,10 @@ assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7, 8].map((k) => MI.filter((_, i) => miKi
 assert.deepEqual(miScore(Array(90).fill(3)), Array(9).fill(100))
 assert.deepEqual(miScore(Array(90).fill(-3)), Array(9).fill(0))
 console.log('mi ok')
+
+import { HOLLAND, HOLLAND_SIDES, hollandScore } from './holland'
+assert.equal(HOLLAND.length, 42)
+// every three pairs hold all six letters once
+for (let g = 0; g < 42; g += 3) assert.equal(new Set(HOLLAND_SIDES.slice(g, g + 3).flat()).size, 6)
+assert.deepEqual(hollandScore(HOLLAND_SIDES.map((p) => (p[0] === 'I' ? -1 : p[1] === 'I' ? 1 : -1))).counts[1], 14)
+console.log('holland ok')

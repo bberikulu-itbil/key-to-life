@@ -8,7 +8,7 @@ import { FirstRunLang } from './components/LangPicker'
 import { inTelegram, syncBackButton, tg } from './lib/telegram'
 import Feed, { PostPage } from './screens/Feed'
 import Search from './screens/Search'
-import Surveys, { SurveyNew, SurveyView } from './screens/Surveys'
+import Surveys, { SurveyNew, SurveyTry, SurveyView } from './screens/Surveys'
 import { Icon, PageHead, Sheet, Toaster, go, useLoad, usePath } from './components/ui'
 import { ledActivities } from './components/FeedCard'
 import Login from './screens/Login'
@@ -142,6 +142,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'feedback') screen = <Feedback />
   else if (seg === 'registrations') screen = <Registrations />
   else if (seg === 'surveys' && id === 'new') screen = <SurveyNew />
+  else if (seg === 'surveys' && id?.startsWith('try-')) screen = <SurveyTry type={id.slice(4)} />
   else if (seg === 'surveys' && id) screen = <SurveyView key={id} id={id} />
   else if (seg === 'surveys') screen = <Surveys />
   else if (seg === 'profile') screen = <Profile />

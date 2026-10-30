@@ -1807,5 +1807,19 @@
  "Көптік интеллект тесті · 90 сұрақ": "Multiple Intelligences test · 90 questions",
  "Оқушы әр сөйлемге 7 шеңбердің бірін таңдайды; нәтижеде 9 интеллект пайызы мен 90 жауабы көрінеді": "The student picks one of 7 circles for each statement; results show 9 intelligence scores and the 90 answers",
  "Сауалнамада жаңа дайын үлгі: Көптік интеллект тесті — 90 сөйлем, қазақша және орысша. Нәтижеде әр баланың 9 интеллект пайызы және сайтқа енгізуге 90 жауап.": "Surveys: a new template, the Multiple Intelligences test — 90 statements in Kazakh and Russian. Results show each child's 9 intelligence scores and the 90 answers to enter into the original site.",
- "Тесттің барлық сұрағына жауап беріңіз": "Please answer every question of the test"
+ "Тесттің барлық сұрағына жауап беріңіз": "Please answer every question of the test",
+ "1 = сол жақтағы мамандық, 2 = оң жақтағы.": "1 = the job on the left, 2 = the one on the right.",
+ "Дайын үлгі: Холланд мамандық тесті": "Template: Holland career test",
+ "42 жұп мамандық, қазақша және орысша: ұнағанын таңдайды": "42 pairs of jobs in Kazakh and Russian: pick the one you like",
+ "Холланд мамандық тесті": "Holland career test",
+ "42 жұп мамандық, шамамен 10 минут. Әр жұптан ұнағанын таңда.": "42 pairs of jobs, about 10 minutes. Pick the one you like in each pair.",
+ "Холланд мамандық тесті · 42 сұрақ": "Holland career test · 42 questions",
+ "Оқушы әр жұптан бір мамандықты таңдайды; нәтижеде Холланд коды (мысалы, IAS) мен 42 жауабы көрінеді": "The student picks one job from each pair; results show the Holland code (e.g. IAS) and the 42 answers",
+ "Дайын тесттер": "Ready-made tests",
+ "Өзіңіз тапсырып көріңіз: жауап сақталмайды, нәтиже бірден шығады. Оқушыларға жіберу үшін — «Жасау».": "Try them yourself: answers are not saved, the result shows at once. To send to students, use «Create».",
+ "Интеллект": "Intelligences",
+ "Холланд": "Holland",
+ "Алдын ала көру: жауаптар сақталмайды.": "Preview: answers are not saved.",
+ "Барлық сұраққа жауап берсеңіз, нәтиже осында шығады.": "Answer every question and the result will show here.",
+ "Сауалнамада үшінші дайын үлгі: Холланд мамандық тесті — 42 жұп мамандық. Мұғалімдер үш тестті де «Дайын тесттер» бөлімінде өзі тапсырып көре алады.": "Surveys: a third template, the Holland career test — 42 pairs of jobs. Teachers can take all three tests themselves under «Ready-made tests»."
 }

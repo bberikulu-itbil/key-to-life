@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.0 — 2026-10-30
+
+- Surveys: template «Холланд мамандық тесті» — the 42 pairs of jobs in the original order, in Kazakh and Russian; the child taps the job they like more. Results: the Holland code (three strongest RIASEC letters) and the six counts out of 14, and the 42 answers as 1 (left) / 2 (right). Migration 0053.
+- «Дайын тесттер» on the surveys page: staff can take any of the three tests themselves (nothing saved, result at once).
+
 ## 1.6.0 — 2026-10-30
 
 - Surveys: template «Көптік интеллект тесті» — the 90-statement Multiple Intelligences survey in the original order, reworded for children in Kazakh and Russian, answered on 7 circles (disagree … agree). Results: each child's nine intelligences strongest first, the class's strongest sides, and the 90 answers as circle positions 1–7. Migration 0052.

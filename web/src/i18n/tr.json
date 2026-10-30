@@ -1807,5 +1807,19 @@
  "Көптік интеллект тесті · 90 сұрақ": "Çoklu Zekâ testi · 90 soru",
  "Оқушы әр сөйлемге 7 шеңбердің бірін таңдайды; нәтижеде 9 интеллект пайызы мен 90 жауабы көрінеді": "Öğrenci her ifade için 7 daireden birini seçer; sonuçta 9 zekâ yüzdesi ve 90 cevap görünür",
  "Сауалнамада жаңа дайын үлгі: Көптік интеллект тесті — 90 сөйлем, қазақша және орысша. Нәтижеде әр баланың 9 интеллект пайызы және сайтқа енгізуге 90 жауап.": "Anketlerde yeni hazır şablon: Çoklu Zekâ testi — Kazakça ve Rusça 90 ifade. Sonuçta her çocuğun 9 zekâ yüzdesi ve orijinal siteye girilecek 90 cevap.",
- "Тесттің барлық сұрағына жауап беріңіз": "Lütfen testin tüm sorularını cevaplayın"
+ "Тесттің барлық сұрағына жауап беріңіз": "Lütfen testin tüm sorularını cevaplayın",
+ "1 = сол жақтағы мамандық, 2 = оң жақтағы.": "1 = soldaki meslek, 2 = sağdaki.",
+ "Дайын үлгі: Холланд мамандық тесті": "Hazır şablon: Holland meslek testi",
+ "42 жұп мамандық, қазақша және орысша: ұнағанын таңдайды": "Kazakça ve Rusça 42 meslek çifti: beğendiğini seçer",
+ "Холланд мамандық тесті": "Holland meslek testi",
+ "42 жұп мамандық, шамамен 10 минут. Әр жұптан ұнағанын таңда.": "42 meslek çifti, yaklaşık 10 dakika. Her çiftten beğendiğini seç.",
+ "Холланд мамандық тесті · 42 сұрақ": "Holland meslek testi · 42 soru",
+ "Оқушы әр жұптан бір мамандықты таңдайды; нәтижеде Холланд коды (мысалы, IAS) мен 42 жауабы көрінеді": "Öğrenci her çiftten bir meslek seçer; sonuçta Holland kodu (ör. IAS) ve 42 cevap görünür",
+ "Дайын тесттер": "Hazır testler",
+ "Өзіңіз тапсырып көріңіз: жауап сақталмайды, нәтиже бірден шығады. Оқушыларға жіберу үшін — «Жасау».": "Kendiniz deneyin: cevaplar kaydedilmez, sonuç hemen görünür. Öğrencilere göndermek için «Oluştur».",
+ "Интеллект": "Zekâ",
+ "Холланд": "Holland",
+ "Алдын ала көру: жауаптар сақталмайды.": "Önizleme: cevaplar kaydedilmez.",
+ "Барлық сұраққа жауап берсеңіз, нәтиже осында шығады.": "Tüm soruları cevaplayınca sonuç burada görünür.",
+ "Сауалнамада үшінші дайын үлгі: Холланд мамандық тесті — 42 жұп мамандық. Мұғалімдер үш тестті де «Дайын тесттер» бөлімінде өзі тапсырып көре алады.": "Anketlerde üçüncü şablon: Holland meslek testi — 42 meslek çifti. Öğretmenler üç testi de «Hazır testler» bölümünde kendileri deneyebilir."
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { MBTI, MBTI_AXES, mbtiScore, type MbtiItem } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
+import { RIASEC, hollandScore } from '../lib/holland'
 import { Button, Card, toast } from './ui'
 import { lang as appLang, tx } from '../lib/i18n'
 
@@ -14,6 +15,8 @@ const circle = (v: number, on: boolean) => {
 }
 const INTRO: [string, string] = ['Дұрыс не бұрыс жауап жоқ. Өзіңе қайсысы жақын болса, сол жаққа жақын шеңберді таңда. Екеуі де бірдей болса — ортасын.',
   'Правильных и неправильных ответов нет. Выбери кружок ближе к тому, что больше похоже на тебя. Если одинаково — средний.']
+export const HOLLAND_INTRO: [string, string] = ['Дұрыс не бұрыс жауап жоқ. Әр жұптан саған көбірек ұнайтын мамандықты таңда — екеуі де ұнамаса да, біреуін таңда.',
+  'Правильных и неправильных ответов нет. В каждой паре выбери профессию, которая нравится больше, — даже если обе не очень.']
 export const MI_INTRO: [string, string] = ['Дұрыс не бұрыс жауап жоқ. Сөйлем саған қаншалық сәйкес келеді? Мүлде келіспесең — ең сол жақ, толық келіссең — ең оң жақ, екіұдай болсаң — ортасы.',
   'Правильных и неправильных ответов нет. Насколько фраза про тебя? Совсем не согласен — крайний левый кружок, полностью согласен — крайний правый, не уверен — средний.']
 const WHERE = [tx('толық сол жақ'), tx('көбіне сол жақ'), tx('сәл сол жақ'), tx('ортасы'), tx('сәл оң жақ'), tx('көбіне оң жақ'), tx('толық оң жақ')]
@@ -39,7 +42,7 @@ export function MbtiLangSwitch({ value, onChange }: { value: MbtiLang; onChange:
   )
 }
 
-export function MbtiAnswer({ value, onChange, disabled, lang = 'kk', items = MBTI, intro = INTRO }: { value: (number | null)[]; onChange: (v: (number | null)[]) => void; disabled?: boolean; lang?: MbtiLang; items?: MbtiItem[]; intro?: [string, string] }) {
+export function MbtiAnswer({ value, onChange, disabled, lang = 'kk', items = MBTI, intro = INTRO, pairs = false }: { value: (number | null)[]; onChange: (v: (number | null)[]) => void; disabled?: boolean; lang?: MbtiLang; items?: MbtiItem[]; intro?: [string, string]; pairs?: boolean }) {
   const ru = lang === 'ru'
   const done = value.filter((v) => v != null).length
   const pick = (i: number, v: number) => {
@@ -64,6 +67,15 @@ export function MbtiAnswer({ value, onChange, disabled, lang = 'kk', items = MBT
             <p className="text-xs text-muted tabular-nums">{i + 1} / {items.length}</p>
             <p className="font-semibold text-[17px] leading-snug">{it.q[ru ? 1 : 0]}</p>
           </div>
+          {pairs ? (
+            // pick one of two jobs
+            <div role="radiogroup" aria-label={it.q[ru ? 1 : 0]} className="grid grid-cols-2 gap-2">
+              {([[-1, it.a], [1, it.b]] as const).map(([v, t]) => (
+                <button key={v} type="button" role="radio" aria-checked={value[i] === v} disabled={disabled} onClick={() => pick(i, v)}
+                  className={`min-h-24 rounded-xl border-2 p-3 text-sm leading-snug text-center transition-colors disabled:opacity-60 ${value[i] === v ? 'border-accent bg-accent text-white font-semibold' : 'border-transparent bg-accent-soft text-accent'}`}>{t[ru ? 1 : 0]}</button>
+              ))}
+            </div>
+          ) : <>
           <div className="grid grid-cols-2 gap-3">
             <p className="text-[15px] font-medium leading-snug" style={{ color: LEFT }}>{it.a[ru ? 1 : 0]}</p>
             <p className="text-right text-[15px] font-medium leading-snug" style={{ color: RIGHT }}>{it.b[ru ? 1 : 0]}</p>
@@ -76,6 +88,7 @@ export function MbtiAnswer({ value, onChange, disabled, lang = 'kk', items = MBT
               </button>
             ))}
           </div>
+          </>}
         </Card>
       ))}
     </div>
@@ -122,18 +135,19 @@ export function MbtiResults({ rows, at }: { rows: { respondent: string | null; c
   )
 }
 
-const copy = async (ans: number[]) => {
-  try { await navigator.clipboard.writeText(ans.map((v, k) => `${k + 1}: ${v + 4}`).join('\n')); toast(tx('Көшірілді')) } catch { toast(tx('Көшіру мүмкін болмады')) }
+const show = (v: number, pairs?: boolean) => (pairs ? (v < 0 ? 1 : 2) : v + 4)
+const copy = async (ans: number[], pairs?: boolean) => {
+  try { await navigator.clipboard.writeText(ans.map((v, k) => `${k + 1}: ${show(v, pairs)}`).join('\n')); toast(tx('Көшірілді')) } catch { toast(tx('Көшіру мүмкін болмады')) }
 }
-function AnswerGrid({ ans }: { ans: number[] }) {
+function AnswerGrid({ ans, pairs }: { ans: number[]; pairs?: boolean }) {
   return (
     <>
-      <p className="text-xs text-muted">{tx('Сан — сайттағы шеңбердің реті: 1 = ең сол жақ, 4 = ортасы, 7 = ең оң жақ.')}</p>
+      <p className="text-xs text-muted">{pairs ? tx('1 = сол жақтағы мамандық, 2 = оң жақтағы.') : tx('Сан — сайттағы шеңбердің реті: 1 = ең сол жақ, 4 = ортасы, 7 = ең оң жақ.')}</p>
       <div className="grid grid-cols-7 gap-1">
         {ans.map((v, q) => (
           <div key={q} className="rounded-md bg-surface-2 px-1 py-1 text-center">
             <span className="block text-[10px] text-muted tabular-nums">{q + 1}</span>
-            <span className="block text-sm font-bold tabular-nums" style={{ color: v < 0 ? LEFT : v > 0 ? RIGHT : undefined }}>{v + 4}</span>
+            <span className="block text-sm font-bold tabular-nums" style={{ color: v < 0 ? LEFT : v > 0 ? RIGHT : undefined }}>{show(v, pairs)}</span>
           </div>
         ))}
       </div>
@@ -174,6 +188,48 @@ export function MiResults({ rows, at }: { rows: { respondent: string | null; cla
             <Button kind="secondary" onClick={() => copy(r.ans)}>{tx('Көшіру')}</Button>
           </div>
           {open === k && <AnswerGrid ans={r.ans} />}
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+/** Holland: each child's three strongest letters as a code, and how often each of the six was picked (out of 14). */
+export function HollandResults({ rows, at }: { rows: { respondent: string | null; class_name: string | null; answers: unknown[] }[]; at: number }) {
+  const [open, setOpen] = useState<number | null>(null)
+  const ru = appLang === 'ru'
+  const list = rows.map((r) => ({ ...r, ans: (r.answers[at] ?? []) as number[] })).map((r) => ({ ...r, s: hollandScore(r.ans) }))
+  const lead = new Map<string, number>()
+  for (const r of list) lead.set(r.s.code[0], (lead.get(r.s.code[0]) ?? 0) + 1)
+  const name = (l: string) => RIASEC.find((x) => x[0] === l)!
+  return (
+    <div className="grid grid-cols-1 gap-3">
+      <Card className="grid gap-2">
+        <p className="font-semibold">{tx('Ең күшті жағы')}</p>
+        <div className="flex flex-wrap gap-2">{[...lead].sort((a, b) => b[1] - a[1]).map(([l, n]) => (
+          <span key={l} className="h-8 px-3 rounded-full bg-accent-soft text-accent font-semibold text-sm grid place-items-center tabular-nums">{l} · {name(l)[ru ? 2 : 1]} · {n}</span>
+        ))}</div>
+        <p className="text-xs text-muted">{tx('Есеп шамамен: түпнұсқа сайт басқаша есептеуі мүмкін. Нәтижені баламен әңгімелесу үшін қолданыңыз, белгі ретінде емес.')}</p>
+      </Card>
+      {list.map((r, k) => (
+        <Card key={k} className="grid gap-2.5">
+          <div className="flex items-center gap-3">
+            <span className="flex-1 min-w-0"><span className="block font-semibold truncate">{r.respondent ?? tx('Аноним')}</span>{r.class_name && <span className="block text-xs text-muted">{r.class_name}</span>}</span>
+            <span className="text-xl font-bold tracking-wider text-accent">{r.s.code}</span>
+          </div>
+          {RIASEC.map(([l, kk, rr], x) => ({ l, t: ru ? rr : kk, v: r.s.counts[x] })).sort((a, b) => b.v - a.v).map(({ l, t, v }) => (
+            <div key={l} className="grid grid-cols-[1.25rem_1fr_6rem_2rem] items-center gap-2 text-sm">
+              <span className={`font-bold ${r.s.code.includes(l) ? 'text-accent' : 'text-muted'}`}>{l}</span>
+              <span className={`truncate ${r.s.code.includes(l) ? 'font-semibold' : 'text-muted'}`}>{t}</span>
+              <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(100 * v) / 14}%`, background: r.s.code.includes(l) ? RIGHT : '#94a3b8' }} /></div>
+              <span className="text-right tabular-nums text-muted">{v}</span>
+            </div>
+          ))}
+          <div className="grid grid-cols-2 gap-2">
+            <Button kind="ghost" onClick={() => setOpen(open === k ? null : k)}>{open === k ? tx('Жасыру') : tx('{0} жауап', r.ans.length)}</Button>
+            <Button kind="secondary" onClick={() => copy(r.ans, true)}>{tx('Көшіру')}</Button>
+          </div>
+          {open === k && <AnswerGrid ans={r.ans} pairs />}
         </Card>
       ))}
     </div>

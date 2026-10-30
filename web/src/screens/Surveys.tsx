@@ -4,20 +4,24 @@ import { chatTime, fmtDate } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
-import { MI_INTRO, MbtiAnswer, MbtiLangSwitch, MbtiResults, MiResults, useMbtiLang, type MbtiLang } from '../components/Mbti'
+import { HOLLAND_INTRO, HollandResults, MI_INTRO, MbtiAnswer, MbtiLangSwitch, MbtiResults, MiResults, useMbtiLang, type MbtiLang } from '../components/Mbti'
 import { MBTI } from '../lib/mbti'
 import { MI } from '../lib/mi'
+import { HOLLAND } from '../lib/holland'
 
 // ready-made tests: one survey question that holds all their items
-const TESTS: Record<string, typeof MBTI | undefined> = { mbti: MBTI, mi: MI }
+const TESTS: Record<string, typeof MBTI | undefined> = { mbti: MBTI, mi: MI, holland: HOLLAND }
 const testOf = (q: { type: string }) => TESTS[q.type]
-const TEMPLATES: { type: 'mbti' | 'mi'; button: string; hint: string; title: string; description: string; q: string; result: string }[] = [
+const TEMPLATES: { type: 'mbti' | 'mi' | 'holland'; button: string; hint: string; title: string; description: string; q: string; result: string }[] = [
   { type: 'mbti', button: tx('Дайын үлгі: MBTI мінез тесті'), hint: tx('70 сұрақ, қазақша және орысша, балаға түсінікті тілмен'), title: tx('Мінез типі тесті (MBTI)'),
     description: tx('70 қысқа сұрақ, шамамен 15 минут. Дұрыс не бұрыс жауап жоқ.'), q: tx('Мінез типі тесті · 70 сұрақ'),
     result: tx('Оқушы әр сұраққа 7 шеңбердің бірін таңдайды; нәтижеде типі мен 70 жауабы көрінеді') },
   { type: 'mi', button: tx('Дайын үлгі: Көптік интеллект тесті'), hint: tx('90 сөйлем, қазақша және орысша: «келіспеймін» … «келісемін»'), title: tx('Көптік интеллект тесті'),
     description: tx('90 қысқа сөйлем, шамамен 15 минут. Дұрыс не бұрыс жауап жоқ.'), q: tx('Көптік интеллект тесті · 90 сұрақ'),
     result: tx('Оқушы әр сөйлемге 7 шеңбердің бірін таңдайды; нәтижеде 9 интеллект пайызы мен 90 жауабы көрінеді') },
+  { type: 'holland', button: tx('Дайын үлгі: Холланд мамандық тесті'), hint: tx('42 жұп мамандық, қазақша және орысша: ұнағанын таңдайды'), title: tx('Холланд мамандық тесті'),
+    description: tx('42 жұп мамандық, шамамен 10 минут. Әр жұптан ұнағанын таңда.'), q: tx('Холланд мамандық тесті · 42 сұрақ'),
+    result: tx('Оқушы әр жұптан бір мамандықты таңдайды; нәтижеде Холланд коды (мысалы, IAS) мен 42 жауабы көрінеді') },
 ]
 
 const AUD: Record<Survey['audience'], string> = { all: tx('Бүкіл мектеп'), students: tx('Барлық оқушылар'), staff: tx('Мұғалімдер'), class: tx('Сынып'), activity: tx('Бастама') }
@@ -47,6 +51,15 @@ export default function Surveys() {
     <div className="grid gap-3 pb-4">
       <PageHead title={tx('Сауалнама')} back right={canCreate ? <Button kind="secondary" onClick={() => go('/surveys/new')}>{tx('Жасау')}</Button> : undefined} />
       <VoiceTabs at="surveys" />
+      {canCreate && (
+        <Card className="grid gap-2">
+          <p className="font-semibold">{tx('Дайын тесттер')}</p>
+          <p className="text-sm text-muted">{tx('Өзіңіз тапсырып көріңіз: жауап сақталмайды, нәтиже бірден шығады. Оқушыларға жіберу үшін — «Жасау».')}</p>
+          <div className="grid grid-cols-3 gap-2">
+            {TEMPLATES.map((t) => <Button key={t.type} kind="secondary" onClick={() => go(`/surveys/try-${t.type}`)}>{t.type === 'mbti' ? 'MBTI' : t.type === 'mi' ? tx('Интеллект') : tx('Холланд')}</Button>)}
+          </div>
+        </Card>
+      )}
       <Chips label={tx('Сүзгі')} value={f} onChange={setF} items={[['todo', tx('Жауап күтеді')], ['done', tx('Жауап бердім')], ...(canCreate ? [['mine', tx('Менікі')] as ['mine', string]] : [])]} />
       {list.loading && !list.data ? <Skeleton /> : list.error ? <ErrorBox text={list.error} retry={list.reload} /> : !shown.length ? (
         <Card><Empty icon="poll" title={f === 'todo' ? tx('Жаңа сауалнама жоқ') : tx('Әзірге бос')} text={f === 'mine' ? tx('Сыныпқа, бастамаға немесе бүкіл мектепке сауалнама жасаңыз.') : undefined} /></Card>
@@ -116,7 +129,7 @@ function Answer({ s, onDone, tl }: { s: Survey; onDone: () => void; tl: MbtiLang
   return (
     <div className="grid gap-3">
       {prev.length > 0 && <p className="text-sm rounded-md bg-success-soft text-success p-3">{tx('Жауап бердіңіз.{0}', open ? tx(' Сауалнама жабылғанша өзгертуге болады.') : '')}</p>}
-      {s.questions.map((q, i) => testOf(q) ? <MbtiAnswer key={i} value={a[i] as (number | null)[]} onChange={(v) => put(i, v)} disabled={!open} lang={tl} items={testOf(q)} intro={q.type === 'mi' ? MI_INTRO : undefined} /> : (
+      {s.questions.map((q, i) => testOf(q) ? <MbtiAnswer key={i} value={a[i] as (number | null)[]} onChange={(v) => put(i, v)} disabled={!open} lang={tl} items={testOf(q)} intro={q.type === 'mi' ? MI_INTRO : q.type === 'holland' ? HOLLAND_INTRO : undefined} pairs={q.type === 'holland'} /> : (
         <Card key={i} className="grid gap-2">
           <p className="font-semibold">{i + 1}. {tx(q.q)}</p>
           {q.type === 'text' ? (
@@ -148,7 +161,7 @@ function Results({ s, onChange, canClose }: { s: Survey; onChange: () => void; c
         <div className="flex-1"><p className="text-2xl font-bold tabular-nums">{rows.length}</p><p className="text-xs text-muted">{tx('жауап')}</p></div>
         {canClose && <Button kind="secondary" onClick={toggle}>{isOpen(s) ? tx('Жабу') : tx('Қайта ашу')}</Button>}
       </Card>
-      {r.loading && !r.data ? <Skeleton /> : r.error ? <ErrorBox text={r.error} /> : s.questions.map((q, i) => q.type === 'mbti' ? <MbtiResults key={i} rows={rows} at={i} /> : q.type === 'mi' ? <MiResults key={i} rows={rows} at={i} /> : (
+      {r.loading && !r.data ? <Skeleton /> : r.error ? <ErrorBox text={r.error} /> : s.questions.map((q, i) => q.type === 'mbti' ? <MbtiResults key={i} rows={rows} at={i} /> : q.type === 'mi' ? <MiResults key={i} rows={rows} at={i} /> : q.type === 'holland' ? <HollandResults key={i} rows={rows} at={i} /> : (
         <Card key={i} className="grid gap-2">
           <p className="font-semibold">{i + 1}. {tx(q.q)}</p>
           {q.type === 'text' ? (
@@ -259,6 +272,30 @@ export function SurveyNew() {
       ))}
       {qs.length < 30 && !qs.some(testOf) && <Button kind="secondary" onClick={() => setQs([...qs, { q: '', type: 'single', options: ['', ''] }])}>{tx('Сұрақ қосу')}</Button>}
       <Button block loading={busy} onClick={save}>{tx('Жіберу')}</Button>
+    </div>
+  )
+}
+
+/** A ready-made test the teacher takes themselves: nothing is saved, the result shows at once. */
+export function SurveyTry({ type }: { type: string }) {
+  const { me } = useMe()
+  const items = TESTS[type], t = TEMPLATES.find((x) => x.type === type)
+  const [tl, setTl] = useMbtiLang()
+  const [a, setA] = useState<(number | null)[]>(() => Array(items?.length ?? 0).fill(null))
+  if (!items || !t) return <><PageHead title={tx('Сауалнама')} back /><ErrorBox text={tx('Табылмады')} /></>
+  const done = a.every((v) => v != null)
+  const rows = [{ respondent: me.full_name, class_name: null, answers: [a] }]
+  return (
+    <div className="grid gap-3 pb-6">
+      <PageHead title={tx('Сауалнама')} back right={<MbtiLangSwitch value={tl} onChange={setTl} />} />
+      <Card className="grid gap-1">
+        <h1 className="text-xl font-bold">{t.title}</h1>
+        <p className="text-sm">{t.description}</p>
+        <p className="text-xs text-muted">{tx('Алдын ала көру: жауаптар сақталмайды.')}</p>
+      </Card>
+      <MbtiAnswer value={a} onChange={setA} lang={tl} items={items} intro={type === 'mi' ? MI_INTRO : type === 'holland' ? HOLLAND_INTRO : undefined} pairs={type === 'holland'} />
+      {done ? (type === 'mbti' ? <MbtiResults rows={rows} at={0} /> : type === 'mi' ? <MiResults rows={rows} at={0} /> : <HollandResults rows={rows} at={0} />)
+        : <p className="text-sm text-muted text-center">{tx('Барлық сұраққа жауап берсеңіз, нәтиже осында шығады.')}</p>}
     </div>
   )
 }
