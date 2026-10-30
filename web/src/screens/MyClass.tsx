@@ -209,6 +209,7 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
                 </label>
               )}
             </div>
+            {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && <Button kind="secondary" onClick={() => go(`/mentor/${open.id}`)}><Icon n="user" size={18} />{tx('Жеке кездесу')}</Button>}
             {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && <EditStudent key={open.id} s={open} onSaved={(v) => { setOpen({ ...open, ...v }); data.reload() }} />}
             {me.role === 'admin' && <RemoveStudent s={open} onDone={() => { setOpen(null); data.reload() }} />}
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">

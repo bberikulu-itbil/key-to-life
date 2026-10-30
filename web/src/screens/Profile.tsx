@@ -98,6 +98,7 @@ export default function Profile() {
         ['#/leaves', 'clock', staff ? tx('Рұқсаттар') : tx('Менің рұқсаттарым'), staff ? tx('Шешім күтетіндер және бүгін берілгендер') : undefined, 'pass'],
         ['#/calendars', 'file', tx('Күнтізбелерім'), tx('Жеке, сынып, мектеп · импорт/экспорт'), 'plan'],
         ...(staff ? [] : [['#/certs', 'trophy', tx('Жетістіктерім'), tx('Сертификаттар'), 'cert'] as Link]),
+        ...(staff ? [] : [['#/mentor', 'user', tx('Жеке кездесулерім'), tx('Жетекшімен кездесулер мен міндеттер'), 'plan'] as Link]),
       ]} />
       {admin.length > 0 && <Section title={tx('Әкімшілік')} links={admin} />}
 

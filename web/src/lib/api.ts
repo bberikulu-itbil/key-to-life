@@ -688,3 +688,24 @@ export const addCouncilTask = (row: { class_id: string; title: string; assignee_
 export const setCouncilTask = (id: string, status: CouncilTask['status']) => ok(supabase.from('council_tasks').update({ status }).eq('id', id))
 export const removeCouncilTask = (id: string) => ok(supabase.from('council_tasks').delete().eq('id', id))
 export const addParentContact = (row: { class_id: string; student_id: string; on_date: string; channel: ParentContact['channel']; summary: string }) => ok(supabase.from('parent_contacts').insert(row))
+
+/* ---------- one-on-one meetings with a student ---------- */
+export type MentorMeeting = { id: string; student_id: string; staff_id: string | null; starts_at: string; topic: string; visible: boolean; actions: string | null; notes: string | null; done_at: string | null }
+const MM = 'id, student_id, staff_id, starts_at, topic, visible, actions, notes, done_at'
+export const classMentorMeetings = (classId: string) =>
+  ok(supabase.from('mentor_meetings').select(MM).eq('class_id', classId).order('starts_at', { ascending: false }).limit(500)) as Promise<MentorMeeting[]>
+export const studentMentor = async (id: string) => {
+  const [student, meetings, tests, notes, contacts] = await Promise.all([
+    ok(supabase.from('profiles').select('id, full_name, photo, class_id, olympiad, club').eq('id', id).single()) as Promise<{ id: string; full_name: string; photo: string | null; class_id: string; olympiad: string | null; club: string | null }>,
+    ok(supabase.from('mentor_meetings').select(MM).eq('student_id', id).order('starts_at', { ascending: false })) as Promise<MentorMeeting[]>,
+    rpc<{ type: 'mbti' | 'mi' | 'holland'; answers: number[]; answered_at: string }[]>('student_tests', { p_student: id }),
+    ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at').contains('student_ids', [id]).order('created_at', { ascending: false })) as Promise<CouncilNote[]>,
+    ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('student_id', id).order('on_date', { ascending: false })) as Promise<ParentContact[]>,
+  ])
+  return { student, meetings, tests, notes, contacts }
+}
+export const addMentorMeeting = (row: { class_id: string; student_id: string; starts_at: string; topic: string; visible: boolean }) => ok(supabase.from('mentor_meetings').insert(row))
+export const finishMentorMeeting = (id: string, actions: string, notes: string) =>
+  ok(supabase.from('mentor_meetings').update({ actions: actions || null, notes: notes || null, done_at: new Date().toISOString() }).eq('id', id))
+export const removeMentorMeeting = (id: string) => ok(supabase.from('mentor_meetings').delete().eq('id', id))
+export const myMentorMeetings = () => rpc<{ id: string; starts_at: string; topic: string; actions: string | null; done_at: string | null; staff_name: string | null }[]>('my_mentor_meetings', {})

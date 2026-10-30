@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.0 — 2026-10-30
+
+- «Жеке кездесулер» (`/mentor`): staff see the class with each student's next/last meeting; a student's page shows their MBTI type, top multiple intelligences and Holland code, a meeting planner with «Оқушыға көрсету / Тек ұстаздарға», the outcome (action items for the student, a private note), and a history of class council notes tagged with them and talks with parents. Students see their own meetings and action items (Профиль → Жеке кездесулерім) and get a notification, a reminder an hour before and the outcome. Migration 0055.
+
 ## 1.8.0 — 2026-10-30
 
 - «Сынып кеңесі» (`/council`): the class teacher and tutor's closed workspace (deputies can look in). Notes with @student tags and a student filter; open notes become the next meeting's agenda; a meeting gets reminders a day and an hour before, and its minutes go to the archive; a three-column task board with owner and deadline; a log of talks with parents. Migration 0054.
