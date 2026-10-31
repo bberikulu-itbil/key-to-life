@@ -195,3 +195,14 @@ import { fundTotals } from './money'
 // numeric columns arrive from PostgREST as strings
 assert.deepEqual(fundTotals([{ amount: '10000', planned: false }, { amount: -2500, planned: false }, { amount: '-4000.50', planned: true }]), { balance: 7500, planned: -4000.5, after: 3499.5 })
 console.log('fund ok')
+
+import { mentorStatus } from './mentor'
+{
+  const now = Date.UTC(2026, 9, 31), day = 86400e3
+  assert.deepEqual(mentorStatus([], 30, now), { days: null, next: false, due: true })
+  assert.deepEqual(mentorStatus([{ starts_at: '', done_at: new Date(now - 10 * day).toISOString() }], 30, now), { days: 10, next: false, due: false })
+  assert.equal(mentorStatus([{ starts_at: '', done_at: new Date(now - 40 * day).toISOString() }], 30, now).due, true)
+  // a planned meeting covers an overdue student
+  assert.equal(mentorStatus([{ starts_at: new Date(now + day).toISOString(), done_at: null }], 30, now).due, false)
+  console.log('mentor ok')
+}

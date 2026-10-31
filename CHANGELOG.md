@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.14.0 — 2026-10-31
+
+- «Жеке кездесулер»: the class list shows coverage (met within the chosen 2 weeks / 1 month / 2 months), overdue students first in red; a Monday reminder to the teacher and tutor about overdue students. A student page with the next meeting, action items with their progress (task done / habit ticks in the last 7 days), past meetings, the student's questionnaire with test results, and history. Planning and finishing happen in sheets: five templates (topic, questions to ask, suggested action items); each action item becomes a task in the student's Plan or a habit. Students fill in their questionnaire and see their action items under Профиль → Жеке кездесулерім.
+- «Сынып кеңесі» notes: tags (#Үлгерім, #Тәртіп, #Денсаулық …) with a tag filter, an «urgent» mark (pinned first, first on the agenda), an attached photo; the composer opens up only while typing; @student chips open their one-on-one page. Migration 0059.
+
 ## 1.13.0 — 2026-10-31
 
 - «Сынып күнтізбесі» (was «Журнал және күнтізбе»): tabs Апта · Ай · Тәрбие сағаттары · Альбом; one «+» sheet adds an event, a class hour or photos. Week strip with the chosen day and the next two weeks; month cells show the day's photo. Class-hour plan per direction (target vs done) and each student's attendance share. Photo album by month with captions. An event can be shown to students: they get a notification now and a reminder the evening before, and see it under Профиль → Сынып күнтізбесі.

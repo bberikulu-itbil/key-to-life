@@ -695,20 +695,21 @@ export const reportDormItem = (item: string, body: string) => ok(supabase.from('
 export const resolveDormReport = (id: string) => ok(supabase.from('dorm_reports').update({ resolved_at: new Date().toISOString() }).eq('id', id))
 
 /* ---------- class council: the teacher and tutor's closed workspace ---------- */
-export type CouncilNote = { id: string; author_id: string | null; body: string; student_ids: string[]; meeting_id: string | null; resolved_at: string | null; created_at: string }
+export type CouncilNote = { id: string; author_id: string | null; body: string; student_ids: string[]; meeting_id: string | null; resolved_at: string | null; created_at: string; tags: string[]; urgent: boolean; photo: string | null }
 export type CouncilMeeting = { id: string; starts_at: string; minutes: string | null; done_at: string | null }
 export type CouncilTask = { id: string; title: string; status: 'todo' | 'doing' | 'done'; assignee_id: string | null; due_on: string | null; created_at: string }
 export type ParentContact = { id: string; student_id: string; staff_id: string | null; on_date: string; channel: 'phone' | 'meeting' | 'chat' | 'visit'; summary: string }
 export const listCouncil = async (classId: string) => {
   const [notes, meetings, tasks, contacts] = await Promise.all([
-    ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at').eq('class_id', classId).order('created_at', { ascending: false }).limit(300)),
+    ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at, tags, urgent, photo').eq('class_id', classId).order('created_at', { ascending: false }).limit(300)),
     ok(supabase.from('council_meetings').select('id, starts_at, minutes, done_at').eq('class_id', classId).order('starts_at', { ascending: false }).limit(100)),
     ok(supabase.from('council_tasks').select('id, title, status, assignee_id, due_on, created_at').eq('class_id', classId).order('created_at')),
     ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('class_id', classId).order('on_date', { ascending: false }).limit(300)),
   ])
   return { notes, meetings, tasks, contacts } as { notes: CouncilNote[]; meetings: CouncilMeeting[]; tasks: CouncilTask[]; contacts: ParentContact[] }
 }
-export const addCouncilNote = (class_id: string, body: string, student_ids: string[]) => ok(supabase.from('council_notes').insert({ class_id, body, student_ids }))
+export const addCouncilNote = (class_id: string, body: string, student_ids: string[], extra: { tags?: string[]; urgent?: boolean; photo?: string | null } = {}) => ok(supabase.from('council_notes').insert({ class_id, body, student_ids, ...extra }))
+export const setNoteUrgent = (id: string, urgent: boolean) => ok(supabase.from('council_notes').update({ urgent }).eq('id', id))
 export const removeCouncilNote = (id: string) => ok(supabase.from('council_notes').delete().eq('id', id))
 export const resolveCouncilNotes = (ids: string[], meeting_id: string | null) =>
   ok(supabase.from('council_notes').update({ resolved_at: new Date().toISOString(), meeting_id }).in('id', ids))
@@ -726,19 +727,31 @@ const MM = 'id, student_id, staff_id, starts_at, topic, visible, actions, notes,
 export const classMentorMeetings = (classId: string) =>
   ok(supabase.from('mentor_meetings').select(MM).eq('class_id', classId).order('starts_at', { ascending: false }).limit(500)) as Promise<MentorMeeting[]>
 export const studentMentor = async (id: string) => {
-  const [student, meetings, tests, notes, contacts] = await Promise.all([
+  const [student, meetings, tests, notes, contacts, form, items] = await Promise.all([
     ok(supabase.from('profiles').select('id, full_name, photo, class_id, olympiad, club').eq('id', id).single()) as Promise<{ id: string; full_name: string; photo: string | null; class_id: string; olympiad: string | null; club: string | null }>,
     ok(supabase.from('mentor_meetings').select(MM).eq('student_id', id).order('starts_at', { ascending: false })) as Promise<MentorMeeting[]>,
     rpc<{ type: 'mbti' | 'mi' | 'holland'; answers: number[]; answered_at: string }[]>('student_tests', { p_student: id }),
-    ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at').contains('student_ids', [id]).order('created_at', { ascending: false })) as Promise<CouncilNote[]>,
+    ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at, tags, urgent, photo').contains('student_ids', [id]).order('created_at', { ascending: false })) as Promise<CouncilNote[]>,
     ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('student_id', id).order('on_date', { ascending: false })) as Promise<ParentContact[]>,
+    studentForm(id),
+    mentorItems(id),
   ])
-  return { student, meetings, tests, notes, contacts }
+  return { student, meetings, tests, notes, contacts, form, items }
 }
 export const addMentorMeeting = (row: { class_id: string; student_id: string; starts_at: string; topic: string; visible: boolean }) => ok(supabase.from('mentor_meetings').insert(row))
 export const finishMentorMeeting = (id: string, actions: string, notes: string) =>
   ok(supabase.from('mentor_meetings').update({ actions: actions || null, notes: notes || null, done_at: new Date().toISOString() }).eq('id', id))
 export const removeMentorMeeting = (id: string) => ok(supabase.from('mentor_meetings').delete().eq('id', id))
+export type MentorItem = { id: string; kind: 'task' | 'habit'; title: string; due_on: string | null; done: boolean; last7: number | null; meeting_id: string | null; created_at: string }
+export const mentorItems = (student: string) => rpc<MentorItem[]>('mentor_items', { p_student: student })
+export const mentorAssign = (meeting: string, kind: 'task' | 'habit', title: string, due: string | null) => rpc('mentor_assign', { p_meeting: meeting, p_kind: kind, p_title: title, p_due: due })
+export const studentForm = async (id: string) =>
+  ((await ok(supabase.from('student_forms').select('answers, updated_at').eq('student_id', id).maybeSingle())) ?? null) as { answers: Record<string, string>; updated_at: string } | null
+export const saveMyForm = (student_id: string, answers: Record<string, string>) =>
+  ok(supabase.from('student_forms').upsert({ student_id, answers, updated_at: new Date().toISOString() }))
+export const mentorEvery = async (classId: string) =>
+  ((await ok(supabase.from('mentor_settings').select('every_days').eq('class_id', classId).maybeSingle())) as { every_days: number } | null)?.every_days ?? 30
+export const setMentorEvery = (class_id: string, every_days: number) => ok(supabase.from('mentor_settings').upsert({ class_id, every_days }))
 export const myMentorMeetings = () => rpc<{ id: string; starts_at: string; topic: string; actions: string | null; done_at: string | null; staff_name: string | null }[]>('my_mentor_meetings', {})
 
 /* ---------- class journal and calendar ---------- */

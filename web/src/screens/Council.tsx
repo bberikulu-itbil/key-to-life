@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   addCouncilMeeting, addCouncilNote, addCouncilTask, addParentContact, classStudents, errText, finishCouncilMeeting, listClasses, listCouncil, listStaff,
-  removeCouncilMeeting, removeCouncilNote, removeCouncilTask, resolveCouncilNotes, setCouncilTask, type CouncilNote, type CouncilTask, type ParentContact, type Student,
+  removeCouncilMeeting, removeCouncilNote, removeCouncilTask, resolveCouncilNotes, setCouncilTask, setNoteUrgent, photoUrl, uploadPhoto, type CouncilNote, type CouncilTask, type ParentContact, type Student,
 } from '../lib/api'
 import { chatTime, fmtDate, today } from '../lib/time'
 import { useMe } from '../App'
@@ -53,12 +53,24 @@ export default function Council({ classId }: { classId?: string }) {
 /** The "@name" being typed at the end of the text, if any. */
 const mentionAt = (text: string) => text.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
 
+const TAGS: [string, string, string][] = [
+  ['grades', tx('Үлгерім'), '#2563eb'], ['conduct', tx('Тәртіп'), '#dc2626'], ['health', tx('Денсаулық'), '#16a34a'], ['dorm', tx('Жатақхана'), '#9333ea'],
+  ['family', tx('Отбасы'), '#ea580c'], ['social', tx('Қарым-қатынас'), '#0891b2'], ['win', tx('Жетістік'), '#ca8a04'],
+]
+const tagOf = (k: string) => TAGS.find((t) => t[0] === k)
+
 function Notes({ classId, notes, students, staffName, reload }: { classId: string; notes: CouncilNote[]; students: Student[]; staffName: (id: string | null) => string; reload: () => void }) {
+  const { me } = useMe()
   const [body, setBody] = useState('')
   const [tagged, setTagged] = useState<Student[]>([])
+  const [tags, setTags] = useState<string[]>([])
+  const [urgent, setUrgent] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [show, setShow] = useState<'open' | 'all'>('open')
   const [who, setWho] = useState('')
+  const [tagF, setTagF] = useState('')
+  const [big, setBig] = useState<string | null>(null)
   const q = mentionAt(body)
   const hits = q == null ? [] : students.filter((s) => s.full_name.toLowerCase().includes(q.toLowerCase())).slice(0, 6)
   const short = (s: Student) => s.full_name.split(' ').slice(0, 2).join(' ')
@@ -70,24 +82,42 @@ function Notes({ classId, notes, students, staffName, reload }: { classId: strin
     if (!body.trim()) return
     setBusy(true)
     try {
+      const photo = file ? await uploadPhoto(me.id, file) : null
       // a tag counts only while its name is still in the text
-      await addCouncilNote(classId, body.trim(), tagged.filter((s) => body.includes(`@${short(s)}`)).map((s) => s.id))
-      setBody(''); setTagged([]); reload()
+      await addCouncilNote(classId, body.trim(), tagged.filter((s) => body.includes(`@${short(s)}`)).map((s) => s.id), { tags, urgent, photo })
+      setBody(''); setTagged([]); setTags([]); setUrgent(false); setFile(null); reload()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   const name = (id: string) => students.find((s) => s.id === id)
-  const shown = notes.filter((n) => (show === 'all' || !n.resolved_at) && (!who || n.student_ids.includes(who)))
+  const shown = notes.filter((n) => (show === 'all' || !n.resolved_at) && (!who || n.student_ids.includes(who)) && (!tagF || n.tags.includes(tagF)))
+    .sort((a, b) => Number(b.urgent && !b.resolved_at) - Number(a.urgent && !a.resolved_at))
+  const used = TAGS.filter(([k]) => notes.some((n) => n.tags.includes(k)))
   return (
     <div className="grid gap-3">
       <Card className="grid gap-2">
-        <textarea aria-label={tx('Жаңа жазба')} value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} className={`${inputCls} h-24 py-2`}
+        <textarea aria-label={tx('Жаңа жазба')} value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} className={`${inputCls} ${body ? 'h-24' : 'h-12'} py-2 transition-[height]`}
           placeholder={tx('Не байқадыңыз? Оқушыны белгілеу үшін @ деп жазыңыз')} />
         {hits.length > 0 && (
           <div className="flex flex-wrap gap-2">{hits.map((s) => (
             <button key={s.id} type="button" onClick={() => tag(s)} className="h-9 px-3 rounded-full bg-accent-soft text-accent text-sm font-semibold">@{short(s)}</button>
           ))}</div>
         )}
-        <Button onClick={save} loading={busy} disabled={!body.trim()}>{tx('Жазу')}</Button>
+        {body && <>
+          <div className="flex flex-wrap gap-1.5">{TAGS.map(([k, l, c]) => {
+            const on = tags.includes(k)
+            return <button key={k} type="button" aria-pressed={on} onClick={() => setTags(on ? tags.filter((x) => x !== k) : [...tags, k])}
+              className="h-8 px-3 rounded-full text-xs font-semibold border" style={on ? { background: c, borderColor: c, color: '#fff' } : { borderColor: c + '55', color: c }}>#{l}</button>
+          })}</div>
+          <div className="flex items-center gap-2">
+            <button type="button" aria-pressed={urgent} onClick={() => setUrgent(!urgent)} className={`h-10 px-3 rounded-md text-sm font-semibold inline-flex items-center gap-1.5 ${urgent ? 'bg-danger text-white' : 'bg-surface-2'}`}><Icon n="flag" size={16} />{tx('Шұғыл')}</button>
+            <label className={`h-10 px-3 rounded-md text-sm font-semibold inline-flex items-center gap-1.5 cursor-pointer ${file ? 'bg-accent-soft text-accent' : 'bg-surface-2'}`}>
+              <Icon n="plus" size={16} />{file ? tx('Сурет тіркелді') : tx('Сурет')}
+              <input type="file" accept="image/*" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </label>
+            <span className="flex-1" />
+            <Button onClick={save} loading={busy}>{tx('Жазу')}</Button>
+          </div>
+        </>}
       </Card>
       <div className="flex flex-wrap items-center gap-2">
         <Chips label={tx('Сүзгі')} value={show} onChange={setShow} items={[['open', tx('Шешілмеген')], ['all', tx('Барлығы')]]} />
@@ -96,19 +126,30 @@ function Notes({ classId, notes, students, staffName, reload }: { classId: strin
           {students.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
         </select>
       </div>
+      {used.length > 0 && <div className="flex flex-wrap gap-1.5">{used.map(([k, l, c]) => (
+        <button key={k} type="button" aria-pressed={tagF === k} onClick={() => setTagF(tagF === k ? '' : k)} className="h-8 px-3 rounded-full text-xs font-semibold"
+          style={tagF === k ? { background: c, color: '#fff' } : { background: c + '1a', color: c }}>#{l} · {notes.filter((n) => n.tags.includes(k) && (show === 'all' || !n.resolved_at)).length}</button>
+      ))}</div>}
       {!shown.length ? <Empty icon="file" title={tx('Жазба жоқ')} text={tx('Апта бойы байқағаныңызды осында жазыңыз. Шешілмеген жазбалар келесі жиналыстың күн тәртібіне түседі.')} /> : shown.map((n) => (
-        <Card key={n.id} className={`grid gap-2 ${n.resolved_at ? 'opacity-70' : ''}`}>
+        <Card key={n.id} className={`grid gap-2 ${n.resolved_at ? 'opacity-70' : ''} ${n.urgent && !n.resolved_at ? 'border-l-4 border-l-danger' : ''}`}>
+          {(n.urgent || n.tags.length > 0) && <div className="flex flex-wrap gap-1.5">
+            {n.urgent && <span className="h-6 px-2 rounded-full bg-danger text-white text-[11px] font-semibold inline-flex items-center gap-1"><Icon n="flag" size={12} />{tx('Шұғыл')}</span>}
+            {n.tags.map((k) => tagOf(k) && <span key={k} className="h-6 px-2 rounded-full text-[11px] font-semibold inline-flex items-center" style={{ background: tagOf(k)![2] + '1a', color: tagOf(k)![2] }}>#{tagOf(k)![1]}</span>)}
+          </div>}
           <p className="whitespace-pre-line break-words">{n.body}</p>
+          {n.photo && <button type="button" onClick={() => setBig(n.photo)} className="justify-self-start"><img src={photoUrl(n.photo)} alt="" className="h-28 rounded-md object-cover" loading="lazy" /></button>}
           {n.student_ids.length > 0 && <div className="flex flex-wrap gap-1.5">{n.student_ids.map((id) => name(id) && (
-            <button key={id} type="button" onClick={() => setWho(id)} className="h-7 px-2.5 rounded-full bg-surface-2 text-xs font-semibold">@{short(name(id)!)}</button>
+            <a key={id} href={`#/mentor/${id}`} className="h-7 px-2.5 rounded-full bg-surface-2 text-xs font-semibold inline-flex items-center">@{short(name(id)!)}</a>
           ))}</div>}
-          <div className="flex items-center gap-2 text-xs text-muted">
+          <div className="flex items-center gap-1 text-xs text-muted">
             <span className="flex-1">{staffName(n.author_id)} · {chatTime(n.created_at)}{n.resolved_at ? tx(' · шешілді') : ''}</span>
+            {!n.resolved_at && <button type="button" aria-label={n.urgent ? tx('Шұғыл белгісін алу') : tx('Шұғыл деп белгілеу')} onClick={() => setNoteUrgent(n.id, !n.urgent).then(reload, (e) => toast(errText(e)))} className={`size-9 grid place-items-center rounded-md hover:bg-surface-2 ${n.urgent ? 'text-danger' : ''}`}><Icon n="flag" size={16} /></button>}
             {!n.resolved_at && <button type="button" onClick={() => resolveCouncilNotes([n.id], null).then(reload, (e) => toast(errText(e)))} className="h-9 px-3 rounded-md bg-surface-2 font-semibold text-ink">{tx('Шешілді')}</button>}
             <button type="button" aria-label={tx('Өшіру')} onClick={() => removeCouncilNote(n.id).then(reload, (e) => toast(errText(e)))} className="size-9 grid place-items-center rounded-md hover:bg-surface-2"><Icon n="x" size={16} /></button>
           </div>
         </Card>
       ))}
+      {big && <div className="fixed inset-0 z-50 bg-black/90 grid place-items-center p-4" onClick={() => setBig(null)} role="dialog" aria-label={tx('Сурет')}><img src={photoUrl(big)} alt="" className="max-h-full max-w-full rounded-md" /></div>}
     </div>
   )
 }
@@ -117,7 +158,7 @@ type Data = Awaited<ReturnType<typeof listCouncil>> & { students: Student[] }
 function Meeting({ classId, d, staffName, reload }: { classId: string; d: Data; staffName: (id: string | null) => string; reload: () => void }) {
   const next = d.meetings.filter((m) => !m.done_at).sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0]
   const past = d.meetings.filter((m) => m.done_at)
-  const agenda = d.notes.filter((n) => !n.resolved_at).reverse()
+  const agenda = d.notes.filter((n) => !n.resolved_at).reverse().sort((a, b) => Number(b.urgent) - Number(a.urgent))
   const [when, setWhen] = useState('')
   const [minutes, setMinutes] = useState('')
   const [settled, setSettled] = useState<Set<string>>(() => new Set(agenda.map((n) => n.id)))
