@@ -345,7 +345,9 @@ function AddSheet({ classId, init, students, people, staffName, onClose, onDone 
     try {
       if (what === 'event') await addClassEvent({ class_id: classId, on_date: date, at_time: ev.time || null, kind: ev.kind, title: ev.title.trim(), note: ev.note.trim() || null, visible: ev.visible })
       else if (what === 'hour') await addClassHour({ class_id: classId, on_date: date, direction: h.direction, topic: h.topic.trim(), led_by: h.led_by || null, absent: h.absent, grp: h.grp.trim() || null, note: h.note.trim() || null })
-      else for (const f of files) await addClassPhoto(classId, date, me.id, f, caption.trim() || null)
+      // photos go to the same day; an event's or class hour's photos are captioned with its title
+      const cap = what === 'event' ? ev.title.trim() : what === 'hour' ? h.topic.trim() : caption.trim()
+      for (const f of files) await addClassPhoto(classId, date, me.id, f, cap || null)
       toast(what === 'event' && ev.visible ? tx('Сақталды, оқушыларға хабарлама жіберілді') : tx('Сақталды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
@@ -384,13 +386,11 @@ function AddSheet({ classId, init, students, people, staffName, onClose, onDone 
           )}</Field>
           <textarea aria-label={tx('Ескертпе')} value={h.note} onChange={(e) => setH({ ...h, note: e.target.value })} maxLength={2000} className={`${inputCls} h-20 py-2`} placeholder={tx('Ескертпе')} />
         </>}
-        {what === 'photo' && <>
-          <input aria-label={tx('Сипаттама')} value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={300} className={inputCls} placeholder={tx('Сипаттама (міндетті емес): қай шара')} />
-          <label className="h-24 rounded-md border-2 border-dashed border-line grid place-items-center text-sm text-muted cursor-pointer">
-            <span className="flex items-center gap-2"><Icon n="plus" size={18} />{files.length ? tx('{0} сурет таңдалды', files.length) : tx('Суреттерді таңдау')}</span>
+        {what === 'photo' && <input aria-label={tx('Сипаттама')} value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={300} className={inputCls} placeholder={tx('Сипаттама (міндетті емес): қай шара')} />}
+        <label className={`${what === 'photo' ? 'h-24' : 'h-14'} rounded-md border-2 border-dashed border-line grid place-items-center text-sm text-muted cursor-pointer`}>
+            <span className="flex items-center gap-2"><Icon n="plus" size={18} />{files.length ? tx('{0} сурет таңдалды', files.length) : what === 'photo' ? tx('Суреттерді таңдау') : tx('Фото қосу (міндетті емес)')}</span>
             <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => setFiles([...(e.target.files ?? [])])} />
           </label>
-        </>}
         <Button onClick={save} loading={busy} disabled={!ready}>{tx('Сақтау')}</Button>
       </div>
     </Sheet>

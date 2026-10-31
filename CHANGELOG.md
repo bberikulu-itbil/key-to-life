@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.14.1 — 2026-10-31
+
+- Сынып күнтізбесі: photos can be attached when adding an event (incl. parent meetings and home visits) or a class hour, not only through «Фото»; they go to that day and the album, captioned with the event's title or the class hour's topic.
+
 ## 1.14.0 — 2026-10-31
 
 - «Жеке кездесулер»: the class list shows coverage (met within the chosen 2 weeks / 1 month / 2 months), overdue students first in red; a Monday reminder to the teacher and tutor about overdue students. A student page with the next meeting, action items with their progress (task done / habit ticks in the last 7 days), past meetings, the student's questionnaire with test results, and history. Planning and finishing happen in sheets: five templates (topic, questions to ask, suggested action items); each action item becomes a task in the student's Plan or a habit. Students fill in their questionnaire and see their action items under Профиль → Жеке кездесулерім.
