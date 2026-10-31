@@ -206,3 +206,9 @@ import { mentorStatus } from './mentor'
   assert.equal(mentorStatus([{ starts_at: new Date(now + day).toISOString(), done_at: null }], 30, now).due, false)
   console.log('mentor ok')
 }
+
+import { avgStars, seasonAvgs } from './stars'
+assert.equal(avgStars([]), null)
+assert.deepEqual(avgStars([5, 4, null, 4]), { avg: 4.3, n: 3 })
+assert.deepEqual(seasonAvgs([{ 1: 5, 2: 3 }, { 1: 4 }], 2), [{ avg: 4.5, n: 2 }, { avg: 3, n: 1 }])
+console.log('stars ok')

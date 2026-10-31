@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.15.0 — 2026-11-01
+
+- Сынып ресурстары: a type for films (Фильм, Сериал, Аниме, Мультфильм) and books (Кітап, Комикс, Манга, Аудиокітап, Журнал) with a type filter; a series or anime has a number of seasons. Everyone can rate 1–5 stars, and each season separately; cards show the class average, the sheet shows the average, the count and each season's class average. Rating something marks it as read/watched. Migration 0060.
+
 ## 1.14.1 — 2026-10-31
 
 - Сынып күнтізбесі: photos can be attached when adding an event (incl. parent meetings and home visits) or a class hour, not only through «Фото»; they go to that day and the album, captioned with the event's title or the class hour's topic.

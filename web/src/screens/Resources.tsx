@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import {
   addClassList, addFund, addHabit, addListItem, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listStaff, logScreening, photoUrl, uploadPhoto,
-  removeClassList, removeFund, removeListItem, removeMedia, setMediaProgress, tickListItem, type ClassList, type Media, type Student,
+  removeClassList, removeFund, removeListItem, removeMedia, rateMedia, setMediaProgress, tickListItem, type ClassList, type Media, type Student,
 } from '../lib/api'
 import { fmtDate, today } from '../lib/time'
 import { fundTotals, money } from '../lib/money'
+import { avgStars, seasonAvgs } from '../lib/stars'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import { Button, Card, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
@@ -49,6 +50,28 @@ export default function Resources({ classId }: { classId?: string }) {
   )
 }
 
+const FORMATS: Record<Media['kind'], [string, string][]> = {
+  film: [['movie', tx('Фильм')], ['series', tx('Сериал')], ['anime', tx('Аниме')], ['cartoon', tx('Мультфильм')]],
+  book: [['book', tx('Кітап')], ['comic', tx('Комикс')], ['manga', tx('Манга')], ['audio', tx('Аудиокітап')], ['magazine', tx('Журнал')]],
+}
+const formatName = (kind: Media['kind'], f: string | null) => FORMATS[kind].find(([k]) => k === f)?.[1] ?? ''
+const hasSeasons = (f: string | null) => f === 'series' || f === 'anime'
+
+/** Five stars: shows a value, or lets you pick one when onPick is given (tapping the same star again clears it). */
+function Stars({ value, onPick, size = 18, label }: { value: number | null; onPick?: (v: number | null) => void; size?: number; label: string }) {
+  return (
+    <span role={onPick ? 'radiogroup' : 'img'} aria-label={onPick ? label : `${label}: ${value ?? 0}/5`} className="inline-flex">
+      {[1, 2, 3, 4, 5].map((v) => {
+        const on = (value ?? 0) >= v - 0.25
+        const star = <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill={on ? '#f5b301' : 'none'} stroke={on ? '#f5b301' : '#cbd5e1'} strokeWidth="1.6" strokeLinejoin="round" /></svg>
+        return onPick
+          ? <button key={v} type="button" role="radio" aria-checked={value === v} aria-label={`${v}/5`} onClick={() => onPick(value === v ? null : v)} className="p-0.5">{star}</button>
+          : <span key={v}>{star}</span>
+      })}
+    </span>
+  )
+}
+
 const GENRES: Record<Media['kind'], [string, string][]> = {
   book: [['novel', tx('Көркем')], ['science', tx('Ғылыми-танымдық')], ['history', tx('Тарих')], ['adventure', tx('Шытырман')], ['fantasy', tx('Фантастика')], ['bio', tx('Өмірбаян')], ['poetry', tx('Поэзия')], ['self', tx('Өзін-өзі дамыту')]],
   film: [['drama', tx('Драма')], ['comedy', tx('Комедия')], ['history', tx('Тарихи')], ['docs', tx('Деректі')], ['anim', tx('Анимация')], ['fantasy', tx('Фантастика')], ['adventure', tx('Шытырман')], ['family', tx('Отбасылық')]],
@@ -73,7 +96,8 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
   const [showPending, setShowPending] = useState(false)
   const pending = media.filter((m) => !m.approved), shelf = media.filter((m) => m.approved)
   const doneBy = (m: Media) => m.progress.filter((p) => p.state === 'done' && students.some((s) => s.id === p.user_id)).length
-  const shown = shelf.filter((m) => (!genre || m.genre === genre) && (!q || `${m.title} ${m.author ?? ''}`.toLowerCase().includes(q.toLowerCase())))
+  const [fmt, setFmt] = useState('')
+  const shown = shelf.filter((m) => (!fmt || m.format === fmt) && (!genre || m.genre === genre) && (!q || `${m.title} ${m.author ?? ''}`.toLowerCase().includes(q.toLowerCase())))
   // not started yet, most finished by classmates first
   const forYou = shelf.filter((m) => !m.progress.some((p) => p.user_id === me.id)).sort((a, b) => doneBy(b) - doneBy(a)).slice(0, 6)
   const cur = media.find((m) => m.id === open)
@@ -83,6 +107,7 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
         <input aria-label={tx('Іздеу')} value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} flex-1 min-w-0`} placeholder={book ? tx('Кітап не автор іздеу') : tx('Фильм іздеу')} />
         <Button onClick={() => setAdding(true)}><Icon n="plus" size={18} />{staff ? tx('Қосу') : tx('Ұсыну')}</Button>
       </div>
+      {FORMATS[kind].filter(([k]) => shelf.some((m) => m.format === k)).length > 1 && <Chips label={tx('Түрі')} value={fmt} onChange={setFmt} items={[['', tx('Барлық түрі')], ...FORMATS[kind].filter(([k]) => shelf.some((m) => m.format === k))]} />}
       <Chips label={tx('Жанр')} value={genre} onChange={setGenre} items={[['', tx('Барлығы')], ...GENRES[kind].filter(([g]) => shelf.some((m) => m.genre === g))]} />
 
       {pending.length > 0 && (
@@ -111,7 +136,8 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
               <Cover m={m} />
               {mine && <span className={`absolute top-1.5 right-1.5 size-6 rounded-full grid place-items-center text-white ${mine === 'done' ? 'bg-success' : 'bg-accent'}`}><Icon n={mine === 'done' ? 'check' : 'clock'} size={14} /></span>}
               <span className="text-sm font-semibold leading-tight line-clamp-2">{m.title}</span>
-              <span className="text-xs text-muted truncate">{m.author ?? genreName(kind, m.genre)}</span>
+              <span className="text-xs text-muted truncate">{[formatName(kind, m.format), m.author ?? genreName(kind, m.genre)].filter(Boolean).join(' · ')}</span>
+              {avgStars(m.progress.map((p) => p.rating)) && <span className="flex items-center gap-1 text-xs font-semibold"><Stars value={avgStars(m.progress.map((p) => p.rating))!.avg} size={12} label={tx('Баға')} />{avgStars(m.progress.map((p) => p.rating))!.avg}</span>}
             </button>
           )
         })}</div>}
@@ -125,14 +151,14 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
 function AddMedia({ kind, classId, staff, onClose, onDone }: { kind: Media['kind']; classId: string; staff: boolean; onClose: () => void; onDone: () => void }) {
   const { me } = useMe()
   const book = kind === 'book'
-  const [f, setF] = useState({ title: '', author: '', note: '', genre: '' })
+  const [f, setF] = useState({ title: '', author: '', note: '', genre: '', format: kind === 'book' ? 'book' : 'movie', seasons: '' })
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const save = async () => {
     setBusy(true)
     try {
       const cover = file ? await uploadPhoto(me.id, file) : null
-      await addMedia({ class_id: classId, kind, title: f.title.trim(), author: f.author.trim() || null, note: f.note.trim() || null, genre: f.genre || null, cover, approved: staff, proposed_by: me.id })
+      await addMedia({ class_id: classId, kind, title: f.title.trim(), author: f.author.trim() || null, note: f.note.trim() || null, genre: f.genre || null, format: f.format, seasons: hasSeasons(f.format) && Number(f.seasons) > 0 ? Math.min(50, Number(f.seasons)) : null, cover, approved: staff, proposed_by: me.id })
       toast(staff ? tx('Қосылды') : tx('Ұсыныс жіберілді')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
@@ -149,6 +175,8 @@ function AddMedia({ kind, classId, staff, onClose, onDone }: { kind: Media['kind
             <input aria-label={book ? tx('Авторы') : tx('Режиссері')} value={f.author} onChange={(e) => setF({ ...f, author: e.target.value })} maxLength={200} className={inputCls} placeholder={book ? tx('Авторы') : tx('Режиссері')} />
           </div>
         </div>
+        <Chips label={tx('Түрі')} value={f.format} onChange={(format) => setF({ ...f, format })} items={FORMATS[kind]} />
+        {hasSeasons(f.format) && <input aria-label={tx('Неше маусым')} type="number" inputMode="numeric" min={1} max={50} value={f.seasons} onChange={(e) => setF({ ...f, seasons: e.target.value })} className={inputCls} placeholder={tx('Неше маусым (сезон)')} />}
         <Chips label={tx('Жанр')} value={f.genre} onChange={(genre) => setF({ ...f, genre })} items={GENRES[kind]} />
         <input aria-label={tx('Неге ұсынасыз?')} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={1000} className={inputCls} placeholder={tx('Неге ұсынасыз? (міндетті емес)')} />
         {!staff && <p className="text-xs text-muted">{tx('Ұсынысыңызды тәрбиеші не сынып жетекшісі мақұлдаған соң, бүкіл сыныпқа көрінеді.')}</p>}
@@ -169,6 +197,10 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
   const done = m.progress.filter((p) => p.state === 'done' && students.some((s) => s.id === p.user_id))
   const reading = m.progress.filter((p) => p.state === 'doing' && students.some((s) => s.id === p.user_id))
   const reviews = m.progress.filter((p) => p.review)
+  const avg = avgStars(m.progress.map((p) => p.rating))
+  const seasonAvg = m.seasons ? seasonAvgs(m.progress.map((p) => p.season_stars ?? {}), m.seasons) : []
+  // rating counts as having read or watched it, unless the person is still on it
+  const rate = (patch: { rating?: number | null; season_stars?: Record<string, number> }) => run(() => rateMedia(m.id, mineP?.state ?? 'done', patch))
   const mark = (state: 'doing' | 'done' | null) => run(async () => {
     await setMediaProgress(m.id, state)
     // "reading" puts a daily reading habit into the student's own tracker
@@ -184,7 +216,8 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
           <Cover m={m} />
           <div className="grid gap-1 content-start text-sm">
             {m.author && <p className="font-semibold">{m.author}</p>}
-            {m.genre && <p className="text-muted">{genreName(m.kind, m.genre)}</p>}
+            <p className="text-muted">{[formatName(m.kind, m.format), genreName(m.kind, m.genre), m.seasons ? tx('{0} маусым', m.seasons) : ''].filter(Boolean).join(' · ')}</p>
+            {avg && <p className="flex items-center gap-1.5"><Stars value={avg.avg} size={16} label={tx('Орташа баға')} /><b>{avg.avg}</b><span className="text-muted">· {tx('{0} баға', avg.n)}</span></p>}
             {m.note && <p>{m.note}</p>}
             {!m.approved && <p className="text-warning font-semibold">{tx('Күтуде · ұсынған: {0}', name(m.proposed_by))}</p>}
           </div>
@@ -201,6 +234,15 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
               return <button key={st} type="button" aria-pressed={on} disabled={busy} onClick={() => mark(on ? null : st)}
                 className={`h-11 rounded-md text-sm font-semibold ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{st === 'doing' ? (book ? tx('Оқып жатырмын') : tx('Көремін')) : (book ? tx('Оқыдым') : tx('Көрдім'))}</button>
             })}
+          </div>
+          <div className="grid gap-2 rounded-md bg-surface-2 p-3">
+            <div className="flex items-center gap-2"><span className="flex-1 text-sm font-semibold">{tx('Сенің бағаң')}</span><Stars value={mineP?.rating ?? null} onPick={(v) => rate({ rating: v })} size={26} label={tx('Сенің бағаң')} /></div>
+            {m.seasons && Array.from({ length: m.seasons }, (_, i) => String(i + 1)).map((k, i) => (
+              <div key={k} className="flex items-center gap-2 text-sm">
+                <span className="flex-1">{tx('{0}-маусым', k)}{seasonAvg[i] && <span className="text-muted text-xs">{' · '}{tx('сынып: {0}', seasonAvg[i]!.avg)}</span>}</span>
+                <Stars value={mineP?.season_stars?.[k] ?? null} onPick={(v) => { const n = { ...(mineP?.season_stars ?? {}) }; if (v) n[k] = v; else delete n[k]; rate({ season_stars: n }) }} size={20} label={tx('{0}-маусым', k)} />
+              </div>
+            ))}
           </div>
           {mineP && <Review key={mineP.updated_at} m={m} state={mineP.state} review={mineP.review ?? ''} reload={reload} />}
           {(done.length > 0 || reading.length > 0) && (
