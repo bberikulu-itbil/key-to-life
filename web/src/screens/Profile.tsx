@@ -100,6 +100,7 @@ export default function Profile() {
         ...(staff ? [] : [['#/certs', 'trophy', tx('Жетістіктерім'), tx('Сертификаттар'), 'cert'] as Link]),
         ...(staff ? [] : [['#/journal', 'file', tx('Сынып күнтізбесі'), tx('Сынып шаралары, БЖБ, киноклуб'), 'plan'] as Link]),
         ...(staff ? [] : [['#/resources', 'book', tx('Сынып ресурстары'), tx('Кітаптар, фильмдер, шаралар, сынып қоры'), 'book'] as Link]),
+        ...(staff ? [] : [['#/hub', 'book', tx('Сынып жобалары'), tx('Кітап, фильм, рецепт және сынып жоспары'), 'book'] as Link]),
         ...(staff ? [] : [['#/mentor', 'user', tx('Жеке кездесулерім'), tx('Жетекшімен кездесулер мен міндеттер'), 'plan'] as Link]),
       ]} />
       {admin.length > 0 && <Section title={tx('Әкімшілік')} links={admin} />}

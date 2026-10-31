@@ -442,6 +442,25 @@ export const tgSendRollcall = (activity: string, date: string) => tgCall<{ ok: b
 export type Student = { id: string; full_name: string; olympiad: string | null; club: string | null; parliament: boolean; photo: string | null }
 export const classStudents = (classId: string) =>
   ok(supabase.from('profiles').select('id, full_name, olympiad, club, parliament, photo').eq('class_id', classId).eq('role', 'student').is('removed_at', null).order('full_name')) as Promise<Student[]>
+
+/* ---------- class hub: recipes and class plans ---------- */
+export type ClassResourceKind = 'book' | 'movie' | 'recipe'
+export type ClassIngredient = { name: string; amount: number; unit: string; price: number }
+export type ClassResourceProgress = { user_id: string; volume: number; status: 'saved' | 'in_progress' | 'done'; rating: number | null; note: string | null; user: { full_name: string } }
+export type ClassResource = { id: string; class_id: string; kind: ClassResourceKind; title: string; original_title: string | null; release_year: number | null
+  country: string | null; duration_minutes: number | null; pages: number | null; volumes: number; servings: number | null; prep_minutes: number | null
+  description: string | null; ingredients: ClassIngredient[]; steps: string[]; created_by: string; created_at: string
+  author: { full_name: string }; progress: ClassResourceProgress[] }
+const CLASS_HUB_RESOURCE = 'id, class_id, kind, title, original_title, release_year, country, duration_minutes, pages, volumes, servings, prep_minutes, description, ingredients, steps, created_by, created_at, author:profiles!created_by(full_name), progress:class_hub_progress(user_id, volume, status, rating, note, user:profiles!user_id(full_name))'
+export const listClassHubResources = (classId: string) =>
+  ok(supabase.from('class_hub_resources').select(CLASS_HUB_RESOURCE).eq('class_id', classId).order('created_at', { ascending: false })) as unknown as Promise<ClassResource[]>
+export const addClassHubResource = (row: { class_id: string; kind: ClassResourceKind; title: string; original_title?: string | null; release_year?: number | null; country?: string | null
+  duration_minutes?: number | null; pages?: number | null; volumes?: number; servings?: number | null; prep_minutes?: number | null; description?: string | null
+  ingredients?: ClassIngredient[]; steps?: string[] }) =>
+  ok(supabase.from('class_hub_resources').insert(row).select('id').single()) as unknown as Promise<{ id: string }>
+export const setClassHubResourceProgress = (resourceId: string, userId: string, volume: number, status: ClassResourceProgress['status'], rating: number | null) =>
+  ok(supabase.from('class_hub_progress').upsert({ resource_id: resourceId, user_id: userId, volume, status, rating, updated_at: new Date().toISOString() }))
+export const removeClassHubResource = (id: string) => ok(supabase.from('class_hub_resources').delete().eq('id', id))
 /** Admin only: hides the student, bans the account, takes them out of the class (history stays). */
 export const removeStudent = (id: string) => rpc('remove_student', { p_id: id })
 export const classAttendance = (ids: string[]) =>
