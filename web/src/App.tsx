@@ -231,12 +231,13 @@ function SideNav({ me, seg, active, badge, onPlus }: { me: Me; seg: string; acti
       {link('/chats', 'chat', tx('Чаттар'), active('/chats'), badge > 0 ? <span className="min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center">{badge > 9 ? '9+' : badge}</span> : null)}
       {link('/profile', 'user', tx('Профиль'), active('/profile') && seg !== 'dorm')}
       {me.role === 'student' && me.class && link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
+      {me.role === 'student' && me.class && link('/journal', 'file', tx('Сынып күнтізбесі'), seg === 'journal')}
       {me.role !== 'student' && <>
         <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted">{tx('Сыныпты басқару')}</p>
         {link('/class', 'users', tx('Менің сыныбым'), seg === 'class')}
         {link('/dorm', 'home', tx('Жатақхана'), seg === 'dorm')}
         {link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
-        {link('/journal', 'file', tx('Журнал және күнтізбе'), seg === 'journal')}
+        {link('/journal', 'file', tx('Сынып күнтізбесі'), seg === 'journal')}
         {link('/mentor', 'user', tx('Жеке кездесулер'), seg === 'mentor')}
         {link('/council', 'lock', tx('Сынып кеңесі'), seg === 'council')}
       </>}

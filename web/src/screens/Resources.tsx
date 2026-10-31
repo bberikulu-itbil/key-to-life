@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import {
-  addClassList, addFund, addHabit, addListItem, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listStaff, logScreening,
+  addClassList, addFund, addHabit, addListItem, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listStaff, logScreening, photoUrl, uploadPhoto,
   removeClassList, removeFund, removeListItem, removeMedia, setMediaProgress, tickListItem, type ClassList, type Media, type Student,
 } from '../lib/api'
 import { fmtDate, today } from '../lib/time'
 import { fundTotals, money } from '../lib/money'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
-import { Badge, Button, Card, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import { Button, Card, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
 /* «Сынып ресурстары» — the class's shared shelf: books, films (with film club), event shopping lists, the class fund. */
@@ -49,15 +49,127 @@ export default function Resources({ classId }: { classId?: string }) {
   )
 }
 
+const GENRES: Record<Media['kind'], [string, string][]> = {
+  book: [['novel', tx('Көркем')], ['science', tx('Ғылыми-танымдық')], ['history', tx('Тарих')], ['adventure', tx('Шытырман')], ['fantasy', tx('Фантастика')], ['bio', tx('Өмірбаян')], ['poetry', tx('Поэзия')], ['self', tx('Өзін-өзі дамыту')]],
+  film: [['drama', tx('Драма')], ['comedy', tx('Комедия')], ['history', tx('Тарихи')], ['docs', tx('Деректі')], ['anim', tx('Анимация')], ['fantasy', tx('Фантастика')], ['adventure', tx('Шытырман')], ['family', tx('Отбасылық')]],
+}
+const genreName = (kind: Media['kind'], g: string | null) => GENRES[kind].find(([k]) => k === g)?.[1] ?? ''
+// a cover colour from the title, for books and films without a photo
+const tint = (t: string) => `hsl(${[...t].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)} 45% 42%)`
+
+function Cover({ m, className = '' }: { m: Media; className?: string }) {
+  return m.cover
+    ? <img src={photoUrl(m.cover)} alt="" className={`aspect-[2/3] w-full rounded-md object-cover ${className}`} loading="lazy" />
+    : <span aria-hidden className={`aspect-[2/3] w-full rounded-md grid place-items-center text-white/90 text-4xl font-bold ${className}`} style={{ background: tint(m.title) }}>{m.title.trim()[0]?.toUpperCase()}</span>
+}
+
 function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: Media['kind']; classId: string; media: Media[]; students: Student[]; staff: boolean; name: (id: string | null) => string; reload: () => void }) {
   const { me } = useMe()
   const book = kind === 'book'
-  const [f, setF] = useState({ title: '', author: '', note: '' })
-  const [busy, setBusy] = useState(false)
-  const [screen, setScreen] = useState<Media | null>(null)
-  const run = async (fn: () => Promise<unknown>, done?: string) => { setBusy(true); try { await fn(); if (done) toast(done); reload() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
+  const [q, setQ] = useState('')
+  const [genre, setGenre] = useState('')
+  const [open, setOpen] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [showPending, setShowPending] = useState(false)
   const pending = media.filter((m) => !m.approved), shelf = media.filter((m) => m.approved)
-  const mark = (m: Media, state: 'doing' | 'done' | null) => run(async () => {
+  const doneBy = (m: Media) => m.progress.filter((p) => p.state === 'done' && students.some((s) => s.id === p.user_id)).length
+  const shown = shelf.filter((m) => (!genre || m.genre === genre) && (!q || `${m.title} ${m.author ?? ''}`.toLowerCase().includes(q.toLowerCase())))
+  // not started yet, most finished by classmates first
+  const forYou = shelf.filter((m) => !m.progress.some((p) => p.user_id === me.id)).sort((a, b) => doneBy(b) - doneBy(a)).slice(0, 6)
+  const cur = media.find((m) => m.id === open)
+  return (
+    <div className="grid gap-3">
+      <div className="flex gap-2">
+        <input aria-label={tx('Іздеу')} value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} flex-1 min-w-0`} placeholder={book ? tx('Кітап не автор іздеу') : tx('Фильм іздеу')} />
+        <Button onClick={() => setAdding(true)}><Icon n="plus" size={18} />{staff ? tx('Қосу') : tx('Ұсыну')}</Button>
+      </div>
+      <Chips label={tx('Жанр')} value={genre} onChange={setGenre} items={[['', tx('Барлығы')], ...GENRES[kind].filter(([g]) => shelf.some((m) => m.genre === g))]} />
+
+      {pending.length > 0 && (
+        <button type="button" onClick={() => setShowPending(!showPending)} className="flex items-center gap-2 rounded-lg bg-warning-soft text-warning px-4 min-h-12 text-sm font-semibold">
+          <Icon n="clock" size={18} /><span className="flex-1 text-left">{staff ? tx('{0} ұсыныс мақұлдауды күтуде', pending.length) : tx('Ұсынысыңыз мақұлдауды күтуде · {0}', pending.length)}</span><Icon n="chev" size={18} className={showPending ? 'rotate-90' : ''} />
+        </button>
+      )}
+      {showPending && <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">{pending.map((m) => (
+        <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="grid gap-1 text-left opacity-80"><Cover m={m} /><span className="text-xs font-semibold line-clamp-2">{m.title}</span></button>
+      ))}</div>}
+
+      {!q && !genre && forYou.length > 0 && shelf.length > 3 && <>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Саған ұсынамыз')}</h2>
+        <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none]">{forYou.map((m) => (
+          <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="w-24 shrink-0 grid gap-1 text-left"><Cover m={m} /><span className="text-xs font-semibold line-clamp-2">{m.title}</span>
+            {doneBy(m) > 0 && <span className="text-[11px] text-muted">{book ? tx('{0} оқыды', doneBy(m)) : tx('{0} көрді', doneBy(m))}</span>}</button>
+        ))}</div>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Барлығы · {0}', shelf.length)}</h2>
+      </>}
+
+      {!shown.length ? <Empty icon={book ? 'book' : 'heart'} title={shelf.length ? tx('Ештеңе табылмады') : book ? tx('Кітап әлі жоқ') : tx('Фильм әлі жоқ')} text={shelf.length ? undefined : tx('Бірінші болып ұсыныңыз!')} />
+        : <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">{shown.map((m) => {
+          const mine = m.progress.find((p) => p.user_id === me.id)?.state
+          return (
+            <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="relative grid gap-1 text-left">
+              <Cover m={m} />
+              {mine && <span className={`absolute top-1.5 right-1.5 size-6 rounded-full grid place-items-center text-white ${mine === 'done' ? 'bg-success' : 'bg-accent'}`}><Icon n={mine === 'done' ? 'check' : 'clock'} size={14} /></span>}
+              <span className="text-sm font-semibold leading-tight line-clamp-2">{m.title}</span>
+              <span className="text-xs text-muted truncate">{m.author ?? genreName(kind, m.genre)}</span>
+            </button>
+          )
+        })}</div>}
+
+      {cur && <Detail m={cur} students={students} staff={staff} name={name} onClose={() => setOpen(null)} reload={reload} />}
+      {adding && <AddMedia kind={kind} classId={classId} staff={staff} onClose={() => setAdding(false)} onDone={() => { setAdding(false); reload() }} />}
+    </div>
+  )
+}
+
+function AddMedia({ kind, classId, staff, onClose, onDone }: { kind: Media['kind']; classId: string; staff: boolean; onClose: () => void; onDone: () => void }) {
+  const { me } = useMe()
+  const book = kind === 'book'
+  const [f, setF] = useState({ title: '', author: '', note: '', genre: '' })
+  const [file, setFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    setBusy(true)
+    try {
+      const cover = file ? await uploadPhoto(me.id, file) : null
+      await addMedia({ class_id: classId, kind, title: f.title.trim(), author: f.author.trim() || null, note: f.note.trim() || null, genre: f.genre || null, cover, approved: staff, proposed_by: me.id })
+      toast(staff ? tx('Қосылды') : tx('Ұсыныс жіберілді')); onDone()
+    } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <Sheet title={staff ? (book ? tx('Кітап қосу') : tx('Фильм қосу')) : (book ? tx('Кітап ұсыну') : tx('Фильм ұсыну'))} onClose={onClose}>
+      <div className="grid gap-3">
+        <div className="grid grid-cols-[6rem_1fr] gap-3">
+          <label className="aspect-[2/3] rounded-md border-2 border-dashed border-line grid place-items-center text-center text-xs text-muted cursor-pointer overflow-hidden">
+            {file ? <img src={URL.createObjectURL(file)} alt="" className="size-full object-cover" /> : <span className="grid justify-items-center gap-1 p-1"><Icon n="plus" size={18} />{tx('Мұқаба')}</span>}
+            <input type="file" accept="image/*" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </label>
+          <div className="grid gap-2 content-start">
+            <input aria-label={tx('Атауы')} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} maxLength={200} className={inputCls} placeholder={tx('Атауы')} />
+            <input aria-label={book ? tx('Авторы') : tx('Режиссері')} value={f.author} onChange={(e) => setF({ ...f, author: e.target.value })} maxLength={200} className={inputCls} placeholder={book ? tx('Авторы') : tx('Режиссері')} />
+          </div>
+        </div>
+        <Chips label={tx('Жанр')} value={f.genre} onChange={(genre) => setF({ ...f, genre })} items={GENRES[kind]} />
+        <input aria-label={tx('Неге ұсынасыз?')} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={1000} className={inputCls} placeholder={tx('Неге ұсынасыз? (міндетті емес)')} />
+        {!staff && <p className="text-xs text-muted">{tx('Ұсынысыңызды тәрбиеші не сынып жетекшісі мақұлдаған соң, бүкіл сыныпқа көрінеді.')}</p>}
+        <Button onClick={save} loading={busy} disabled={f.title.trim().length < 2}>{staff ? tx('Қосу') : tx('Ұсыну')}</Button>
+      </div>
+    </Sheet>
+  )
+}
+
+/** One book or film: status, classmates, reviews; staff approve, screen or remove. */
+function Detail({ m, students, staff, name, onClose, reload }: { m: Media; students: Student[]; staff: boolean; name: (id: string | null) => string; onClose: () => void; reload: () => void }) {
+  const { me } = useMe()
+  const book = m.kind === 'book'
+  const [busy, setBusy] = useState(false)
+  const [screen, setScreen] = useState(false)
+  const run = async (fn: () => Promise<unknown>, done?: string) => { setBusy(true); try { await fn(); if (done) toast(done); reload() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
+  const mineP = m.progress.find((p) => p.user_id === me.id)
+  const done = m.progress.filter((p) => p.state === 'done' && students.some((s) => s.id === p.user_id))
+  const reading = m.progress.filter((p) => p.state === 'doing' && students.some((s) => s.id === p.user_id))
+  const reviews = m.progress.filter((p) => p.review)
+  const mark = (state: 'doing' | 'done' | null) => run(async () => {
     await setMediaProgress(m.id, state)
     // "reading" puts a daily reading habit into the student's own tracker
     if (book && state === 'doing') {
@@ -66,71 +178,54 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
     }
   })
   return (
-    <div className="grid gap-3">
-      <Card className="grid gap-2">
-        <p className="font-semibold">{staff ? (book ? tx('Кітап қосу') : tx('Фильм қосу')) : (book ? tx('Кітап ұсыну') : tx('Фильм ұсыну'))}</p>
-        <input aria-label={tx('Атауы')} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} maxLength={200} className={inputCls} placeholder={tx('Атауы')} />
-        <input aria-label={book ? tx('Авторы') : tx('Режиссері')} value={f.author} onChange={(e) => setF({ ...f, author: e.target.value })} maxLength={200} className={inputCls} placeholder={book ? tx('Авторы') : tx('Режиссері')} />
-        <input aria-label={tx('Неге ұсынасыз?')} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={1000} className={inputCls} placeholder={tx('Неге ұсынасыз? (міндетті емес)')} />
-        {!staff && <p className="text-xs text-muted">{tx('Ұсынысыңызды тәрбиеші не сынып жетекшісі мақұлдаған соң, бүкіл сыныпқа көрінеді.')}</p>}
-        <Button loading={busy} disabled={f.title.trim().length < 2} onClick={() => run(async () => {
-          await addMedia({ class_id: classId, kind, title: f.title.trim(), author: f.author.trim() || null, note: f.note.trim() || null, approved: staff, proposed_by: me.id })
-          setF({ title: '', author: '', note: '' })
-        }, staff ? tx('Қосылды') : tx('Ұсыныс жіберілді'))}>{staff ? tx('Қосу') : tx('Ұсыну')}</Button>
-      </Card>
-
-      {pending.length > 0 && <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Күтуде · {0}', pending.length)}</h2>}
-      {pending.map((m) => (
-        <Card key={m.id} className="grid gap-2">
-          <div className="flex items-start gap-2">
-            <span className="flex-1 min-w-0"><span className="block font-semibold">{m.title}</span><span className="block text-xs text-muted">{[m.author, tx('ұсынған: {0}', name(m.proposed_by))].filter(Boolean).join(' · ')}</span></span>
-            <Badge tone="warn">{tx('Күтуде')}</Badge>
+    <Sheet title={m.title} onClose={onClose}>
+      <div className="grid gap-4">
+        <div className="grid grid-cols-[6rem_1fr] gap-3">
+          <Cover m={m} />
+          <div className="grid gap-1 content-start text-sm">
+            {m.author && <p className="font-semibold">{m.author}</p>}
+            {m.genre && <p className="text-muted">{genreName(m.kind, m.genre)}</p>}
+            {m.note && <p>{m.note}</p>}
+            {!m.approved && <p className="text-warning font-semibold">{tx('Күтуде · ұсынған: {0}', name(m.proposed_by))}</p>}
           </div>
-          {m.note && <p className="text-sm">{m.note}</p>}
+        </div>
+        {!m.approved ? (
           <div className="flex gap-2">
             {staff && <Button onClick={() => run(() => approveMedia(m.id), tx('Мақұлданды'))}><Icon n="check" size={18} />{tx('Мақұлдау')}</Button>}
-            <Button kind="ghost" onClick={() => run(() => removeMedia(m.id))}>{staff ? tx('Қабылдамау') : tx('Қайтару')}</Button>
+            <Button kind="ghost" onClick={() => run(async () => { await removeMedia(m.id); onClose() })}>{staff ? tx('Қабылдамау') : tx('Қайтару')}</Button>
           </div>
-        </Card>
-      ))}
-
-      {!shelf.length ? <Empty icon={book ? 'book' : 'heart'} title={book ? tx('Кітап әлі жоқ') : tx('Фильм әлі жоқ')} text={tx('Бірінші болып ұсыныңыз!')} /> : shelf.map((m) => {
-        const mineP = m.progress.find((p) => p.user_id === me.id)
-        const done = m.progress.filter((p) => p.state === 'done' && students.some((s) => s.id === p.user_id))
-        const reviews = m.progress.filter((p) => p.review)
-        return (
-          <Card key={m.id} className="grid gap-3">
-            <div className="flex items-start gap-3">
-              <span className="size-11 shrink-0 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n={book ? 'book' : 'heart'} /></span>
-              <span className="flex-1 min-w-0"><span className="block font-semibold break-words">{m.title}</span>{m.author && <span className="block text-sm text-muted">{m.author}</span>}</span>
-              {staff && <button type="button" aria-label={tx('Өшіру')} onClick={() => run(() => removeMedia(m.id))} className="size-9 grid place-items-center rounded-md text-muted hover:bg-surface-2"><Icon n="x" size={16} /></button>}
-            </div>
-            {m.note && <p className="text-sm">{m.note}</p>}
-            {done.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="flex -space-x-2">{done.slice(0, 5).map((p) => { const s = students.find((x) => x.id === p.user_id)!; return <span key={p.user_id} className="rounded-full ring-2 ring-surface"><Avatar name={s.full_name} photo={s.photo} size={28} /></span> })}</span>
+        ) : <>
+          <div className="grid grid-cols-2 gap-2">
+            {(['doing', 'done'] as const).map((st) => {
+              const on = mineP?.state === st
+              return <button key={st} type="button" aria-pressed={on} disabled={busy} onClick={() => mark(on ? null : st)}
+                className={`h-11 rounded-md text-sm font-semibold ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{st === 'doing' ? (book ? tx('Оқып жатырмын') : tx('Көремін')) : (book ? tx('Оқыдым') : tx('Көрдім'))}</button>
+            })}
+          </div>
+          {mineP && <Review key={mineP.updated_at} m={m} state={mineP.state} review={mineP.review ?? ''} reload={reload} />}
+          {(done.length > 0 || reading.length > 0) && (
+            <div className="grid gap-2">
+              {done.length > 0 && <div className="flex items-center gap-2">
+                <span className="flex -space-x-2">{done.slice(0, 6).map((p) => { const s = students.find((x) => x.id === p.user_id)!; return <span key={p.user_id} className="rounded-full ring-2 ring-surface"><Avatar name={s.full_name} photo={s.photo} size={28} /></span> })}</span>
                 <span className="text-sm text-muted">{book ? tx('Сыныптастарыңның {0}-і оқыды', done.length) : tx('Сыныптастарыңның {0}-і көрді', done.length)}</span>
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {(['doing', 'done'] as const).map((s) => {
-                const on = mineP?.state === s
-                return <button key={s} type="button" aria-pressed={on} disabled={busy} onClick={() => mark(m, on ? null : s)}
-                  className={`h-9 px-4 rounded-full text-sm font-semibold ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{s === 'doing' ? (book ? tx('Оқып жатырмын') : tx('Көремін')) : (book ? tx('Оқыдым') : tx('Көрдім'))}</button>
-              })}
-              {staff && !book && <button type="button" onClick={() => setScreen(m)} className="h-9 px-4 rounded-full text-sm font-semibold bg-warning-soft text-warning">{tx('Көрсетілім')}</button>}
+              </div>}
+              {reading.length > 0 && <p className="text-sm text-muted">{book ? tx('Қазір оқып жатыр: {0}', reading.map((p) => name(p.user_id).split(' ').slice(0, 2).join(' ')).join(', ')) : tx('Көргісі келеді: {0}', reading.length)}</p>}
             </div>
-            {mineP && <Review key={mineP.updated_at} m={m} state={mineP.state} review={mineP.review ?? ''} reload={reload} />}
-            {reviews.length > 0 && (
-              <ul className="grid gap-2 border-t border-line pt-3">{reviews.map((p) => (
-                <li key={p.user_id} className="text-sm"><span className="font-semibold">{name(p.user_id)}</span>{' · '}<span className="whitespace-pre-line">{p.review}</span></li>
-              ))}</ul>
-            )}
-          </Card>
-        )
-      })}
-      {screen && <Screening m={screen} students={students} onClose={() => setScreen(null)} reload={reload} />}
-    </div>
+          )}
+          {reviews.length > 0 && (
+            <ul className="grid gap-2">{reviews.map((p) => (
+              <li key={p.user_id} className="rounded-md bg-surface-2 p-3 text-sm"><span className="block text-xs font-semibold">{name(p.user_id)}</span><span className="whitespace-pre-line">{p.review}</span></li>
+            ))}</ul>
+          )}
+          {staff && <div className="flex gap-2 border-t border-line pt-3">
+            {!book && <Button kind="secondary" onClick={() => setScreen(true)}><Icon n="users" size={18} />{tx('Көрсетілім')}</Button>}
+            <span className="flex-1" />
+            <Button kind="ghost" onClick={() => run(async () => { await removeMedia(m.id); onClose() })}>{tx('Өшіру')}</Button>
+          </div>}
+        </>}
+      </div>
+      {screen && <Screening m={m} students={students} onClose={() => setScreen(false)} reload={reload} />}
+    </Sheet>
   )
 }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.13.0 — 2026-10-31
+
+- «Сынып күнтізбесі» (was «Журнал және күнтізбе»): tabs Апта · Ай · Тәрбие сағаттары · Альбом; one «+» sheet adds an event, a class hour or photos. Week strip with the chosen day and the next two weeks; month cells show the day's photo. Class-hour plan per direction (target vs done) and each student's attendance share. Photo album by month with captions. An event can be shown to students: they get a notification now and a reminder the evening before, and see it under Профиль → Сынып күнтізбесі.
+- «Сынып ресурстары»: covers (photo or a coloured initial), genres with a filter, search, «Саған ұсынамыз» (not started yet, most finished by classmates first); a book opens in a sheet with status, classmates, reviews; suggestions waiting for approval collapse into one banner. Migration 0058.
+
 ## 1.12.1 — 2026-10-31
 
 - Менің сыныбым: one list instead of four tiles and loose rows — Жатақхана, Сынып ресурстары, Сынып күнтізбесі, Рұқсаттар (shows waiting requests), Жеке кездесулер (in place of «Тапсырма»), Сынып кеңесі. The class chat moved to a button next to the class name.

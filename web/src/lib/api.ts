@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Extra, TimeSlot } from './time'
+import { iso } from './time'
 import { tx, type Lang } from './i18n'
 
 export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY)
@@ -742,39 +743,44 @@ export const myMentorMeetings = () => rpc<{ id: string; starts_at: string; topic
 
 /* ---------- class journal and calendar ---------- */
 export type ClassHour = { id: string; on_date: string; direction: string; topic: string; led_by: string | null; absent: string[]; grp: string | null; note: string | null }
-export type ClassEvent = { id: string; on_date: string; at_time: string | null; kind: 'school' | 'fun' | 'parents'; title: string }
-export type ClassPhoto = { id: string; on_date: string; path: string }
+export type ClassEvent = { id: string; on_date: string; at_time: string | null; kind: 'school' | 'fun' | 'parents'; title: string; visible: boolean; note: string | null }
+export type ClassPhoto = { id: string; on_date: string; path: string; caption: string | null }
 export const listJournal = async (classId: string) => {
-  const [hours, events, photos, meetings, contacts] = await Promise.all([
+  const [hours, events, photos, meetings, contacts, plan] = await Promise.all([
     ok(supabase.from('class_hours').select('id, on_date, direction, topic, led_by, absent, grp, note').eq('class_id', classId).order('on_date', { ascending: false }).limit(500)),
-    ok(supabase.from('class_events').select('id, on_date, at_time, kind, title').eq('class_id', classId).order('on_date').limit(1000)),
-    ok(supabase.from('class_photos').select('id, on_date, path').eq('class_id', classId).order('created_at').limit(2000)),
+    ok(supabase.from('class_events').select('id, on_date, at_time, kind, title, visible, note').eq('class_id', classId).order('on_date').limit(1000)),
+    ok(supabase.from('class_photos').select('id, on_date, path, caption').eq('class_id', classId).order('created_at').limit(2000)),
     classMentorMeetings(classId),
     ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('class_id', classId).in('channel', ['meeting', 'visit']).limit(500)),
+    ok(supabase.from('class_hour_plan').select('direction, target').eq('class_id', classId)),
   ])
-  return { hours, events, photos, meetings, contacts } as { hours: ClassHour[]; events: ClassEvent[]; photos: ClassPhoto[]; meetings: MentorMeeting[]; contacts: ParentContact[] }
+  return { hours, events, photos, meetings, contacts, plan } as { hours: ClassHour[]; events: ClassEvent[]; photos: ClassPhoto[]; meetings: MentorMeeting[]; contacts: ParentContact[]; plan: { direction: string; target: number }[] }
 }
 export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok(supabase.from('class_hours').insert(row))
 export const removeClassHour = (id: string) => ok(supabase.from('class_hours').delete().eq('id', id))
 export const addClassEvent = (row: Omit<ClassEvent, 'id'> & { class_id: string }) => ok(supabase.from('class_events').insert(row))
 export const removeClassEvent = (id: string) => ok(supabase.from('class_events').delete().eq('id', id))
-export const addClassPhoto = async (class_id: string, on_date: string, me: string, file: File) =>
-  ok(supabase.from('class_photos').insert({ class_id, on_date, path: await uploadPhoto(me, file) }))
+export const addClassPhoto = async (class_id: string, on_date: string, me: string, file: File, caption: string | null = null) =>
+  ok(supabase.from('class_photos').insert({ class_id, on_date, caption, path: await uploadPhoto(me, file) }))
+export const setHourPlan = (class_id: string, direction: string, target: number) => ok(supabase.from('class_hour_plan').upsert({ class_id, direction, target }))
+/** Students: the class events shown to them. */
+export const classEventsForMe = (classId: string) =>
+  ok(supabase.from('class_events').select('id, on_date, at_time, kind, title, visible, note').eq('class_id', classId).gte('on_date', iso(new Date(Date.now() - 7 * 86400e3))).order('on_date').limit(200)) as Promise<ClassEvent[]>
 export const removeClassPhoto = (id: string) => ok(supabase.from('class_photos').delete().eq('id', id))
 
 /* ---------- class resources: library, film club, shopping lists, class fund ---------- */
-export type Media = { id: string; kind: 'book' | 'film'; title: string; author: string | null; note: string | null; approved: boolean; proposed_by: string | null; progress: { user_id: string; state: 'doing' | 'done'; review: string | null; updated_at: string }[] }
+export type Media = { id: string; kind: 'book' | 'film'; title: string; author: string | null; note: string | null; cover: string | null; genre: string | null; approved: boolean; proposed_by: string | null; progress: { user_id: string; state: 'doing' | 'done'; review: string | null; updated_at: string }[] }
 export type ClassList = { id: string; title: string; on_date: string | null; items: { id: string; name: string; price: number; qty: number; student_id: string | null; done: boolean }[] }
 export type FundRow = { id: string; on_date: string; amount: number; note: string; planned: boolean }
 export const listClassResources = async (classId: string) => {
   const [media, lists, fund] = await Promise.all([
-    ok(supabase.from('class_media').select('id, kind, title, author, note, approved, proposed_by, progress:media_progress(user_id, state, review, updated_at)').eq('class_id', classId).order('created_at', { ascending: false })),
+    ok(supabase.from('class_media').select('id, kind, title, author, note, cover, genre, approved, proposed_by, progress:media_progress(user_id, state, review, updated_at)').eq('class_id', classId).order('created_at', { ascending: false })),
     ok(supabase.from('class_lists').select('id, title, on_date, items:class_list_items(id, name, price, qty, student_id, done)').eq('class_id', classId).order('created_at', { ascending: false })),
     ok(supabase.from('class_fund').select('id, on_date, amount, note, planned').eq('class_id', classId).order('on_date', { ascending: false })),
   ])
   return { media, lists, fund } as { media: Media[]; lists: ClassList[]; fund: FundRow[] }
 }
-export const addMedia = (row: { class_id: string; kind: Media['kind']; title: string; author: string | null; note: string | null; approved: boolean; proposed_by: string }) => ok(supabase.from('class_media').insert(row))
+export const addMedia = (row: { class_id: string; kind: Media['kind']; title: string; author: string | null; note: string | null; cover: string | null; genre: string | null; approved: boolean; proposed_by: string }) => ok(supabase.from('class_media').insert(row))
 export const approveMedia = (id: string) => ok(supabase.from('class_media').update({ approved: true }).eq('id', id))
 export const removeMedia = (id: string) => ok(supabase.from('class_media').delete().eq('id', id))
 export const setMediaProgress = (media_id: string, state: 'doing' | 'done' | null, review?: string | null) => state
