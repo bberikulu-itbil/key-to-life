@@ -36,6 +36,7 @@ import Council from './screens/Council'
 import Mentor from './screens/Mentor'
 import Journal from './screens/Journal'
 import Resources from './screens/Resources'
+import ClassHub from './screens/ClassHub'
 import AddUser from './screens/AddUser'
 import Feedback from './screens/Feedback'
 import About from './screens/About'
@@ -131,6 +132,7 @@ function Shell({ me }: { me: Me }) {
   else if (seg === 'class') screen = <MyClass classId={id} />
   else if (seg === 'mentor') screen = <Mentor key={path} studentId={id} classId={new URLSearchParams(path.split('?')[1] ?? '').get('class') ?? undefined} />
   else if (seg === 'resources') screen = <Resources key={path} classId={id} />
+  else if (seg === 'hub') screen = <ClassHub classId={id || me.class?.id || undefined} />
   else if (seg === 'journal') screen = <Journal key={path} classId={id} />
   else if (seg === 'council') screen = <Council key={path} classId={id} />
   else if (seg === 'dorm') screen = <Dorm key={path} sub={id} arg={path.split('?')[0].split('/')[3]} />

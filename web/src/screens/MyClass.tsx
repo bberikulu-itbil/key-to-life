@@ -109,6 +109,7 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
         <ul className="divide-y divide-line">{([
           [`#/dorm?class=${cls.id}`, 'home', tx('Жатақхана'), tx('Бөлмелер, түнгі тексеру, тазалық'), true],
           [`#/resources/${cls.id}`, 'book', tx('Сынып ресурстары'), tx('Кітаптар, фильмдер, шаралар, сынып қоры'), mineOrDeputy],
+          [`#/hub/${cls.id}`, 'book', tx('Сынып жобалары'), tx('Кітап, фильм, рецепт және сынып жоспары'), mineOrDeputy],
           [`#/journal/${cls.id}`, 'file', tx('Сынып күнтізбесі'), tx('Тәрбие сағаттары, оқиғалар, фото'), mineOrDeputy],
           ['#/leaves', 'clock', tx('Рұқсаттар'), pending.length ? tx('{0} сұрау шешім күтуде', pending.length) : tx('Сұраулар, кім сыртта, қатысу'), true],
           [`#/mentor?class=${cls.id}`, 'user', tx('Жеке кездесулер'), tx('Оқушымен жеке сөйлесу, тест нәтижелері'), mineOrDeputy],
