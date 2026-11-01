@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import {
-  addClassEvent, addClassHour, addClassPhoto, classEventsForMe, classStudents, errText, listClasses, listJournal, listStaff, photoUrl, removeClassEvent, removeClassHour,
-  removeClassPhoto, setHourPlan, type ClassEvent, type ClassPhoto, type Student,
+  addClassEvent, addClassHour, addClassPhoto, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
+  removeClassPhoto, setHourPlan, type ClassEvent, type ClassEventStatus, type ClassPhoto, type ClassHour, type ClassWallet, type Media, type MentorMeeting, type Resource, type Staff, type Student,
 } from '../lib/api'
 import { MONTHS, WD_SHORT, addDays, fmtDate, iso, isoDow, today } from '../lib/time'
 import { useMe } from '../App'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import ClassEventForm from '../components/ClassEventForm'
 import { tx } from '../lib/i18n'
 
 /* «Сынып күнтізбесі» — the class calendar (week and month), class hours with their plan, and the photo album.
@@ -21,11 +22,11 @@ const KIND = {
   fun: ['#eab308', tx('Фильм, спорт')], parents: ['#9333ea', tx('Ата-ана, қонаққа бару')],
 } as const
 type Kind = keyof typeof KIND
-type Item = { key: string; date: string; kind: Kind; title: string; note?: string | null; shown?: boolean; remove?: () => Promise<unknown> }
+type Item = { key: string; date: string; kind: Kind; title: string; note?: string | null; shown?: boolean; personal?: boolean; color?: string; status?: ClassEventStatus; edit?: () => void; remove?: () => Promise<unknown> }
 type Tab = 'week' | 'month' | 'hours' | 'album'
 type Add = { what: 'event' | 'hour' | 'photo'; date: string }
 
-const Dot = ({ k, size = 8 }: { k: Kind; size?: number }) => <span className="block shrink-0 rounded-full" style={{ background: KIND[k][0], width: size, height: size }} />
+const Dot = ({ k, size = 8, color }: { k: Kind; size?: number; color?: string }) => <span className="block shrink-0 rounded-full" style={{ background: color ?? KIND[k][0], width: size, height: size }} />
 const dayLabel = (d: string) => `${WD_SHORT[isoDow(d) - 1]}, ${fmtDate(d)}`
 
 export default function Journal({ classId }: { classId?: string }) {
@@ -50,9 +51,24 @@ function StudentCalendar() {
   )
 }
 
-const eventItem = (e: ClassEvent, remove?: () => Promise<unknown>): Item =>
-  ({ key: 'e' + e.id, date: e.on_date, kind: e.kind as Kind, title: (e.at_time ? e.at_time.slice(0, 5) + ' · ' : '') + e.title, note: e.note, shown: e.visible, remove })
+const TYPE_COLORS: Record<string, string> = { sport: '#2563eb', food: '#f59e0b', game: '#8b5cf6', film: '#7c3aed', cleaning: '#0d9488', walk: '#16a34a', outing: '#16a34a', trip: '#0891b2', hour_lead: '#16a34a', hour_parent: '#9333ea', meeting: '#64748b', parent_activity: '#ec4899', visit: '#ec4899', mentor: '#2563eb', exam: '#dc2626', birthday: '#db2777', competition: '#dc2626', other: '#6b7280' }
+const eventKind = (e: ClassEvent): Kind => {
+  const codes = e.type_codes ?? []
+  if (codes.some((x) => ['mentor', 'meeting'].includes(x))) return 'mentor'
+  if (codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x))) return 'parents'
+  if (codes.some((x) => ['film', 'sport', 'food', 'game', 'cleaning', 'walk', 'outing', 'trip'].includes(x))) return 'fun'
+  if (codes.some((x) => ['hour_lead'].includes(x))) return 'hour'
+  return e.kind as Kind
+}
+const eventColor = (e: ClassEvent) => TYPE_COLORS[(e.type_codes ?? [])[0]] ?? KIND[eventKind(e)][0]
+const eventPersonal = (e: ClassEvent) => (e.type_codes ?? []).some((x) => ['mentor', 'visit'].includes(x))
+const eventStatus = (e: ClassEvent) => e.status === 'postponed' ? tx('Кейінге қалдырылды') : e.status === 'passed' ? tx('Өтті') : e.status === 'archived' ? tx('Мұрағатта') : ''
 
+const eventItem = (e: ClassEvent, remove?: () => Promise<unknown>, edit?: () => void): Item => {
+  const time = e.at_time ? e.at_time.slice(0, 5) + (e.end_time ? '–' + e.end_time.slice(0, 5) : '') + ' · ' : ''
+  const state = eventStatus(e)
+  return { key: 'e' + e.id, date: e.on_date, kind: eventKind(e), title: time + e.title + (state ? ' · ' + state : ''), note: [e.place, e.note].filter(Boolean).join(' · ') || null, shown: e.visible, personal: eventPersonal(e), color: eventColor(e), status: e.status, remove, edit }
+}
 /** Items grouped under their dates. */
 function ItemList({ items, onRemove, flat }: { items: Item[]; onRemove?: (i: Item) => void; flat?: boolean }) {
   const days = [...new Set(items.map((i) => i.date))].sort()
@@ -62,10 +78,11 @@ function ItemList({ items, onRemove, flat }: { items: Item[]; onRemove?: (i: Ite
         {!flat && <h3 className={`text-xs font-semibold uppercase tracking-wider ${d === today() ? 'text-accent' : 'text-muted'}`}>{d === today() ? tx('Бүгін') : d === addDays(today(), 1) ? tx('Ертең') : dayLabel(d)}</h3>}
         {items.filter((i) => i.date === d).map((i) => (
           <div key={i.key} className="flex items-start gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-3 py-2.5">
-            <span className="mt-1.5"><Dot k={i.kind} size={10} /></span>
+            <span className="mt-1.5"><Dot k={i.kind} color={i.color} size={10} /></span>
             <span className="flex-1 min-w-0 text-sm"><span className="block break-words font-medium">{i.title}</span>
               {i.note && <span className="block text-muted whitespace-pre-line">{i.note}</span>}
               {i.shown && onRemove && <span className="block text-xs text-accent">{tx('Оқушыларға көрінеді')}</span>}</span>
+            {i.edit && <button type="button" onClick={i.edit} className="h-8 px-2 rounded-md text-xs font-semibold text-accent hover:bg-surface-2">{tx('Өзгерту')}</button>}
             {onRemove && i.remove && <button type="button" aria-label={tx('Өшіру')} onClick={() => onRemove(i)} className="size-8 grid place-items-center rounded-md text-muted hover:bg-surface-2"><Icon n="x" size={14} /></button>}
           </div>
         ))}
@@ -73,7 +90,6 @@ function ItemList({ items, onRemove, flat }: { items: Item[]; onRemove?: (i: Ite
     ))}</div>
   )
 }
-
 function StaffCalendar({ classId }: { classId?: string }) {
   const { me } = useMe()
   const deputy = me.role === 'deputy' || me.role === 'admin'
@@ -83,53 +99,59 @@ function StaffCalendar({ classId }: { classId?: string }) {
   const cls = options.find((c) => c.id === classId) ?? mine[0] ?? options[0]
   const [tab, setTab] = useState<Tab>('week')
   const [day, setDay] = useState(today())
+  const [filter, setFilter] = useState<'all' | 'personal' | 'archive'>('all')
   const [add, setAdd] = useState<Add | null>(null)
+  const [editing, setEditing] = useState<ClassEvent | null>(null)
   const data = useLoad(async () => {
     if (!cls) return null
-    const [j, students, staff] = await Promise.all([listJournal(cls.id), classStudents(cls.id), listStaff()])
-    return { ...j, students, staff }
+    const [j, students, staff, places, resourceData, wallets] = await Promise.all([listJournal(cls.id), classStudents(cls.id), listStaff(), listResources(), listClassResources(cls.id), listClassWallets(cls.id)])
+    return { ...j, students, staff, places, media: resourceData.media, wallets }
   }, [cls?.id])
   const d = data.data
   const short = (id: string) => d?.students.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
-  const items = useMemo(() => (d ? journalItems(d, short) : []), [d]) // eslint-disable-line react-hooks/exhaustive-deps
+  const editEvent = (e: ClassEvent) => setEditing(e)
+  const items = useMemo(() => (d ? journalItems(d, short, editEvent) : []), [d]) // eslint-disable-line react-hooks/exhaustive-deps
+  const visibleItems = useMemo(() => filter === 'archive' ? items.filter((x) => x.status === 'archived') : filter === 'personal' ? items.filter((x) => x.personal && x.status !== 'archived') : items.filter((x) => x.status !== 'archived'), [items, filter])
   if (classes.loading && !classes.data) return <><PageHead title={tx('Сынып күнтізбесі')} back /><Skeleton /></>
   if (!cls) return <><PageHead title={tx('Сынып күнтізбесі')} back /><Empty icon="file" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></>
   const staffName = (id: string | null) => d?.staff.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
   const remove = (i: Item) => i.remove?.().then(data.reload, (e) => toast(errText(e)))
+  const closeForm = () => { setAdd(null); setEditing(null) }
   return (
     <div className="grid gap-3 pb-6">
       <PageHead title={tx('Сынып күнтізбесі')} back right={<div className="flex items-center gap-2">
         {options.length > 1 && <select aria-label={tx('Сынып')} value={cls.id} onChange={(e) => go(`/journal/${e.target.value}`)} className={`${inputCls} w-auto`}>
           {options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>}
-        <button type="button" onClick={() => setAdd({ what: tab === 'hours' ? 'hour' : tab === 'album' ? 'photo' : 'event', date: day })} aria-label={tx('Қосу')}
-          className="size-11 rounded-full bg-accent text-on-accent grid place-items-center shadow-card"><Icon n="plus" /></button>
+        <button type="button" onClick={() => { setEditing(null); setAdd({ what: tab === 'hours' ? 'hour' : tab === 'album' ? 'photo' : 'event', date: day }) }} aria-label={tx('Қосу')} className="size-11 rounded-full bg-accent text-on-accent grid place-items-center shadow-card"><Icon n="plus" /></button>
       </div>} />
       <Chips label={tx('Бөлім')} value={tab} onChange={setTab} items={[['week', tx('Апта')], ['month', tx('Ай')], ['hours', tx('Тәрбие сағаттары')], ['album', tx('Альбом')]]} />
+      {tab !== 'hours' && tab !== 'album' && <Chips label={tx('Сүзгі')} value={filter} onChange={setFilter} items={[['all', tx('Барлығы')], ['personal', tx('Жеке оқиғалар')], ['archive', tx('Мұрағат')]]} />}
       {data.loading && !d ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : d && (
-        tab === 'week' ? <Week items={items} photos={d.photos} day={day} setDay={setDay} onRemove={remove} />
-        : tab === 'month' ? <Month items={items} photos={d.photos} onPick={(x) => { setDay(x); setTab('week') }} />
+        tab === 'week' ? <Week items={visibleItems} photos={d.photos} day={day} setDay={setDay} onRemove={remove} />
+        : tab === 'month' ? <Month items={visibleItems} photos={d.photos} onPick={(x) => { setDay(x); setTab('week') }} />
         : tab === 'hours' ? <Hours classId={cls.id} d={d} staffName={staffName} reload={data.reload} />
         : <Album photos={d.photos} reload={data.reload} />
       )}
-      {add && d && <AddSheet classId={cls.id} init={add} students={d.students} people={[cls.teacher_id, cls.tutor_id].filter((x): x is string => !!x)} staffName={staffName}
+      {(add?.what === 'event' || editing) && d && <Sheet title={editing ? tx('Оқиғаны өзгерту') : tx('Оқиға қосу')} onClose={closeForm}>
+        <ClassEventForm classId={cls.id} date={add?.date ?? editing?.on_date ?? day} existing={editing ?? undefined} students={d.students} staff={d.staff} places={d.places} media={d.media} meetings={d.meetings} hours={d.hours} wallets={d.wallets} meId={me.id} onDone={() => { closeForm(); data.reload() }} />
+      </Sheet>}
+      {add && add.what !== 'event' && d && <AddSheet classId={cls.id} init={add} students={d.students} people={[cls.teacher_id, cls.tutor_id].filter((x): x is string => !!x)} staffName={staffName}
         onClose={() => setAdd(null)} onDone={() => { setAdd(null); data.reload() }} />}
     </div>
   )
 }
-
-type D = Awaited<ReturnType<typeof listJournal>> & { students: Student[] }
+type D = Awaited<ReturnType<typeof listJournal>> & { students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; wallets: ClassWallet[] }
 
 /** Everything on the calendar, by date. */
-function journalItems(d: Pick<D, 'hours' | 'events' | 'meetings' | 'contacts'>, studentName: (id: string) => string): Item[] {
+function journalItems(d: Pick<D, 'hours' | 'events' | 'meetings' | 'contacts'>, studentName: (id: string) => string, edit?: (e: ClassEvent) => void): Item[] {
   return [
-    ...d.hours.map((h) => ({ key: 'h' + h.id, date: h.on_date, kind: 'hour' as Kind, title: `${DIRECTION[h.direction] ?? h.direction}: ${h.topic}`, remove: () => removeClassHour(h.id) })),
-    ...d.events.map((e) => eventItem(e, () => removeClassEvent(e.id))),
-    ...d.meetings.map((m) => ({ key: 'm' + m.id, date: iso(new Date(m.starts_at)), kind: 'mentor' as Kind, title: `${new Date(m.starts_at).toTimeString().slice(0, 5)} · ${studentName(m.student_id)}: ${m.topic}` })),
-    ...d.contacts.map((c) => ({ key: 'c' + c.id, date: c.on_date, kind: 'parents' as Kind, title: `${studentName(c.student_id)}: ${c.summary}` })),
+    ...d.hours.map((h) => ({ key: 'h' + h.id, date: h.on_date, kind: 'hour' as Kind, title: (DIRECTION[h.direction] ?? h.direction) + ': ' + h.topic, remove: () => removeClassHour(h.id) })),
+    ...d.events.map((e) => eventItem(e, () => removeClassEvent(e.id), () => edit?.(e))),
+    ...d.meetings.map((m) => ({ key: 'm' + m.id, date: iso(new Date(m.starts_at)), kind: 'mentor' as Kind, title: new Date(m.starts_at).toTimeString().slice(0, 5) + ' · ' + studentName(m.student_id) + ': ' + m.topic, personal: true })),
+    ...d.contacts.map((c) => ({ key: 'c' + c.id, date: c.on_date, kind: 'parents' as Kind, title: studentName(c.student_id) + ': ' + c.summary, personal: true })),
   ]
 }
-
 /** A week strip with the chosen day below it, then the next two weeks. */
 function Week({ items, photos, day, setDay, onRemove }: { items: Item[]; photos: ClassPhoto[]; day: string; setDay: (d: string) => void; onRemove: (i: Item) => void }) {
   const mon = addDays(day, 1 - isoDow(day))
@@ -329,11 +351,12 @@ function Viewer({ p, onClose, onRemove }: { p: ClassPhoto; onClose: () => void; 
 /** One sheet for adding anything: an event, a class hour or photos. */
 function AddSheet({ classId, init, students, people, staffName, onClose, onDone }: {
   classId: string; init: Add; students: Student[]; people: string[]; staffName: (id: string | null) => string; onClose: () => void; onDone: () => void
+  existing?: ClassEvent; staff?: Staff[]; places?: Resource[]; media?: Media[]; meetings?: MentorMeeting[]; hours?: ClassHour[]; wallets?: ClassWallet[]
 }) {
   const { me } = useMe()
   const [what, setWhat] = useState(init.what)
   const [date, setDate] = useState(init.date)
-  const [ev, setEv] = useState({ title: '', kind: 'school' as ClassEvent['kind'], time: '', note: '', visible: false })
+  const [ev] = useState({ title: '', kind: 'school' as ClassEvent['kind'], time: '', note: '', visible: false })
   const [h, setH] = useState({ direction: 'moral', topic: '', led_by: people.includes(me.id) ? me.id : people[0] ?? '', grp: '', note: '', absent: [] as string[] })
   const [caption, setCaption] = useState('')
   const [files, setFiles] = useState<File[]>([])
@@ -356,16 +379,7 @@ function AddSheet({ classId, init, students, people, staffName, onClose, onDone 
       <div className="grid gap-3">
         <Chips label={tx('Не қосасыз')} value={what} onChange={setWhat} items={[['event', tx('Оқиға')], ['hour', tx('Тәрбие сағаты')], ['photo', tx('Фото')]]} />
         <input aria-label={tx('Күні')} type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${inputCls} min-w-0`} />
-        {what === 'event' && <>
-          <input aria-label={tx('Атауы')} value={ev.title} onChange={(e) => setEv({ ...ev, title: e.target.value })} maxLength={200} className={inputCls} placeholder={tx('Мысалы: БЖБ, киноклуб, ата-аналар жиналысы')} />
-          <Chips label={tx('Түрі')} value={ev.kind} onChange={(kind) => setEv({ ...ev, kind })} items={[['school', KIND.school[1]], ['fun', KIND.fun[1]], ['parents', KIND.parents[1]]]} />
-          <input aria-label={tx('Уақыты')} type="time" value={ev.time} onChange={(e) => setEv({ ...ev, time: e.target.value })} className={`${inputCls} min-w-0`} />
-          <input aria-label={tx('Ескертпе')} value={ev.note} onChange={(e) => setEv({ ...ev, note: e.target.value })} maxLength={1000} className={inputCls} placeholder={tx('Ескертпе (міндетті емес): не алып келу керек, қайда')} />
-          <label className="flex items-start gap-3 rounded-md bg-surface-2 p-3">
-            <input type="checkbox" checked={ev.visible} onChange={(e) => setEv({ ...ev, visible: e.target.checked })} className="mt-0.5 size-5 accent-[var(--accent)]" />
-            <span className="text-sm"><span className="block font-semibold">{tx('Оқушыларға көрсету')}</span><span className="block text-muted">{tx('Оқушыларға қазір хабарлама барады, алдыңғы күні кешке еске салынады.')}</span></span>
-          </label>
-        </>}
+        {what === 'event' && <p className="text-sm text-muted">{tx('Оқиға формасы бөлек ашылды.')}</p>}
         {what === 'hour' && <>
           <select aria-label={tx('Бағыты')} value={h.direction} onChange={(e) => setH({ ...h, direction: e.target.value })} className={inputCls}>
             {Object.entries(DIRECTION).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -387,11 +401,13 @@ function AddSheet({ classId, init, students, people, staffName, onClose, onDone 
           <textarea aria-label={tx('Ескертпе')} value={h.note} onChange={(e) => setH({ ...h, note: e.target.value })} maxLength={2000} className={`${inputCls} h-20 py-2`} placeholder={tx('Ескертпе')} />
         </>}
         {what === 'photo' && <input aria-label={tx('Сипаттама')} value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={300} className={inputCls} placeholder={tx('Сипаттама (міндетті емес): қай шара')} />}
+{what !== 'event' && (
         <label className={`${what === 'photo' ? 'h-24' : 'h-14'} rounded-md border-2 border-dashed border-line grid place-items-center text-sm text-muted cursor-pointer`}>
             <span className="flex items-center gap-2"><Icon n="plus" size={18} />{files.length ? tx('{0} сурет таңдалды', files.length) : what === 'photo' ? tx('Суреттерді таңдау') : tx('Фото қосу (міндетті емес)')}</span>
             <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => setFiles([...(e.target.files ?? [])])} />
           </label>
-        <Button onClick={save} loading={busy} disabled={!ready}>{tx('Сақтау')}</Button>
+        )}
+        {what !== 'event' && <Button onClick={save} loading={busy} disabled={!ready}>{tx('Сақтау')}</Button>}
       </div>
     </Sheet>
   )
