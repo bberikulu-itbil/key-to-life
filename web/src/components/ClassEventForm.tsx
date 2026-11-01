@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
-  addClassEvent, addClassPhoto, addClassWallet, errText, setClassEventExpense, setClassEventParticipants, updateClassEvent,
-  type ClassEvent, type ClassEventStatus, type ClassHour, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student, type ClassWallet,
+  addClassEvent, addClassPhoto, addClassWallet, errText, setClassEventExpenses, setClassEventParticipants, updateClassEvent,
+  type ClassEvent, type ClassEventExpense, type ClassEventStatus, type ClassHour, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student, type ClassWallet,
 } from '../lib/api'
 import { Button, Field, inputCls, toast } from './ui'
 import { tx } from '../lib/i18n'
@@ -14,6 +14,8 @@ const TYPES: TypeDef[] = [
 ]
 const legacy = (codes: EventTypeCode[]): ClassEvent['kind'] => codes.some((x) => ['mentor', 'meeting'].includes(x)) ? 'school' : codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x)) ? 'parents' : codes.some((x) => ['film', 'sport', 'food', 'game', 'cleaning', 'walk', 'outing', 'trip'].includes(x)) ? 'fun' : 'school'
 const listText = (v: string) => v.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean)
+type ExpenseRow = { key: string; wallet: string; walletName: string; amount: string; note: string }
+const newExpenseRow = (e?: ClassEventExpense): ExpenseRow => ({ key: e?.id ?? `new-${Math.random().toString(36).slice(2)}`, wallet: e?.wallet_id ?? '', walletName: '', amount: e ? String(e.amount) : '', note: e?.note ?? '' })
 
 export default function ClassEventForm({ classId, date, existing, students, staff, places, media, meetings, hours, wallets, meId, onDone }: {
   classId: string; date: string; existing?: ClassEvent; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; meId: string; onDone: () => void
@@ -34,19 +36,22 @@ export default function ClassEventForm({ classId, date, existing, students, staf
   const [groups, setGroups] = useState(existing?.participants?.filter((p) => p.kind === 'group').map((p) => p.label).join(', ') ?? '')
   const [rooms, setRooms] = useState(existing?.participants?.filter((p) => p.kind === 'room').map((p) => p.label).join(', ') ?? '')
   const [link, setLink] = useState(existing?.linked_kind && existing.linked_id ? `${existing.linked_kind}:${existing.linked_id}` : '')
-  const oldExpense = Array.isArray(existing?.expenses) ? existing.expenses[0] : existing?.expenses
-  const [expense, setExpense] = useState(!!oldExpense)
-  const [wallet, setWallet] = useState(oldExpense?.wallet_id ?? '')
-  const [walletName, setWalletName] = useState('')
-  const [amount, setAmount] = useState(oldExpense ? String(oldExpense.amount) : '')
-  const [expenseNote, setExpenseNote] = useState(oldExpense?.note ?? '')
+  const oldExpenses = Array.isArray(existing?.expenses) ? existing.expenses : existing?.expenses ? [existing.expenses] : []
+  const [expense, setExpense] = useState(oldExpenses.length > 0)
+  const [expenseRows, setExpenseRows] = useState<ExpenseRow[]>(oldExpenses.length ? oldExpenses.map(newExpenseRow) : [newExpenseRow()])
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const toggle = (code: EventTypeCode) => setTypes(types.includes(code) ? types.filter((x) => x !== code) : [...types, code])
+  const updateExpenseRow = (key: string, patch: Partial<ExpenseRow>) => setExpenseRows((rows) => rows.map((row) => row.key === key ? { ...row, ...patch } : row))
   const save = async () => {
     if (title.trim().length < 2 || !types.length) return toast(tx('Атауы мен кемінде бір типті таңдаңыз'))
-    const parsedAmount = Number(amount.trim().replace(',', '.'))
-    if (expense && ((!wallet && !walletName.trim()) || !Number.isFinite(parsedAmount) || parsedAmount <= 0)) return toast(tx('Қаржы үшін әмиянды және 0-ден үлкен соманы көрсетіңіз'))
+    const invalidExpense = expense && (!expenseRows.length || expenseRows.some((row) => {
+      const parsed = Number(row.amount.trim().replace(',', '.'))
+      return ((!row.wallet && !row.walletName.trim()) || !Number.isFinite(parsed) || parsed <= 0)
+    }))
+    const selectedWallets = expenseRows.filter((row) => row.wallet).map((row) => row.wallet)
+    if (invalidExpense) return toast(tx('Қаржы үшін әр шығынға әмиянды және 0-ден үлкен соманы көрсетіңіз'))
+    if (expense && new Set(selectedWallets).size !== selectedWallets.length) return toast(tx('Бір әмиянды екі рет таңдамаңыз'))
     setBusy(true)
     try {
       const row = { class_id: classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible, note: note.trim() || null, place: place.trim() || null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
@@ -61,9 +66,12 @@ export default function ClassEventForm({ classId, date, existing, students, staf
         ...listText(rooms).map((label) => ({ kind: 'room' as const, label })),
       ]
       await setClassEventParticipants(id, participants)
-      let walletId = wallet || null
-      if (expense && !walletId && walletName.trim()) walletId = (await addClassWallet(classId, walletName.trim())).id
-      await setClassEventExpense(id, expense ? walletId : null, expense ? parsedAmount : null, expenseNote)
+      const resolvedExpenses: { wallet_id: string; amount: number; note: string | null }[] = []
+      if (expense) for (const row of expenseRows) {
+        const walletId = row.wallet || (await addClassWallet(classId, row.walletName.trim())).id
+        resolvedExpenses.push({ wallet_id: walletId, amount: Number(row.amount.trim().replace(',', '.')), note: row.note.trim() || null })
+      }
+      await setClassEventExpenses(id, expense ? resolvedExpenses : [])
       for (const f of files) await addClassPhoto(classId, onDate, meId, f, title.trim(), id)
       toast(existing ? tx('Оқиға өзгертілді') : tx('Оқиға сақталды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
@@ -85,7 +93,32 @@ export default function ClassEventForm({ classId, date, existing, students, staf
     <Field label={tx('Ескертпе')} hint={tx('Міндетті емес')}>{(id) => <textarea id={id} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} className={`${inputCls} h-20 py-2`} />}</Field>
     <Field label={tx('Статус')}>{() => <select value={status} onChange={(e) => setStatus(e.target.value as ClassEventStatus)} className={inputCls}><option value="planned">{tx('Жоспарланған')}</option><option value="passed">{tx('Өтті')}</option><option value="postponed">{tx('Кейінге қалдырылды')}</option><option value="archived">{tx('Мұрағаттау')}</option></select>}</Field>
     <label className="flex items-start gap-3 rounded-md bg-surface-2 p-3"><input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} className="mt-0.5 size-5 accent-[var(--accent)]" /><span className="text-sm"><span className="block font-semibold">{tx('Оқушыларға көрсету')}</span><span className="block text-muted">{tx('Қаржы мәліметтері оқушыларға көрінбейді')}</span></span></label>
-    <div className="grid gap-2 rounded-md bg-surface-2 p-3"><label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={expense} onChange={(e) => setExpense(e.target.checked)} className="size-5 accent-[var(--accent)]" />{tx('Қаржы қосу')}</label>{expense && <><select value={wallet} onChange={(e) => setWallet(e.target.value)} className={inputCls}><option value="">{tx('Әмиянды таңдаңыз')}</option>{wallets.filter((w) => !w.archived).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select>{!wallet && <input value={walletName} onChange={(e) => setWalletName(e.target.value)} className={inputCls} placeholder={tx('Жаңа әмиян атауы')} />}<div className="grid grid-cols-2 gap-2"><input type="number" min={0.01} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} placeholder={tx('Сома')} /><input value={expenseNote} onChange={(e) => setExpenseNote(e.target.value)} className={inputCls} placeholder={tx('Қаржы түсініктемесі')} /></div></>}</div>
+    <div className="grid gap-2 rounded-md bg-surface-2 p-3">
+      <label className="flex items-center gap-2 text-sm font-semibold">
+        <input type="checkbox" checked={expense} onChange={(e) => setExpense(e.target.checked)} className="size-5 accent-[var(--accent)]" />{tx('Қаржы қосу')}
+      </label>
+      {expense && <>
+        <div className="grid gap-2">
+          {expenseRows.map((row, index) => <div key={row.key} className="grid gap-2 rounded-md border border-line p-2">
+            <div className="flex items-center gap-2">
+              <span className="flex-1 text-xs font-semibold text-muted">{tx('Шығын')} {index + 1}</span>
+              {expenseRows.length > 1 && <button type="button" onClick={() => setExpenseRows(expenseRows.filter((x) => x.key !== row.key))} className="size-8 rounded-md text-muted hover:bg-surface-2" aria-label={tx('Өшіру')}>×</button>}
+            </div>
+            <select value={row.wallet} onChange={(e) => updateExpenseRow(row.key, { wallet: e.target.value })} className={inputCls}>
+              <option value="">{tx('Әмиянды таңдаңыз')}</option>
+              {wallets.filter((w) => !w.archived).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+            {!row.wallet && <input value={row.walletName} onChange={(e) => updateExpenseRow(row.key, { walletName: e.target.value })} className={inputCls} placeholder={tx('Жаңа әмиян атауы')} />}
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" min={0.01} step="0.01" value={row.amount} onChange={(e) => updateExpenseRow(row.key, { amount: e.target.value })} className={inputCls} placeholder={tx('Сома')} />
+              <input value={row.note} onChange={(e) => updateExpenseRow(row.key, { note: e.target.value })} className={inputCls} placeholder={tx('Қаржы түсініктемесі')} />
+            </div>
+          </div>)}
+        </div>
+        <button type="button" onClick={() => setExpenseRows([...expenseRows, newExpenseRow()])} className="h-10 rounded-md bg-surface text-accent text-sm font-semibold">{tx('+ Тағы шығын қосу')}</button>
+        <p className="text-xs text-muted text-right">{tx('Жалпы')}: {expenseRows.reduce((sum, row) => sum + (Number(row.amount.replace(',', '.')) || 0), 0).toLocaleString()} ₸</p>
+      </>}
+    </div>
     <label className="h-14 rounded-md border-2 border-dashed border-line grid place-items-center text-sm text-muted cursor-pointer"><span>{files.length ? tx('{0} сурет таңдалды', files.length) : tx('Фото қосу (міндетті емес)')}</span><input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => setFiles([...(e.target.files ?? [])])} /></label>
     <Button block loading={busy} onClick={save}>{existing ? tx('Өзгерту') : tx('Сақтау')}</Button>
   </div>
