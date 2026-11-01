@@ -782,7 +782,8 @@ export type EventTypeCode = 'sport' | 'food' | 'game' | 'film' | 'cleaning' | 'w
 export type ClassEventStatus = 'planned' | 'passed' | 'postponed' | 'archived'
 export type ClassEventParticipant = { id: string; kind: 'student' | 'group' | 'room'; student_id: string | null; label: string; student: { full_name: string } | null }
 export type ClassWallet = { id: string; class_id: string; name: string; archived: boolean }
-export type ClassEventExpense = { event_id: string; wallet_id: string; amount: number; note: string | null; wallet: { name: string } }
+export type ClassEventExpense = { id?: string; event_id: string; wallet_id: string; amount: number; note: string | null; wallet: { name: string } }
+export type ClassEventExpenseDraft = { wallet_id: string; amount: number; note: string | null }
 export type ClassEvent = { id: string; on_date: string; at_time: string | null; end_time: string | null; kind: 'school' | 'fun' | 'parents'; type_codes: EventTypeCode[]; title: string; visible: boolean; note: string | null; place: string | null; responsible_id: string | null; linked_kind: string | null; linked_id: string | null; status: ClassEventStatus; archived_at?: string | null; participants?: ClassEventParticipant[]; expenses?: ClassEventExpense | ClassEventExpense[] | null }
 export type ClassEventDraft = { class_id: string; on_date: string; at_time: string | null; end_time?: string | null; kind: ClassEvent['kind']; type_codes?: EventTypeCode[]; title: string; visible: boolean; note: string | null; place?: string | null; responsible_id?: string | null; linked_kind?: string | null; linked_id?: string | null; status?: ClassEventStatus; archived_at?: string | null }
 export type ClassPhoto = { id: string; on_date: string; path: string; caption: string | null; event_id?: string | null }
@@ -806,8 +807,14 @@ export const setClassEventParticipants = async (eventId: string, rows: { kind: '
   await ok(supabase.from('class_event_participants').delete().eq('event_id', eventId))
   if (rows.length) await ok(supabase.from('class_event_participants').insert(rows.map((r) => ({ ...r, event_id: eventId }))) )
 }
+export const setClassEventExpenses = async (eventId: string, rows: ClassEventExpenseDraft[]) => {
+  await ok(supabase.from('class_event_expenses').delete().eq('event_id', eventId))
+  if (rows.length) await ok(supabase.from('class_event_expenses').insert(rows.map((row) => ({ ...row, event_id: eventId, updated_at: new Date().toISOString() }))))
+}
 export const setClassEventExpense = (eventId: string, walletId: string | null, amount: number | null, note: string | null) =>
-  walletId && amount && amount > 0 ? ok(supabase.from('class_event_expenses').upsert({ event_id: eventId, wallet_id: walletId, amount, note: note || null, updated_at: new Date().toISOString() })) : ok(supabase.from('class_event_expenses').delete().eq('event_id', eventId))
+  walletId && amount && Number.isFinite(amount) && amount > 0
+    ? setClassEventExpenses(eventId, [{ wallet_id: walletId, amount, note: note || null }])
+    : setClassEventExpenses(eventId, [])
 export const listClassWallets = (classId: string) => ok(supabase.from('class_wallets').select('id, class_id, name, archived').eq('class_id', classId).order('name')) as Promise<ClassWallet[]>
 export const addClassWallet = (class_id: string, name: string) => ok(supabase.from('class_wallets').insert({ class_id, name }).select('id').single()) as unknown as Promise<{ id: string }>
 export const addClassPhoto = async (class_id: string, on_date: string, me: string, file: File, caption: string | null = null, event_id: string | null = null) => ok(supabase.from('class_photos').insert({ class_id, on_date, caption, event_id, path: await uploadPhoto(me, file) }))
