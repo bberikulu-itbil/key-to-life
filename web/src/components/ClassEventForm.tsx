@@ -34,7 +34,7 @@ export default function ClassEventForm({ classId, date, existing, students, staf
   const [groups, setGroups] = useState(existing?.participants?.filter((p) => p.kind === 'group').map((p) => p.label).join(', ') ?? '')
   const [rooms, setRooms] = useState(existing?.participants?.filter((p) => p.kind === 'room').map((p) => p.label).join(', ') ?? '')
   const [link, setLink] = useState(existing?.linked_kind && existing.linked_id ? `${existing.linked_kind}:${existing.linked_id}` : '')
-  const oldExpense = existing?.expenses?.[0]
+  const oldExpense = Array.isArray(existing?.expenses) ? existing.expenses[0] : existing?.expenses
   const [expense, setExpense] = useState(!!oldExpense)
   const [wallet, setWallet] = useState(oldExpense?.wallet_id ?? '')
   const [walletName, setWalletName] = useState('')
@@ -45,6 +45,8 @@ export default function ClassEventForm({ classId, date, existing, students, staf
   const toggle = (code: EventTypeCode) => setTypes(types.includes(code) ? types.filter((x) => x !== code) : [...types, code])
   const save = async () => {
     if (title.trim().length < 2 || !types.length) return toast(tx('Атауы мен кемінде бір типті таңдаңыз'))
+    const parsedAmount = Number(amount.trim().replace(',', '.'))
+    if (expense && ((!wallet && !walletName.trim()) || !Number.isFinite(parsedAmount) || parsedAmount <= 0)) return toast(tx('Қаржы үшін әмиянды және 0-ден үлкен соманы көрсетіңіз'))
     setBusy(true)
     try {
       const row = { class_id: classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible, note: note.trim() || null, place: place.trim() || null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
@@ -61,7 +63,7 @@ export default function ClassEventForm({ classId, date, existing, students, staf
       await setClassEventParticipants(id, participants)
       let walletId = wallet || null
       if (expense && !walletId && walletName.trim()) walletId = (await addClassWallet(classId, walletName.trim())).id
-      await setClassEventExpense(id, expense ? walletId : null, expense ? Number(amount) : null, expenseNote)
+      await setClassEventExpense(id, expense ? walletId : null, expense ? parsedAmount : null, expenseNote)
       for (const f of files) await addClassPhoto(classId, onDate, meId, f, title.trim(), id)
       toast(existing ? tx('Оқиға өзгертілді') : tx('Оқиға сақталды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
