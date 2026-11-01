@@ -4,8 +4,8 @@ import {
   addDormItem, addDormRoom, answerBedSwap, answerLinen, approveBedSwap, claimDormItem, dormChecks, dormClean, dormResidents, errText, getDormSettings,
   lastLinenRound, linenAnswers, listClasses, listDormAssignments, listDormHolders, listDormItems, listDormReports, listDormRooms, listDormSwaps,
   markDormCheck, publishDorm, listDormDuty, setDormDuty, listDormWeekend, setWeekendRoom, removeDormItem, reportDormItem, requestBedSwap, resolveDormReport, saveDormSettings, sendLinen, setDormClean,
-  setDormResident, setItemState, setRoomHead, updateDormRoom,
-  type DormAssign, type DormItem, type DormKind, type DormResident, type DormRoom, type DormSettings, type LinenAnswer, type CleanCriterion,
+  setDormResident, setItemState, setRoomHead, updateDormRoom, listDormPeriods, saveDormPeriod,
+  type DormAssign, type DormItem, type DormKind, type DormResident, type DormRoom, type DormSettings, type DormPeriod, type LinenAnswer, type CleanCriterion,
 } from '../lib/api'
 import { allocate, weekendOf, dormCodeFrom, flagsFor, historyFrom, itemUrl, nextTerm, prevTerm, termLabel, termOf, type Place } from '../lib/dorm'
 import { addDays, fmtDate, isoDow, today } from '../lib/time'
@@ -49,9 +49,9 @@ export default function Dorm({ sub, arg }: { sub?: string; arg?: string }) {
 function useDormData(classId: string | undefined) {
   return useLoad(async () => {
     if (!classId) return null
-    const [rooms, items, assigns, holders, residents, settings] = await Promise.all([
-      listDormRooms(), listDormItems(), listDormAssignments(), listDormHolders(), dormResidents(classId), getDormSettings(classId)])
-    return { rooms, items, assigns, holders, residents, settings }
+    const [rooms, items, assigns, holders, residents, settings, periods] = await Promise.all([
+      listDormRooms(), listDormItems(), listDormAssignments(), listDormHolders(), dormResidents(classId), getDormSettings(classId), listDormPeriods(classId)])
+    return { rooms, items, assigns, holders, residents, settings, periods }
   }, [classId])
 }
 type Data = NonNullable<ReturnType<typeof useDormData>['data']>
@@ -371,6 +371,7 @@ function Settings({ d, reload }: { d: Data; reload: () => void }) {
         <Button loading={busy} onClick={save}>{tx('Сақтау')}</Button>
       </Card>
 
+      <DormPeriodsEditor d={d} reload={reload} />
       <H2>{tx('Тазалық')}</H2>
       <Card className="grid grid-cols-1 gap-3">
         <p className="font-semibold">{tx('Тазалық критерийлері')}</p>
@@ -874,16 +875,58 @@ function WeekendMove({ term, own, rooms, current, onDone }: { term: string; own:
   )
 }
 
+function DormHistory({ assigns, periods, rooms, studentId }: { assigns: DormAssign[]; periods: DormPeriod[]; rooms: DormRoom[]; studentId: string }) {
+  const rows = assigns.filter((a) => a.student_id === studentId).sort((a, b) => b.term.localeCompare(a.term))
+  return (
+    <Card className="grid gap-2">
+      <p className="font-semibold">{tx('Жатақхана архиві')}</p>
+      {!rows.length ? <p className="text-sm text-muted">{tx('Архив әзірге бос')}</p> : rows.map((a) => {
+        const p = periods.find((x) => x.term === a.term)
+        const room = rooms.find((r) => r.id === a.room_id)
+        return <div key={a.term + ':' + a.room_id} className="flex items-center gap-2 text-sm"><span className="flex-1 min-w-0"><span className="block font-medium">{p?.label || termLabel(a.term)}</span><span className="block text-xs text-muted">{[p?.period_from && p?.period_to ? fmtDate(p.period_from) + ' – ' + fmtDate(p.period_to) : null, room ? tx('Бөлме {0}', room.name) : tx('Бөлме бекітілмеген')].filter(Boolean).join(' · ')}</span></span><span className="text-xs text-muted">{termLabel(a.term)}</span></div>
+      })}
+    </Card>
+  )
+}
+
+function DormPeriodsEditor({ d, reload }: { d: Data; reload: () => void }) {
+  const known = [...new Set([termOf(today()), ...d.assigns.map((a) => a.term), ...d.periods.map((p) => p.term)])].sort().reverse()
+  const [term, setTerm] = useState(known[0] ?? termOf(today()))
+  const period = d.periods.find((p) => p.term === term)
+  const [label, setLabel] = useState(period?.label ?? '')
+  const [from, setFrom] = useState(period?.period_from ?? '')
+  const [to, setTo] = useState(period?.period_to ?? '')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { const p = d.periods.find((x) => x.term === term); setLabel(p?.label ?? ''); setFrom(p?.period_from ?? ''); setTo(p?.period_to ?? '') }, [d.periods, term])
+  const save = async () => {
+    setBusy(true)
+    try { await saveDormPeriod(d.settings.class_id, term, from || null, to || null, label.trim() || null); toast(tx('Кезең сақталды')); reload() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <>
+      <H2>{tx('Кезеңдер архиві')}</H2>
+      <Card className="grid gap-3">
+        <Chips label={tx('Кезең')} value={term} onChange={setTerm} items={known.map((x) => [x, termLabel(x)] as [string, string])} />
+        <input aria-label={tx('Кезең атауы')} value={label} onChange={(e) => setLabel(e.target.value)} className={inputCls} placeholder={tx('Кезең атауы, мысалы: 1-тоқсан')} />
+        <div className="grid grid-cols-2 gap-2">
+          <Field label={tx('Басы')}>{(id) => <input id={id} type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />}</Field>
+          <Field label={tx('Соңы')}>{(id) => <input id={id} type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className={inputCls} />}</Field>
+        </div>
+        <Button loading={busy} onClick={save}>{tx('Уақытын сақтау')}</Button>
+      </Card>
+    </>
+  )
+}
 /* ---------- student ---------- */
 function StudentDorm() {
   const { me } = useMe()
   const term = termOf(today())
   const classId = me.class?.id
   const d = useLoad(async () => {
-    const [rooms, items, assigns, holders, swaps, settings, round] = await Promise.all([listDormRooms(), listDormItems(), listDormAssignments(), listDormHolders(),
-      listDormSwaps(), classId ? getDormSettings(classId) : null, classId ? lastLinenRound(classId) : null])
+    const [rooms, items, assigns, holders, swaps, settings, round, periods] = await Promise.all([listDormRooms(), listDormItems(), listDormAssignments(), listDormHolders(),
+      listDormSwaps(), classId ? getDormSettings(classId) : null, classId ? lastLinenRound(classId) : null, classId ? listDormPeriods(classId) : Promise.resolve([] as DormPeriod[])])
     const [answers, duty, weekend] = await Promise.all([round ? linenAnswers(round.id) : [], listDormDuty(term), listDormWeekend(weekendOf(today()))])
-    return { rooms, items, assigns, holders, swaps, settings, round, answers, duty, weekend }
+    return { rooms, items, assigns, holders, swaps, settings, round, periods, answers, duty, weekend }
   }, [me.id])
   const [scan, setScan] = useState(false)
   const [busy, setBusy] = useState('')
@@ -894,7 +937,7 @@ function StudentDorm() {
   const v = d.data!
   const my = v.assigns.find((a) => a.term === term && a.student_id === me.id)
   const room = v.rooms.find((r) => r.id === my?.room_id)
-  if (!room) return <><PageHead title={tx('Жатақхана')} back /><Card><Empty icon="home" title={tx('Бөлмеге әлі орналастырылмағансыз')} text={tx('Тәрбиеші орналастырғанда хабарлама келеді.')} /></Card></>
+  if (!room) return <><PageHead title={tx('Жатақхана')} back /><Card><Empty icon="home" title={tx('Бөлмеге әлі орналастырылмағансыз')} text={tx('Тәрбиеші орналастырғанда хабарлама келеді.')} /></Card><DormHistory assigns={v.assigns} periods={v.periods} rooms={v.rooms} studentId={me.id} /></>
   const rv = roomView(v, term, room.id)
   const mine = rv.holding(me.id)
   const missing = KINDS.filter((k) => rv.items.some((i) => i.kind === k) && !mine.some((i) => i.kind === k))
@@ -916,6 +959,7 @@ function StudentDorm() {
           <div className="min-w-0"><p className="text-lg font-bold">{tx('Бөлме {0}', room.name)}</p><p className="text-sm opacity-80">{termLabel(term)}{room.floor != null ? tx(' · {0}-қабат', room.floor) : ''}</p></div>
         </div>
       </div>
+      <DormHistory assigns={v.assigns} periods={v.periods} rooms={v.rooms} studentId={me.id} />
       <H2>{tx('Бөлмелестер')}</H2>
       <Card className="p-0 divide-y divide-line">
         {rv.people.map((p: DormAssign) => (
