@@ -125,8 +125,8 @@ function StaffCalendar({ classId }: { classId?: string }) {
         </select>}
         <button type="button" onClick={() => { setEditing(null); setAdd({ what: tab === 'hours' ? 'hour' : tab === 'album' ? 'photo' : 'event', date: day }) }} aria-label={tx('Қосу')} className="size-11 rounded-full bg-accent text-on-accent grid place-items-center shadow-card"><Icon n="plus" /></button>
       </div>} />
-      <Chips label={tx('Бөлім')} value={tab} onChange={setTab} items={[['week', tx('Апта')], ['month', tx('Ай')], ['hours', tx('Тәрбие сағаттары')], ['album', tx('Альбом')]} />
-      {tab !== 'hours' && tab !== 'album' && <Chips label={tx('Сүзгі')} value={filter} onChange={setFilter} items={[['all', tx('Барлығы')], ['personal', tx('Жеке оқиғалар')], ['archive', tx('Мұрағат')]} />}
+      <Chips label={tx('Бөлім')} value={tab} onChange={setTab} items={[['week', tx('Апта')], ['month', tx('Ай')], ['hours', tx('Тәрбие сағаттары')], ['album', tx('Альбом')]]} />
+      {tab !== 'hours' && tab !== 'album' && <Chips label={tx('Сүзгі')} value={filter} onChange={setFilter} items={[['all', tx('Барлығы')], ['personal', tx('Жеке оқиғалар')], ['archive', tx('Мұрағат')]]} />}
       {data.loading && !d ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : d && (
         tab === 'week' ? <Week items={visibleItems} photos={d.photos} day={day} setDay={setDay} onRemove={remove} />
         : tab === 'month' ? <Month items={visibleItems} photos={d.photos} onPick={(x) => { setDay(x); setTab('week') }} />
