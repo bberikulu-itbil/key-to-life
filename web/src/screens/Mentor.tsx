@@ -10,7 +10,8 @@ import { FORM, TEMPLATES, mentorStatus } from '../lib/mentor'
 import { chatTime, fmtDate, today } from '../lib/time'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
-import { Badge, Button, Card, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import LocationPicker from '../components/LocationPicker'
+import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { lang, tx } from '../lib/i18n'
 
 /* «Жеке кездесулер» — one-on-ones of the class teacher or tutor with a student: plan, outcome as tasks and habits in the
@@ -55,7 +56,7 @@ function MyMeetings() {
             <span className="flex-1 font-semibold">{m.topic}</span>
             {m.done_at ? <Badge tone="ok">{tx('Өтті')}</Badge> : <Badge tone="accent">{tx('Алда')}</Badge>}
           </div>
-          <p className="text-sm text-muted">{at(m.starts_at)}{m.staff_name ? ` · ${m.staff_name}` : ''}</p>
+          <p className="text-sm text-muted">{at(m.starts_at)}{m.staff_name ? ` · ${m.staff_name}` : ''}{m.place ? ` · ${m.place}` : ''}</p>
           {m.actions && <p className="text-sm whitespace-pre-line rounded-md bg-accent-soft p-3">{m.actions}</p>}
         </Card>
       ))}
@@ -184,7 +185,7 @@ function StudentPage({ id }: { id: string }) {
             <Card key={m.id} className="grid gap-2 border-accent/40">
               <div className="flex items-start gap-2">
                 <span className="size-10 shrink-0 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n="clock" /></span>
-                <span className="flex-1 min-w-0"><span className="block font-semibold break-words">{m.topic}</span><span className="block text-xs text-muted">{at(m.starts_at)} · {m.visible ? tx('Оқушыға көрінеді') : tx('Тек ұстаздарға')}</span></span>
+                <span className="flex-1 min-w-0"><span className="block font-semibold break-words">{m.topic}</span><span className="block text-xs text-muted">{at(m.starts_at)} · {m.visible ? tx('Оқушыға көрінеді') : tx('Тек ұстаздарға')}{m.place ? ` · ${m.place}` : ''}</span></span>
                 <button type="button" aria-label={tx('Өшіру')} onClick={() => removeMentorMeeting(m.id).then(data.reload, (e) => toast(errText(e)))} className="size-9 grid place-items-center rounded-md text-muted hover:bg-surface-2"><Icon n="x" size={16} /></button>
               </div>
               <Button onClick={() => setFinish(m)}><Icon n="check" size={18} />{tx('Қорытынды жазу')}</Button>
@@ -200,7 +201,7 @@ function StudentPage({ id }: { id: string }) {
             <p className="font-semibold">{tx('Өткен кездесулер · {0}', past.length)}</p>
             {past.map((m) => (
               <details key={m.id} className="rounded-md bg-surface-2 px-3 py-2">
-                <summary className="cursor-pointer text-sm"><b>{m.topic}</b> · <span className="text-muted">{fmtDate(m.starts_at.slice(0, 10))} · {staffName(m.staff_id)}</span></summary>
+                <summary className="cursor-pointer text-sm"><b>{m.topic}</b> · <span className="text-muted">{fmtDate(m.starts_at.slice(0, 10))} · {staffName(m.staff_id)}{m.place ? ` · ${m.place}` : ''}</span></summary>
                 {m.actions && <p className="mt-2 text-sm whitespace-pre-line">{m.actions}</p>}
                 {m.notes && <p className="mt-2 text-sm whitespace-pre-line text-muted"><Icon n="lock" size={12} className="inline mr-1" />{m.notes}</p>}
               </details>
@@ -241,7 +242,7 @@ function StudentPage({ id }: { id: string }) {
 }
 
 function PlanSheet({ student, onClose, onDone }: { student: { id: string; class_id: string }; onClose: () => void; onDone: () => void }) {
-  const [f, setF] = useState({ when: '', topic: '', show: 'show' as 'show' | 'staff' })
+  const [f, setF] = useState({ when: '', topic: '', place: '', show: 'show' as 'show' | 'staff' })
   const [busy, setBusy] = useState(false)
   return (
     <Sheet title={tx('Кездесу жоспарлау')} onClose={onClose}>
@@ -252,11 +253,14 @@ function PlanSheet({ student, onClose, onDone }: { student: { id: string; class_
         ))}</div>
         <input aria-label={tx('Тақырыбы')} value={f.topic} onChange={(e) => setF({ ...f, topic: e.target.value })} maxLength={300} className={inputCls} placeholder={tx('Тақырыбы — не үлгіні таңдаңыз')} />
         <input aria-label={tx('Күні мен уақыты')} type="datetime-local" value={f.when} onChange={(e) => setF({ ...f, when: e.target.value })} className={`${inputCls} min-w-0`} />
+        <Field label={tx('Өтетін орны')} hint={tx('Жатақхана орындары немесе мектеп кабинеттері')}>
+          {(id) => <LocationPicker id={id} value={f.place} onChange={(place) => setF({ ...f, place })} />}
+        </Field>
         <Chips label={tx('Кім көреді')} value={f.show} onChange={(show) => setF({ ...f, show })} items={[['show', tx('Оқушыға көрсету')], ['staff', tx('Тек ұстаздарға')]]} />
         <p className="text-xs text-muted">{f.show === 'show' ? tx('Оқушыға хабарлама барады, кездесуден 1 сағат бұрын еске салынады.') : tx('Оқушы бұл жазбаны көрмейді.')}</p>
         <Button loading={busy} disabled={!f.when || f.topic.trim().length < 2} onClick={async () => {
           setBusy(true)
-          try { await addMentorMeeting({ class_id: student.class_id, student_id: student.id, starts_at: new Date(f.when).toISOString(), topic: f.topic.trim(), visible: f.show === 'show' }); onDone() }
+          try { await addMentorMeeting({ class_id: student.class_id, student_id: student.id, starts_at: new Date(f.when).toISOString(), topic: f.topic.trim(), visible: f.show === 'show', place: f.place.trim() || null }); onDone() }
           catch (e) { toast(errText(e)) } finally { setBusy(false) }
         }}>{tx('Белгілеу')}</Button>
       </div>
