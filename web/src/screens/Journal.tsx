@@ -356,7 +356,7 @@ function AddSheet({ classId, init, students, people, staffName, onClose, onDone 
   const { me } = useMe()
   const [what, setWhat] = useState(init.what)
   const [date, setDate] = useState(init.date)
-  const [ev, setEv] = useState({ title: '', kind: 'school' as ClassEvent['kind'], time: '', note: '', visible: false })
+  const [ev] = useState({ title: '', kind: 'school' as ClassEvent['kind'], time: '', note: '', visible: false })
   const [h, setH] = useState({ direction: 'moral', topic: '', led_by: people.includes(me.id) ? me.id : people[0] ?? '', grp: '', note: '', absent: [] as string[] })
   const [caption, setCaption] = useState('')
   const [files, setFiles] = useState<File[]>([])

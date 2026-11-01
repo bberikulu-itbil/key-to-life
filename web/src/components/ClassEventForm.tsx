@@ -50,7 +50,7 @@ export default function ClassEventForm({ classId, date, existing, students, staf
       const row = { class_id: classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible, note: note.trim() || null, place: place.trim() || null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
       const id = existing ? existing.id : (await addClassEvent(row)).id
       if (existing) {
-        const { class_id: _classId, ...changes } = row
+        const changes = Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'class_id')) as Partial<Parameters<typeof updateClassEvent>[1]>
         await updateClassEvent(id, changes)
       }
       const participants = [
