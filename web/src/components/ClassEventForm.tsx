@@ -18,10 +18,10 @@ const listText = (v: string) => v.split(/[\n,;]+/).map((x) => x.trim()).filter(B
 type ExpenseRow = { key: string; wallet: string; walletName: string; amount: string; note: string }
 const newExpenseRow = (e?: ClassEventExpense): ExpenseRow => ({ key: e?.id ?? `new-${Math.random().toString(36).slice(2)}`, wallet: e?.wallet_id ?? '', walletName: '', amount: e ? String(e.amount) : '', note: e?.note ?? '' })
 
-export default function ClassEventForm({ classId, date, existing, students, staff, places, media, meetings, hours, wallets, meId, onDone }: {
-  classId: string; date: string; existing?: ClassEvent; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; meId: string; onDone: () => void
+export default function ClassEventForm({ classId, date, existing, defaultTypes, students, staff, places, media, meetings, hours, wallets, meId, onDone }: {
+  classId: string; date: string; existing?: ClassEvent; defaultTypes?: EventTypeCode[]; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; meId: string; onDone: () => void
 }) {
-  const initialTypes: EventTypeCode[] = existing?.type_codes?.length ? existing.type_codes : existing?.kind === 'parents' ? ['visit'] : existing?.kind === 'fun' ? ['film'] : ['exam']
+  const initialTypes: EventTypeCode[] = existing?.type_codes?.length ? existing.type_codes : defaultTypes?.length ? defaultTypes : existing?.kind === 'parents' ? ['visit'] : existing?.kind === 'fun' ? ['film'] : ['exam']
   const [title, setTitle] = useState(existing?.title ?? '')
   const [onDate, setOnDate] = useState(existing?.on_date ?? date)
   const [types, setTypes] = useState<EventTypeCode[]>(initialTypes)
