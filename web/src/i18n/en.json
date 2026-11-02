@@ -2427,5 +2427,13 @@
   "Google Calendar немесе Apple Calendar-дан экспортталған .ics файлын таңдаңыз.": "Choose a .ics file exported from Google Calendar or Apple Calendar.",
   "{0} оқиға табылды": "{0} events found",
   "Мәзірді ашу": "Expand sidebar",
-  "Мәзірді жиыру": "Collapse sidebar"
+  "Мәзірді жиыру": "Collapse sidebar",
+  "Ұстаздар": "Staff",
+  "Оқушыларға": "For students",
+  "Мұғалімдерге": "For teachers",
+  "Тәрбиешілерге": "For tutors",
+  "Мектеп күнтізбесі": "School calendar",
+  "Сынып немесе мектеп": "Class or school",
+  "Сыныптар": "Classes",
+  "Аудитория": "Audience"
 }

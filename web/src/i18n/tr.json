@@ -2427,5 +2427,13 @@
   "Google Calendar немесе Apple Calendar-дан экспортталған .ics файлын таңдаңыз.": "Google Calendar veya Apple Calendar'dan dışa aktarılan .ics dosyasını seçin.",
   "{0} оқиға табылды": "{0} etkinlik bulundu",
   "Мәзірді ашу": "Kenar çubuğunu genişlet",
-  "Мәзірді жиыру": "Kenar çubuğunu daralt"
+  "Мәзірді жиыру": "Kenar çubuğunu daralt",
+  "Ұстаздар": "Eğitimciler",
+  "Оқушыларға": "Öğrencilere",
+  "Мұғалімдерге": "Öğretmenlere",
+  "Тәрбиешілерге": "Belletmenlere",
+  "Мектеп күнтізбесі": "Okul takvimi",
+  "Сынып немесе мектеп": "Sınıf veya okul",
+  "Сыныптар": "Sınıflar",
+  "Аудитория": "Hedef kitle"
 }

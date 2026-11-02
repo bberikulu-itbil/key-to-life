@@ -56,7 +56,8 @@ export default function ClassEventForm({ classId, date, existing, students, staf
     if (expense && new Set(selectedWallets).size !== selectedWallets.length) return toast(tx('Бір әмиянды екі рет таңдамаңыз'))
     setBusy(true)
     try {
-      const row = { class_id: classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible: audience === 'students' || audience === 'all' || visible, audience, note: note.trim() || null, place: place.trim() || null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
+      const isSchool = classId === 'school'
+      const row = { class_id: isSchool ? null : classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible: audience === 'students' || audience === 'all' || visible, audience, note: note.trim() || null, place: place.trim() || null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
       const id = existing ? existing.id : (await addClassEvent(row)).id
       if (existing) {
         const changes = Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'class_id')) as Partial<Parameters<typeof updateClassEvent>[1]>
@@ -67,14 +68,18 @@ export default function ClassEventForm({ classId, date, existing, students, staf
         ...listText(groups).map((label) => ({ kind: 'group' as const, label })),
         ...listText(rooms).map((label) => ({ kind: 'room' as const, label })),
       ]
-      await setClassEventParticipants(id, participants)
-      const resolvedExpenses: { wallet_id: string; amount: number; note: string | null }[] = []
-      if (expense) for (const row of expenseRows) {
-        const walletId = row.wallet || (await addClassWallet(classId, row.walletName.trim())).id
-        resolvedExpenses.push({ wallet_id: walletId, amount: Number(row.amount.trim().replace(',', '.')), note: row.note.trim() || null })
+      if (participants.length || existing?.participants?.length) {
+        await setClassEventParticipants(id, participants)
       }
-      await setClassEventExpenses(id, expense ? resolvedExpenses : [])
-      for (const f of files) await addClassPhoto(classId, onDate, meId, f, title.trim(), id)
+      if (!isSchool) {
+        const resolvedExpenses: { wallet_id: string; amount: number; note: string | null }[] = []
+        if (expense) for (const row of expenseRows) {
+          const walletId = row.wallet || (await addClassWallet(classId, row.walletName.trim())).id
+          resolvedExpenses.push({ wallet_id: walletId, amount: Number(row.amount.trim().replace(',', '.')), note: row.note.trim() || null })
+        }
+        await setClassEventExpenses(id, expense ? resolvedExpenses : [])
+        for (const f of files) await addClassPhoto(classId, onDate, meId, f, title.trim(), id)
+      }
       toast(existing ? tx('Оқиға өзгертілді') : tx('Оқиға сақталды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
@@ -108,40 +113,44 @@ export default function ClassEventForm({ classId, date, existing, students, staf
           className={inputCls}
         >
           <option value="all">{tx('Барлығына (оқушылар мен ұстаздар)')}</option>
-          <option value="students">{tx('Тек оқушыларға')}</option>
+          <option value="students">{tx('Оқушыларға')}</option>
+          <option value="teachers">{tx('Мұғалімдерге')}</option>
+          <option value="tutors">{tx('Тәрбиешілерге')}</option>
           <option value="staff">{tx('Мұғалімдер мен тәрбиешілерге')}</option>
-          <option value="teachers">{tx('Тек мұғалімдерге')}</option>
-          <option value="tutors">{tx('Тек тәрбиешілерге')}</option>
         </select>
       )}
     </Field>
-    <div className="grid gap-2 rounded-md bg-surface-2 p-3">
-      <label className="flex items-center gap-2 text-sm font-semibold">
-        <input type="checkbox" checked={expense} onChange={(e) => setExpense(e.target.checked)} className="size-5 accent-[var(--accent)]" />{tx('Қаржы қосу')}
-      </label>
-      {expense && <>
-        <div className="grid gap-2">
-          {expenseRows.map((row, index) => <div key={row.key} className="grid gap-2 rounded-md border border-line p-2">
-            <div className="flex items-center gap-2">
-              <span className="flex-1 text-xs font-semibold text-muted">{tx('Шығын')} {index + 1}</span>
-              {expenseRows.length > 1 && <button type="button" onClick={() => setExpenseRows(expenseRows.filter((x) => x.key !== row.key))} className="size-8 rounded-md text-muted hover:bg-surface-2" aria-label={tx('Өшіру')}>×</button>}
-            </div>
-            <select value={row.wallet} onChange={(e) => updateExpenseRow(row.key, { wallet: e.target.value })} className={inputCls}>
-              <option value="">{tx('Әмиянды таңдаңыз')}</option>
-              {wallets.filter((w) => !w.archived).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-            </select>
-            {!row.wallet && <input value={row.walletName} onChange={(e) => updateExpenseRow(row.key, { walletName: e.target.value })} className={inputCls} placeholder={tx('Жаңа әмиян атауы')} />}
-            <div className="grid grid-cols-2 gap-2">
-              <input type="number" min={0.01} step="0.01" value={row.amount} onChange={(e) => updateExpenseRow(row.key, { amount: e.target.value })} className={inputCls} placeholder={tx('Сома')} />
-              <input value={row.note} onChange={(e) => updateExpenseRow(row.key, { note: e.target.value })} className={inputCls} placeholder={tx('Қаржы түсініктемесі')} />
-            </div>
-          </div>)}
-        </div>
-        <button type="button" onClick={() => setExpenseRows([...expenseRows, newExpenseRow()])} className="h-10 rounded-md bg-surface text-accent text-sm font-semibold">{tx('+ Тағы шығын қосу')}</button>
-        <p className="text-xs text-muted text-right">{tx('Жалпы')}: {expenseRows.reduce((sum, row) => sum + (Number(row.amount.replace(',', '.')) || 0), 0).toLocaleString()} ₸</p>
-      </>}
-    </div>
-    <label className="h-14 rounded-md border-2 border-dashed border-line grid place-items-center text-sm text-muted cursor-pointer"><span>{files.length ? tx('{0} сурет таңдалды', files.length) : tx('Фото қосу (міндетті емес)')}</span><input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => setFiles([...(e.target.files ?? [])])} /></label>
+    {classId !== 'school' && (
+      <div className="grid gap-2 rounded-md bg-surface-2 p-3">
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" checked={expense} onChange={(e) => setExpense(e.target.checked)} className="size-5 accent-[var(--accent)]" />{tx('Қаржы қосу')}
+        </label>
+        {expense && <>
+          <div className="grid gap-2">
+            {expenseRows.map((row, index) => <div key={row.key} className="grid gap-2 rounded-md border border-line p-2">
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-xs font-semibold text-muted">{tx('Шығын')} {index + 1}</span>
+                {expenseRows.length > 1 && <button type="button" onClick={() => setExpenseRows(expenseRows.filter((x) => x.key !== row.key))} className="size-8 rounded-md text-muted hover:bg-surface-2" aria-label={tx('Өшіру')}>×</button>}
+              </div>
+              <select value={row.wallet} onChange={(e) => updateExpenseRow(row.key, { wallet: e.target.value })} className={inputCls}>
+                <option value="">{tx('Әмиянды таңдаңыз')}</option>
+                {wallets.filter((w) => !w.archived).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              {!row.wallet && <input value={row.walletName} onChange={(e) => updateExpenseRow(row.key, { walletName: e.target.value })} className={inputCls} placeholder={tx('Жаңа әмиян атауы')} />}
+              <div className="grid grid-cols-2 gap-2">
+                <input type="number" min={0.01} step="0.01" value={row.amount} onChange={(e) => updateExpenseRow(row.key, { amount: e.target.value })} className={inputCls} placeholder={tx('Сома')} />
+                <input value={row.note} onChange={(e) => updateExpenseRow(row.key, { note: e.target.value })} className={inputCls} placeholder={tx('Қаржы түсініктемесі')} />
+              </div>
+            </div>)}
+          </div>
+          <button type="button" onClick={() => setExpenseRows([...expenseRows, newExpenseRow()])} className="h-10 rounded-md bg-surface text-accent text-sm font-semibold">{tx('+ Тағы шығын қосу')}</button>
+          <p className="text-xs text-muted text-right">{tx('Жалпы')}: {expenseRows.reduce((sum, row) => sum + (Number(row.amount.replace(',', '.')) || 0), 0).toLocaleString()} ₸</p>
+        </>}
+      </div>
+    )}
+    {classId !== 'school' && (
+      <label className="h-14 rounded-md border-2 border-dashed border-line grid place-items-center text-sm text-muted cursor-pointer"><span>{files.length ? tx('{0} сурет таңдалды', files.length) : tx('Фото қосу (міндетті емес)')}</span><input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => setFiles([...(e.target.files ?? [])])} /></label>
+    )}
     <Button block loading={busy} onClick={save}>{existing ? tx('Өзгерту') : tx('Сақтау')}</Button>
   </div>
 }

@@ -5,7 +5,7 @@ import {
 import { getKazakhstanHolidays } from '../lib/holidays'
 import { Icon, Sheet } from './ui'
 import { tx } from '../lib/i18n'
-import type { ClassEvent, ClassEventStatus, ClassPhoto, EventTypeCode } from '../lib/api'
+import type { CalAudience, ClassEvent, ClassEventStatus, ClassPhoto, EventTypeCode } from '../lib/api'
 
 export type CalItem = {
   key: string
@@ -24,6 +24,8 @@ export type CalItem = {
   time?: string
   place?: string | null
   rawEvent?: ClassEvent
+  audience?: CalAudience
+  isSchoolEvent?: boolean
 }
 
 export type CalViewMode = 'month' | 'week' | 'day' | 'year'
@@ -538,10 +540,23 @@ export default function ClassCalendarView({
                         style={{ backgroundColor: item.color ?? '#6b7280' }}
                       />
                       <div className="flex-1 min-w-0 text-sm">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-semibold text-ink">{item.title}</span>
                           {item.time && (
                             <span className="text-xs text-muted tabular-nums">· {item.time}</span>
+                          )}
+                          {item.audience && item.audience !== 'all' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-soft text-accent font-medium">
+                              {item.audience === 'students' ? '🎓 ' + tx('Оқушылар')
+                               : item.audience === 'teachers' ? '👨‍🏫 ' + tx('Мұғалімдер')
+                               : item.audience === 'tutors' ? '🏠 ' + tx('Тәрбиешілер')
+                               : '💼 ' + tx('Ұстаздар')}
+                            </span>
+                          )}
+                          {item.isSchoolEvent && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 font-medium">
+                              🏛️ {tx('Мектеп')}
+                            </span>
                           )}
                         </div>
                         {item.place && (

@@ -106,11 +106,17 @@ const eventStatus = (e: ClassEvent) => e.status === 'postponed' ? tx('Кейін
 const eventItem = (e: ClassEvent, remove?: () => Promise<unknown>, edit?: () => void): Item => {
   const time = e.at_time ? e.at_time.slice(0, 5) + (e.end_time ? '–' + e.end_time.slice(0, 5) : '') : ''
   const state = eventStatus(e)
+  const audLabel = e.audience && e.audience !== 'all' ? (
+    e.audience === 'students' ? ' · 🎓 ' + tx('Оқушылар')
+    : e.audience === 'teachers' ? ' · 👨‍🏫 ' + tx('Мұғалімдер')
+    : e.audience === 'tutors' ? ' · 🏠 ' + tx('Тәрбиешілер')
+    : ' · 💼 ' + tx('Ұстаздар')
+  ) : ''
   return {
     key: 'e' + e.id,
     date: e.on_date,
     kind: eventKind(e),
-    title: (time ? time + ' · ' : '') + e.title + (state ? ' · ' + state : ''),
+    title: (time ? time + ' · ' : '') + e.title + audLabel + (state ? ' · ' + state : ''),
     note: [e.place, e.note].filter(Boolean).join(' · ') || null,
     shown: e.visible,
     personal: eventPersonal(e),
@@ -123,6 +129,7 @@ const eventItem = (e: ClassEvent, remove?: () => Promise<unknown>, edit?: () => 
     time: e.at_time ? e.at_time.slice(0, 5) : undefined,
     place: e.place,
     rawEvent: e,
+    audience: e.audience,
   }
 }
 /** Items grouped under their dates. */
@@ -149,56 +156,187 @@ function ItemList({ items, onRemove, flat }: { items: Item[]; onRemove?: (i: Ite
 function StaffCalendar({ classId }: { classId?: string }) {
   const { me } = useMe()
   const deputy = me.role === 'deputy' || me.role === 'admin'
+  const isSchool = classId === 'school'
   const classes = useLoad(listClasses, [])
   const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
   const options = deputy ? classes.data ?? [] : mine
-  const cls = options.find((c) => c.id === classId) ?? mine[0] ?? options[0]
+  const cls = isSchool ? null : (options.find((c) => c.id === classId) ?? mine[0] ?? options[0])
   const [tab, setTab] = useState<Tab>('calendar')
+  const [audFilter, setAudFilter] = useState<string>('all')
   const [day, setDay] = useState(today())
   const [add, setAdd] = useState<Add | null>(null)
   const [editing, setEditing] = useState<ClassEvent | null>(null)
   const data = useLoad(async () => {
+    if (isSchool) {
+      const [j, staff, places] = await Promise.all([listJournal('school'), listStaff(), listResources()])
+      return { ...j, students: [] as Student[], staff, places, media: [] as Media[], wallets: [] as ClassWallet[] }
+    }
     if (!cls) return null
     const [j, students, staff, places, resourceData, wallets] = await Promise.all([listJournal(cls.id), classStudents(cls.id), listStaff(), listResources(), listClassResources(cls.id), listClassWallets(cls.id)])
     return { ...j, students, staff, places, media: resourceData.media, wallets }
-  }, [cls?.id])
+  }, [isSchool, cls?.id])
   const d = data.data
   const short = (id: string) => d?.students.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
   const editEvent = (e: ClassEvent) => setEditing(e)
-  const items = useMemo(() => (d ? journalItems(d, short, editEvent) : []), [d]) // eslint-disable-line react-hooks/exhaustive-deps
-  if (classes.loading && !classes.data) return <><PageHead title={tx('Сынып күнтізбесі')} back /><Skeleton /></>
-  if (!cls) return <><PageHead title={tx('Сынып күнтізбесі')} back /><Empty icon="file" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></>
+  const items = useMemo(() => {
+    if (!d) return []
+    if (isSchool) {
+      return d.events.map((e) => eventItem(e, deputy ? () => removeClassEvent(e.id) : undefined, deputy ? () => editEvent(e) : undefined))
+    }
+    const classItems = journalItems(d, short, editEvent)
+    const schoolItems = (d.schoolEvents ?? []).map((e) => ({
+      ...eventItem(e, deputy ? () => removeClassEvent(e.id) : undefined, deputy ? () => editEvent(e) : undefined),
+      title: '🏛️ ' + e.title,
+      isSchoolEvent: true,
+    }))
+    return [...classItems, ...schoolItems]
+  }, [d, isSchool, deputy]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filteredItems = useMemo(() => {
+    if (!isSchool || audFilter === 'all') return items
+    return items.filter((i) => {
+      const a = i.rawEvent?.audience ?? 'all'
+      if (audFilter === 'students') return a === 'students' || a === 'all'
+      if (audFilter === 'teachers') return a === 'teachers' || a === 'staff' || a === 'all'
+      if (audFilter === 'tutors') return a === 'tutors' || a === 'staff' || a === 'all'
+      if (audFilter === 'staff') return a === 'staff' || a === 'teachers' || a === 'tutors' || a === 'all'
+      return true
+    })
+  }, [items, isSchool, audFilter])
+
+  if (classes.loading && !classes.data) return <><PageHead title={isSchool ? tx('Мектеп күнтізбесі') : tx('Сынып күнтізбесі')} back /><Skeleton /></>
+  if (!isSchool && !cls) return <><PageHead title={tx('Сынып күнтізбесі')} back /><Empty icon="file" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></>
   const staffName = (id: string | null) => d?.staff.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
   const closeForm = () => { setAdd(null); setEditing(null) }
+  const canAdd = isSchool ? deputy : true
+
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title={tx('Сынып күнтізбесі')} back right={<div className="flex items-center gap-2">
-        {options.length > 1 && <select aria-label={tx('Сынып')} value={cls.id} onChange={(e) => go(`/journal/${e.target.value}`)} className={`${inputCls} w-auto`}>
-          {options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>}
-        <button type="button" onClick={() => { setEditing(null); setAdd({ what: tab === 'hours' ? 'hour' : tab === 'album' ? 'photo' : 'event', date: day }) }} aria-label={tx('Қосу')} className="size-11 rounded-full bg-accent text-on-accent grid place-items-center shadow-card"><Icon n="plus" /></button>
-      </div>} />
-      <Chips label={tx('Бөлім')} value={tab === 'week' || tab === 'month' ? 'calendar' : tab} onChange={setTab} items={[['calendar', tx('Күнтізбе')], ['hours', tx('Тәрбие сағаттары')], ['album', tx('Альбом')]]} />
+      <PageHead
+        title={isSchool ? tx('Мектеп күнтізбесі') : tx('Сынып күнтізбесі')}
+        back
+        right={
+          <div className="flex items-center gap-2">
+            <select
+              aria-label={tx('Сынып немесе мектеп')}
+              value={isSchool ? 'school' : cls?.id}
+              onChange={(e) => go(`/journal/${e.target.value}`)}
+              className={`${inputCls} w-auto font-medium`}
+            >
+              <option value="school">{tx('Мектеп күнтізбесі')}</option>
+              {options.length > 0 && (
+                <optgroup label={tx('Сыныптар')}>
+                  {options.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            {canAdd && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(null)
+                  setAdd({ what: !isSchool && tab === 'hours' ? 'hour' : !isSchool && tab === 'album' ? 'photo' : 'event', date: day })
+                }}
+                aria-label={tx('Қосу')}
+                className="size-11 rounded-full bg-accent text-on-accent grid place-items-center shadow-card"
+              >
+                <Icon n="plus" />
+              </button>
+            )}
+          </div>
+        }
+      />
 
-      {data.loading && !d ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : d && (
-        (tab === 'calendar' || tab === 'week' || tab === 'month') ? (
-          <ClassCalendarView
-            items={items}
-            photos={d.photos}
-            onAdd={(date) => { setEditing(null); setDay(date); setAdd({ what: 'event', date }) }}
-            onEdit={editEvent}
-            classTitle={`${cls.name} ${tx('сыныбы')}`}
-            typeLabels={TYPE_LABELS}
-          />
-        )
-        : tab === 'hours' ? <Hours classId={cls.id} d={d} staffName={staffName} reload={data.reload} />
-        : <Album photos={d.photos} events={d.events} reload={data.reload} />
+      {isSchool ? (
+        <Chips
+          label={tx('Аудитория')}
+          value={audFilter}
+          onChange={setAudFilter}
+          items={[
+            ['all', tx('Барлығы')],
+            ['students', tx('Оқушылар')],
+            ['teachers', tx('Мұғалімдер')],
+            ['tutors', tx('Тәрбиешілер')],
+            ['staff', tx('Ұстаздар')],
+          ]}
+        />
+      ) : (
+        <Chips
+          label={tx('Бөлім')}
+          value={tab === 'week' || tab === 'month' ? 'calendar' : tab}
+          onChange={setTab}
+          items={[
+            ['calendar', tx('Күнтізбе')],
+            ['hours', tx('Тәрбие сағаттары')],
+            ['album', tx('Альбом')],
+          ]}
+        />
       )}
-      {(add?.what === 'event' || editing) && d && <Sheet title={editing ? tx('Оқиғаны өзгерту') : tx('Оқиға қосу')} onClose={closeForm}>
-        <ClassEventForm classId={cls.id} date={add?.date ?? editing?.on_date ?? day} existing={editing ?? undefined} students={d.students} staff={d.staff} places={d.places} media={d.media} meetings={d.meetings} hours={d.hours} wallets={d.wallets} meId={me.id} onDone={() => { closeForm(); data.reload() }} />
-      </Sheet>}
-      {add && add.what !== 'event' && d && <AddSheet classId={cls.id} init={add} students={d.students} events={d.events} people={[cls.teacher_id, cls.tutor_id].filter((x): x is string => !!x)} staffName={staffName}
-        onClose={() => setAdd(null)} onDone={() => { setAdd(null); data.reload() }} />}
+
+      {data.loading && !d ? (
+        <Skeleton />
+      ) : data.error ? (
+        <ErrorBox text={data.error} retry={data.reload} />
+      ) : (
+        d && (
+          isSchool || tab === 'calendar' || tab === 'week' || tab === 'month' ? (
+            <ClassCalendarView
+              items={filteredItems}
+              photos={d.photos}
+              onAdd={canAdd ? (date) => { setEditing(null); setDay(date); setAdd({ what: 'event', date }) } : () => {}}
+              onEdit={canAdd ? editEvent : () => {}}
+              classTitle={isSchool ? tx('Мектеп күнтізбесі') : `${cls?.name} ${tx('сыныбы')}`}
+              typeLabels={TYPE_LABELS}
+            />
+          ) : tab === 'hours' && cls ? (
+            <Hours classId={cls.id} d={d} staffName={staffName} reload={data.reload} />
+          ) : (
+            <Album photos={d.photos} events={d.events} reload={data.reload} />
+          )
+        )
+      )}
+
+      {(add?.what === 'event' || editing) && d && (
+        <Sheet title={editing ? tx('Оқиғаны өзгерту') : (isSchool ? tx('Мектеп оқиғасын қосу') : tx('Оқиға қосу'))} onClose={closeForm}>
+          <ClassEventForm
+            classId={isSchool ? 'school' : cls?.id ?? ''}
+            date={add?.date ?? editing?.on_date ?? day}
+            existing={editing ?? undefined}
+            students={d.students}
+            staff={d.staff}
+            places={d.places}
+            media={d.media}
+            meetings={d.meetings}
+            hours={d.hours}
+            wallets={d.wallets}
+            meId={me.id}
+            onDone={() => {
+              closeForm()
+              data.reload()
+            }}
+          />
+        </Sheet>
+      )}
+
+      {add && add.what !== 'event' && d && cls && (
+        <AddSheet
+          classId={cls.id}
+          init={add}
+          students={d.students}
+          events={d.events}
+          people={[cls.teacher_id, cls.tutor_id].filter((x): x is string => !!x)}
+          staffName={staffName}
+          onClose={() => setAdd(null)}
+          onDone={() => {
+            setAdd(null)
+            data.reload()
+          }}
+        />
+      )}
     </div>
   )
 }
