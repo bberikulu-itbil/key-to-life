@@ -448,7 +448,7 @@ export default function ClassCalendarView({
         )}
 
         {/* View Grid Area */}
-        <main className="flex-1 min-w-0 p-3 sm:p-4 overflow-x-auto">
+        <div className="flex-1 min-w-0 p-3 sm:p-4 overflow-x-auto">
           {view === 'month' && (
             <MonthGrid
               month={currentMonth}
@@ -495,7 +495,7 @@ export default function ClassCalendarView({
               }}
             />
           )}
-        </main>
+        </div>
       </div>
 
       {/* Inspect Day Sheet (Opened from "+N more" or Day tap) */}
@@ -627,7 +627,10 @@ function MonthGrid({
   const todayStr = today()
 
   return (
-    <div className="grid grid-cols-7 border-t border-l border-line rounded-xl overflow-hidden bg-surface">
+    <div
+      className="grid grid-cols-7 border-t border-l border-line rounded-xl overflow-hidden bg-surface"
+      style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}
+    >
       {/* Weekday Headers */}
       {WD_SHORT.map((wd) => (
         <div

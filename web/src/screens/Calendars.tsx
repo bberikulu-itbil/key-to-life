@@ -485,7 +485,7 @@ export default function Calendars() {
         )}
 
         {/* Calendar View Area */}
-        <main className="flex-1 overflow-auto bg-surface flex flex-col">
+        <div className="flex-1 overflow-auto bg-surface flex flex-col">
           {!ag.data ? (
             ag.error ? (
               <div className="p-6">
@@ -545,7 +545,7 @@ export default function Calendars() {
               onItemClick={(item) => setInspectEvent(item)}
             />
           )}
-        </main>
+        </div>
       </div>
 
       {/* Quick Add Popover / Dialog (Image 1) */}
@@ -908,7 +908,10 @@ function GoogleMonthGrid({
           return (
             <div key={weekStart} className="flex-1 flex flex-col min-h-[120px] relative">
               {/* Day Cells Row (Headers & Click Area) */}
-              <div className="grid grid-cols-7 flex-1 divide-x divide-line">
+              <div
+                className="grid grid-cols-7 flex-1 divide-x divide-line"
+                style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}
+              >
                 {weekDays.map((d, colIdx) => {
                   const isCurrentMonth = d.startsWith(monthStr)
                   const isToday = d === todayStr
