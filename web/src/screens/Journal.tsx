@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   addClassEvent, addClassHour, addClassPhoto, addParentContact, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
-  removeClassPhoto, removeParentContact, setHourPlan, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student,
+  removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student,
 } from '../lib/api'
 import { WD_SHORT, addDays, fmtDate, iso, isoDow, today } from '../lib/time'
 import { useMe } from '../App'
+import Avatar from '../components/Avatar'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import ClassEventForm from '../components/ClassEventForm'
 import ClassCalendarView, { type CalItem } from '../components/ClassCalendarView'
@@ -24,7 +25,7 @@ const KIND = {
 } as const
 type Kind = keyof typeof KIND
 type Item = CalItem
-type Tab = 'calendar' | 'hours' | 'parents' | 'week' | 'month'
+type Tab = 'calendar' | 'hours' | 'parents' | 'mentor' | 'week' | 'month'
 type Add = { what: 'event' | 'hour' | 'photo'; date: string }
 
 const Dot = ({ k, size = 8, color }: { k: Kind; size?: number; color?: string }) => <span className="block shrink-0 rounded-full" style={{ background: color ?? KIND[k][0], width: size, height: size }} />
@@ -161,12 +162,36 @@ function StaffCalendar({ classId }: { classId?: string }) {
   const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
   const options = deputy ? classes.data ?? [] : mine
   const cls = isSchool ? null : (options.find((c) => c.id === classId) ?? mine[0] ?? options[0])
-  const [tab, setTab] = useState<Tab>('calendar')
+  const hash = window.location.hash
+  const queryParams = useMemo(() => {
+    const qIdx = hash.indexOf('?')
+    return new URLSearchParams(qIdx >= 0 ? hash.slice(qIdx) : '')
+  }, [hash])
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = queryParams.get('tab')
+    return t === 'mentor' || t === 'hours' || t === 'parents' ? (t as Tab) : 'calendar'
+  })
   const [audFilter, setAudFilter] = useState<string>('all')
   const [day, setDay] = useState(today())
   const [add, setAdd] = useState<Add | null>(null)
   const [editing, setEditing] = useState<ClassEvent | null>(null)
   const [parentDefaultType, setParentDefaultType] = useState<EventTypeCode | undefined>(undefined)
+  const [mentorDefaultStudent, setMentorDefaultStudent] = useState<string | undefined>(
+    queryParams.get('student') ?? undefined
+  )
+
+  useEffect(() => {
+    const student = queryParams.get('student')
+    const addParam = queryParams.get('add')
+    if (student) setMentorDefaultStudent(student)
+    if (addParam === 'mentor' || addParam === 'event') {
+      setParentDefaultType('mentor')
+      if (student) setMentorDefaultStudent(student)
+      setDay(today())
+      setAdd({ what: 'event', date: today() })
+    }
+  }, [queryParams])
+
   const data = useLoad(async () => {
     if (isSchool) {
       const [j, staff, places] = await Promise.all([listJournal('school'), listStaff(), listResources()])
@@ -208,7 +233,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
   if (classes.loading && !classes.data) return <><PageHead title={isSchool ? tx('Мектеп күнтізбесі') : tx('Сынып күнтізбесі')} back /><Skeleton /></>
   if (!isSchool && !cls) return <><PageHead title={tx('Сынып күнтізбесі')} back /><Empty icon="file" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></>
   const staffName = (id: string | null) => d?.staff.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
-  const closeForm = () => { setAdd(null); setEditing(null); setParentDefaultType(undefined) }
+  const closeForm = () => { setAdd(null); setEditing(null); setParentDefaultType(undefined); setMentorDefaultStudent(undefined) }
   const canAdd = isSchool ? deputy : true
 
   return (
@@ -240,7 +265,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
                 type="button"
                 onClick={() => {
                   setEditing(null)
-                  setParentDefaultType(tab === 'parents' ? 'parent_activity' : undefined)
+                  setParentDefaultType(tab === 'parents' ? 'parent_activity' : tab === 'mentor' ? 'mentor' : undefined)
                   setAdd({ what: !isSchool && tab === 'hours' ? 'hour' : 'event', date: day })
                 }}
                 aria-label={tx('Қосу')}
@@ -275,6 +300,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
             ['calendar', tx('Күнтізбе')],
             ['hours', tx('Тәрбие сағаттары')],
             ['parents', tx('Ата-ана (қонақ, белсенділік)')],
+            ['mentor', tx('Жеке кездесу')],
           ]}
         />
       )}
@@ -296,7 +322,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
             />
           ) : tab === 'hours' && cls ? (
             <Hours classId={cls.id} d={d} staffName={staffName} reload={data.reload} />
-          ) : cls ? (
+          ) : tab === 'parents' && cls ? (
             <ParentsTab
               classId={cls.id}
               d={d}
@@ -304,6 +330,22 @@ function StaffCalendar({ classId }: { classId?: string }) {
               onAddEvent={(defaultType) => {
                 setEditing(null)
                 setParentDefaultType(defaultType)
+                setDay(today())
+                setAdd({ what: 'event', date: today() })
+              }}
+              onEditEvent={editEvent}
+              reload={data.reload}
+            />
+          ) : cls ? (
+            <MentorTab
+              classId={cls.id}
+              cls={cls}
+              d={d}
+              staffName={staffName}
+              onAddEvent={(studentId) => {
+                setEditing(null)
+                setParentDefaultType('mentor')
+                setMentorDefaultStudent(studentId)
                 setDay(today())
                 setAdd({ what: 'event', date: today() })
               }}
@@ -320,7 +362,8 @@ function StaffCalendar({ classId }: { classId?: string }) {
             classId={isSchool ? 'school' : cls?.id ?? ''}
             date={add?.date ?? editing?.on_date ?? day}
             existing={editing ?? undefined}
-            defaultTypes={parentDefaultType ? [parentDefaultType] : undefined}
+            defaultTypes={parentDefaultType ? [parentDefaultType] : tab === 'mentor' ? ['mentor'] : undefined}
+            defaultStudentId={mentorDefaultStudent}
             students={d.students}
             staff={d.staff}
             places={d.places}
@@ -1007,6 +1050,363 @@ function Viewer({ p, eventTitle, onClose, onRemove }: { p: ClassPhoto; eventTitl
         {onRemove && <button type="button" onClick={onRemove} className="h-10 px-4 rounded-md bg-white/15 text-sm font-semibold">{tx('Өшіру')}</button>}
         <button type="button" onClick={onClose} aria-label={tx('Жабу')} className="size-10 grid place-items-center rounded-md bg-white/15"><Icon n="x" /></button>
       </div>
+    </div>
+  )
+}
+
+function MentorTab({
+  classId,
+  cls,
+  d,
+  onAddEvent,
+  onEditEvent,
+  reload,
+}: {
+  classId: string
+  cls: { id: string; name: string }
+  d: {
+    students: Student[]
+    events: ClassEvent[]
+    photos: ClassPhoto[]
+    meetings: MentorMeeting[]
+    staff: Staff[]
+  }
+  staffName: (id: string | null) => string
+  onAddEvent: (studentId?: string) => void
+  onEditEvent: (e: ClassEvent) => void
+  reload: () => void
+}) {
+  const [filter, setFilter] = useState<'all' | 'upcoming' | 'passed'>('all')
+  const [q, setQ] = useState('')
+
+  const studentName = (id: string | null | undefined) =>
+    d.students.find((s) => s.id === id)?.full_name ?? '—'
+  const studentObj = (id: string | null | undefined) =>
+    d.students.find((s) => s.id === id)
+
+  // Collect all 1-on-1 meeting events (type_codes has 'mentor')
+  const mentorEvents = useMemo(() => {
+    return d.events.filter((e) => (e.type_codes ?? []).includes('mentor'))
+  }, [d.events])
+
+  // Collect meetings from mentor_meetings table that are not already linked as an event
+  const linkedMeetingIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const e of mentorEvents) {
+      if (e.linked_kind === 'mentor' && e.linked_id) set.add(e.linked_id)
+    }
+    return set
+  }, [mentorEvents])
+
+  const extraMeetings = useMemo(() => {
+    return (d.meetings ?? []).filter((m) => !linkedMeetingIds.has(m.id))
+  }, [d.meetings, linkedMeetingIds])
+
+  type MItem =
+    | { kind: 'event'; id: string; date: string; time?: string; title: string; place?: string; note?: string; studentIds: string[]; event: ClassEvent; status: string; isPast: boolean }
+    | { kind: 'meeting'; id: string; date: string; time?: string; title: string; place?: string; note?: string; studentIds: string[]; meeting: MentorMeeting; status: string; isPast: boolean }
+
+  const entries: MItem[] = useMemo(() => {
+    const list: MItem[] = []
+    const t = today()
+
+    for (const e of mentorEvents) {
+      const sIds = (e.participants ?? [])
+        .filter((p) => p.kind === 'student' && p.student_id)
+        .map((p) => p.student_id!)
+      const isPast = e.on_date < t || e.status === 'passed'
+      list.push({
+        kind: 'event',
+        id: e.id,
+        date: e.on_date,
+        time: e.at_time ? e.at_time.slice(0, 5) + (e.end_time ? '–' + e.end_time.slice(0, 5) : '') : undefined,
+        title: e.title,
+        place: e.place ?? undefined,
+        note: e.note ?? undefined,
+        studentIds: sIds,
+        event: e,
+        status: e.status,
+        isPast,
+      })
+    }
+
+    for (const m of extraMeetings) {
+      const date = m.starts_at.slice(0, 10)
+      const time = m.starts_at.length > 10 ? m.starts_at.slice(11, 16) : undefined
+      const isPast = !!m.done_at || date < t
+      list.push({
+        kind: 'meeting',
+        id: m.id,
+        date,
+        time,
+        title: m.topic,
+        place: m.place ?? undefined,
+        note: m.actions ?? undefined,
+        studentIds: m.student_id ? [m.student_id] : [],
+        meeting: m,
+        status: m.done_at ? 'passed' : 'planned',
+        isPast,
+      })
+    }
+
+    return list.sort((a, b) => {
+      if (a.isPast !== b.isPast) return a.isPast ? 1 : -1
+      return a.isPast ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)
+    })
+  }, [mentorEvents, extraMeetings])
+
+  const totalStudents = d.students.length
+  const coveredStudents = useMemo(() => {
+    const set = new Set<string>()
+    for (const item of entries) {
+      for (const sid of item.studentIds) set.add(sid)
+    }
+    return set
+  }, [entries])
+
+  const upcomingCount = entries.filter((x) => !x.isPast).length
+  const pastCount = entries.filter((x) => x.isPast).length
+
+  const filteredEntries = useMemo(() => {
+    return entries.filter((item) => {
+      if (filter === 'upcoming' && item.isPast) return false
+      if (filter === 'passed' && !item.isPast) return false
+
+      if (q.trim()) {
+        const query = q.toLowerCase()
+        const matchTitle = item.title.toLowerCase().includes(query)
+        const matchPlace = (item.place ?? '').toLowerCase().includes(query)
+        const matchNote = (item.note ?? '').toLowerCase().includes(query)
+        const matchStudent = item.studentIds.some((sid) =>
+          studentName(sid).toLowerCase().includes(query)
+        )
+        if (!matchTitle && !matchPlace && !matchNote && !matchStudent) return false
+      }
+
+      return true
+    })
+  }, [entries, filter, q]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const deleteEvent = async (id: string) => {
+    try {
+      await removeClassEvent(id)
+      toast(tx('Өшірілді'))
+      reload()
+    } catch (e) {
+      toast(errText(e))
+    }
+  }
+
+  const deleteMeeting = async (id: string) => {
+    try {
+      await removeMentorMeeting(id)
+      toast(tx('Өшірілді'))
+      reload()
+    } catch (e) {
+      toast(errText(e))
+    }
+  }
+
+  return (
+    <div className="grid gap-4">
+      {/* 4 Summary Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <Card className="p-3.5 flex flex-col justify-between">
+          <span className="text-xs text-muted flex items-center gap-1.5 font-medium">
+            <span>💬</span> {tx('Барлық кездесулер')}
+          </span>
+          <span className="text-2xl font-bold font-display text-ink mt-1 tabular-nums">
+            {entries.length}
+          </span>
+          <span className="text-[11px] text-muted mt-0.5">{tx('Жеке кездесу саны')}</span>
+        </Card>
+
+        <Card className="p-3.5 flex flex-col justify-between">
+          <span className="text-xs text-muted flex items-center gap-1.5 font-medium">
+            <span>⏰</span> {tx('Алдағы кездесулер')}
+          </span>
+          <span className="text-2xl font-bold font-display text-accent mt-1 tabular-nums">
+            {upcomingCount}
+          </span>
+          <span className="text-[11px] text-muted mt-0.5">{tx('Жоспарланған кездесулер')}</span>
+        </Card>
+
+        <Card className="p-3.5 flex flex-col justify-between">
+          <span className="text-xs text-muted flex items-center gap-1.5 font-medium">
+            <span>✅</span> {tx('Өткен кездесулер')}
+          </span>
+          <span className="text-2xl font-bold font-display text-ink mt-1 tabular-nums">
+            {pastCount}
+          </span>
+          <span className="text-[11px] text-muted mt-0.5">{tx('Өткізілген кездесулер')}</span>
+        </Card>
+
+        <Card className="p-3.5 flex flex-col justify-between">
+          <span className="text-xs text-muted flex items-center gap-1.5 font-medium">
+            <span>🎯</span> {tx('Қамтылған оқушылар')}
+          </span>
+          <span className="text-2xl font-bold font-display text-success mt-1 tabular-nums">
+            {coveredStudents.size} <span className="text-sm font-normal text-muted">/ {totalStudents}</span>
+          </span>
+          <span className="text-[11px] text-muted mt-0.5">
+            {totalStudents ? `${Math.round((100 * coveredStudents.size) / totalStudents)}% ${tx('қамтылды')}` : ''}
+          </span>
+        </Card>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => onAddEvent()}>
+          <span className="flex items-center justify-center gap-1.5">
+            <Icon n="plus" size={16} />
+            {tx('Кездесу уақытын қою')}
+          </span>
+        </Button>
+        <button
+          type="button"
+          onClick={() => go('/mentor?class=' + classId)}
+          className="flex-1 sm:flex-initial h-10 px-4 rounded-xl border border-line bg-surface hover:bg-surface-2 text-ink font-semibold text-sm flex items-center justify-center gap-1.5 shadow-2xs transition"
+        >
+          <Icon n="file" size={16} />
+          {tx('Оқушылар анкетасы')}
+        </button>
+      </div>
+
+      {/* Filter Chips & Search Bar */}
+      <div className="grid gap-2">
+        <Chips
+          label={tx('Сүзгі')}
+          value={filter}
+          onChange={setFilter}
+          items={[
+            ['all', tx('Барлығы')],
+            ['upcoming', tx('Алдағы кездесулер')],
+            ['passed', tx('Өткендер')],
+          ]}
+        />
+        <input
+          type="search"
+          aria-label={tx('Іздеу')}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={tx('Оқушы аты, тақырып немесе өтетін орны бойынша іздеу...')}
+          className={`${inputCls} h-10 text-sm`}
+        />
+      </div>
+
+      {/* Entries List */}
+      {!filteredEntries.length ? (
+        <Empty
+          icon="user"
+          title={tx('Жеке кездесулер табылмады')}
+          text={tx('Оқушымен жеке кездесу уақытын белгілеу үшін «Кездесу уақытын қою» батырмасын басыңыз.')}
+        />
+      ) : (
+        <div className="grid gap-2.5">
+          {filteredEntries.map((item) => {
+            const firstStudent = item.studentIds[0] ? studentObj(item.studentIds[0]) : null
+            const isPassed = item.isPast || item.status === 'passed'
+
+            return (
+              <Card key={item.id} className="p-3.5 flex flex-col gap-2.5 hover:border-line transition">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+                      📅 {fmtDate(item.date)}{item.time ? ' · ' + item.time : ''}
+                    </span>
+                    {isPassed ? (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-2 text-muted">
+                        {tx('Өтті')}
+                      </span>
+                    ) : item.status === 'postponed' ? (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-warning-soft text-warning">
+                        {tx('Кейінге қалдырылды')}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-success-soft text-success">
+                        {tx('Жоспарланған')}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {item.kind === 'event' && (
+                      <button
+                        type="button"
+                        aria-label={tx('Өңдеу')}
+                        onClick={() => onEditEvent(item.event)}
+                        className="size-8 grid place-items-center rounded-lg text-muted hover:text-ink hover:bg-surface-2 transition"
+                      >
+                        <Icon n="compose" size={15} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={tx('Өшіру')}
+                      onClick={() =>
+                        item.kind === 'event' ? deleteEvent(item.id) : deleteMeeting(item.id)
+                      }
+                      className="size-8 grid place-items-center rounded-lg text-muted hover:text-danger hover:bg-danger-soft transition"
+                    >
+                      <Icon n="x" size={15} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Student Info */}
+                {firstStudent ? (
+                  <div className="flex items-center gap-2.5 pt-0.5">
+                    <Avatar name={firstStudent.full_name} photo={firstStudent.photo} size={36} />
+                    <div className="min-w-0 flex-1">
+                      <span className="block font-semibold text-sm text-ink truncate">
+                        {firstStudent.full_name}
+                      </span>
+                      <span className="block text-xs text-muted">
+                        {[firstStudent.olympiad, firstStudent.club].filter(Boolean).join(' · ') || cls.name}
+                      </span>
+                    </div>
+                  </div>
+                ) : item.studentIds.length > 0 ? (
+                  <div className="text-xs text-muted font-medium">
+                    {item.studentIds.map(studentName).join(', ')}
+                  </div>
+                ) : null}
+
+                {/* Meeting Topic & Notes */}
+                <div>
+                  <h4 className="font-semibold text-ink text-sm leading-snug">
+                    {item.title}
+                  </h4>
+                  {item.note && (
+                    <p className="text-xs text-muted mt-1 whitespace-pre-line">
+                      {item.note}
+                    </p>
+                  )}
+                  {item.place && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted mt-1 bg-surface-2 px-2 py-0.5 rounded-md">
+                      📍 {item.place}
+                    </span>
+                  )}
+                </div>
+
+                {/* Actions Footer */}
+                {firstStudent && (
+                  <div className="flex items-center justify-end pt-1 border-t border-line/60">
+                    <button
+                      type="button"
+                      onClick={() => go('/mentor/' + firstStudent.id)}
+                      className="text-xs font-semibold text-accent hover:underline inline-flex items-center gap-1 py-1"
+                    >
+                      <Icon n="file" size={13} />
+                      {tx('Анкета мен жоспарды ашу →')}
+                    </button>
+                  </div>
+                )}
+              </Card>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

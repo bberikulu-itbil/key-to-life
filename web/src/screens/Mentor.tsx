@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  addMentorMeeting, classMentorMeetings, classStudents, errText, finishMentorMeeting, listClasses, listStaff, mentorAssign, mentorEvery, mentorItems, myMentorMeetings,
+  addMentorMeeting, addTask, classMentorMeetings, classStudents, errText, finishMentorMeeting, listClasses, listStaff, mentorAssign, mentorEvery, mentorItems, myMentorMeetings,
   removeMentorMeeting, saveMyForm, setMentorEvery, studentForm, studentMentor, type MentorItem, type MentorMeeting,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
@@ -33,13 +33,13 @@ function MyMeetings() {
   const { me } = useMe()
   const data = useLoad(() => Promise.all([myMentorMeetings(), mentorItems(me.id), studentForm(me.id)]), [me.id])
   const [editing, setEditing] = useState(false)
-  if (data.loading && !data.data) return <><PageHead title={tx('Жеке кездесулерім')} back /><Skeleton /></>
-  if (data.error || !data.data) return <><PageHead title={tx('Жеке кездесулерім')} back /><ErrorBox text={data.error ?? ''} retry={data.reload} /></>
+  if (data.loading && !data.data) return <><PageHead title={tx('Менің анкетам')} back /><Skeleton /></>
+  if (data.error || !data.data) return <><PageHead title={tx('Менің анкетам')} back /><ErrorBox text={data.error ?? ''} retry={data.reload} /></>
   const [meetings, items, form] = data.data
   const open = items.filter((i) => i.kind === 'habit' || !i.done)
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title={tx('Жеке кездесулерім')} back />
+      <PageHead title={tx('Менің анкетам')} back />
       {!form || editing ? <FormCard initial={form?.answers ?? {}} onSaved={() => { setEditing(false); data.reload() }} />
         : <button type="button" onClick={() => setEditing(true)} className="flex items-center gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 min-h-14 text-left">
           <span className="size-9 rounded-md bg-success-soft text-success grid place-items-center"><Icon n="check" size={18} /></span>
@@ -109,25 +109,46 @@ function ClassList({ classId }: { classId?: string }) {
   const options = deputy ? classes.data ?? [] : mine
   const cls = options.find((c) => c.id === classId) ?? mine[0] ?? options[0]
   const data = useLoad(async () => (cls ? Promise.all([classStudents(cls.id), classMentorMeetings(cls.id), mentorEvery(cls.id)]) : null), [cls?.id])
-  if (classes.loading && !classes.data) return <><PageHead title={tx('Жеке кездесулер')} back /><Skeleton /></>
-  if (!cls) return <><PageHead title={tx('Жеке кездесулер')} back /><Empty icon="user" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></>
+  if (classes.loading && !classes.data) return <><PageHead title={tx('Оқушылар анкетасы')} back /><Skeleton /></>
+  if (!cls) return <><PageHead title={tx('Оқушылар анкетасы')} back /><Empty icon="user" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></>
   const [students, meetings, every] = data.data ?? [[], [], 30]
   const rows = students.map((s) => ({ s, st: mentorStatus(meetings.filter((m) => m.student_id === s.id), every) }))
     .sort((a, b) => Number(b.st.due) - Number(a.st.due) || (b.st.days ?? 9999) - (a.st.days ?? 9999))
   const covered = rows.filter((r) => !r.st.due).length
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title={tx('Жеке кездесулер')} back right={options.length > 1 ? (
-        <select aria-label={tx('Сынып')} value={cls.id} onChange={(e) => go(`/mentor?class=${e.target.value}`)} className={`${inputCls} w-auto`}>
-          {options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>) : undefined} />
+      <PageHead
+        title={tx('Оқушылар анкетасы')}
+        back
+        right={
+          <div className="flex items-center gap-2">
+            {options.length > 1 && (
+              <select aria-label={tx('Сынып')} value={cls.id} onChange={(e) => go(`/mentor?class=${e.target.value}`)} className={`${inputCls} w-auto font-medium`}>
+                {options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
+            <Button kind="secondary" onClick={() => go(`/journal/${cls.id}?tab=mentor`)}>
+              <Icon n="calendar" size={16} />
+              {tx('Күнтізбе')}
+            </Button>
+          </div>
+        }
+      />
       {data.loading && !data.data ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : <>
         <Card className="grid gap-2">
           <div className="flex items-end justify-between gap-3">
-            <span><span className="block text-3xl font-bold tabular-nums">{students.length ? Math.round((100 * covered) / students.length) : 0}%</span>
-              <span className="block text-sm text-muted">{tx('{0} / {1} оқушымен уақытында кездестіңіз', covered, students.length)}</span></span>
+            <span>
+              <span className="block text-3xl font-bold tabular-nums">
+                {students.length ? Math.round((100 * covered) / students.length) : 0}%
+              </span>
+              <span className="block text-sm text-muted">
+                {tx('{0} / {1} оқушымен жұмыс жүргізілді', covered, students.length)}
+              </span>
+            </span>
           </div>
-          <div className="h-2 rounded-full bg-surface-2 overflow-hidden"><div className="h-full rounded-full bg-success" style={{ width: `${students.length ? (100 * covered) / students.length : 0}%` }} /></div>
+          <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
+            <div className="h-full rounded-full bg-accent" style={{ width: `${students.length ? (100 * covered) / students.length : 0}%` }} />
+          </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted">{tx('Әр оқушымен:')}</span>
             <Chips label={tx('Кездесу жиілігі')} value={String(every)} onChange={(v) => setMentorEvery(cls.id, Number(v)).then(data.reload, (e) => toast(errText(e)))} items={EVERY} />
@@ -135,11 +156,14 @@ function ClassList({ classId }: { classId?: string }) {
         </Card>
         <Card className="p-0 overflow-hidden">
           <ul className="divide-y divide-line">{rows.map(({ s, st }) => (
-            <li key={s.id}><a href={`#/mentor/${s.id}`} className="flex items-center gap-3 px-4 py-2.5">
+            <li key={s.id}><a href={`#/mentor/${s.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-2 transition">
               <Avatar name={s.full_name} photo={s.photo} size={40} />
-              <span className="flex-1 min-w-0"><span className="block font-medium truncate">{s.full_name}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-medium truncate">{s.full_name}</span>
                 <span className={`block text-xs ${st.due ? 'text-danger font-semibold' : 'text-muted'}`}>
-                  {st.next ? tx('Кездесу белгіленген') : st.days == null ? tx('Кездесу болмаған') : tx('{0} күн бұрын', st.days)}</span></span>
+                  {st.next ? tx('Кездесу белгіленген') : st.days == null ? tx('Кездесу болмаған') : tx('{0} күн бұрын', st.days)}
+                </span>
+              </span>
               {st.next ? <span className="size-2.5 rounded-full bg-accent" aria-hidden /> : st.due ? <span className="size-2.5 rounded-full bg-danger" aria-hidden /> : null}
               <Icon n="chev" className="text-muted" />
             </a></li>
@@ -156,8 +180,11 @@ function StudentPage({ id }: { id: string }) {
   const data = useLoad(async () => Promise.all([studentMentor(id), listStaff()]), [id])
   const [plan, setPlan] = useState(false)
   const [finish, setFinish] = useState<MentorMeeting | null>(null)
-  if (data.loading && !data.data) return <><PageHead title={tx('Жеке кездесу')} back /><Skeleton /></>
-  if (data.error || !data.data) return <><PageHead title={tx('Жеке кездесу')} back /><ErrorBox text={data.error ?? tx('Табылмады')} retry={data.reload} /></>
+  const [editForm, setEditForm] = useState(false)
+  const [addPlan, setAddPlan] = useState(false)
+
+  if (data.loading && !data.data) return <><PageHead title={tx('Оқушы анкетасы')} back /><Skeleton /></>
+  if (data.error || !data.data) return <><PageHead title={tx('Оқушы анкетасы')} back /><ErrorBox text={data.error ?? tx('Табылмады')} retry={data.reload} /></>
   const [d, staff] = data.data
   const s = d.student
   const staffName = (sid: string | null) => staff.find((x) => x.id === sid)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
@@ -170,74 +197,405 @@ function StudentPage({ id }: { id: string }) {
     ...d.notes.map((n) => ({ key: 'n' + n.id, when: n.created_at, icon: 'lock', title: tx('Сынып кеңесі · {0}', staffName(n.author_id)), body: n.body })),
     ...d.contacts.map((c) => ({ key: 'c' + c.id, when: c.on_date, icon: 'chat', title: tx('Ата-анамен · {0} · {1}', CHANNEL[c.channel], staffName(c.staff_id)), body: c.summary })),
   ].sort((a, b) => b.when.localeCompare(a.when))
+
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title={tx('Жеке кездесу')} back right={<Button onClick={() => setPlan(true)}><Icon n="plus" size={18} />{tx('Кездесу')}</Button>} />
+      <PageHead
+        title={tx('Оқушы анкетасы')}
+        back
+        right={
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setAddPlan(true)}>
+              <Icon n="plus" size={18} />
+              {tx('Жоспар құру')}
+            </Button>
+            <Button kind="secondary" onClick={() => go(`/journal/${s.class_id}?tab=mentor&add=mentor&student=${s.id}`)}>
+              <Icon n="calendar" size={18} />
+              {tx('Кездесу қою')}
+            </Button>
+          </div>
+        }
+      />
+
       <Card className="flex items-center gap-3">
         <Avatar name={s.full_name} photo={s.photo} size={56} />
-        <span className="flex-1 min-w-0"><span className="block text-lg font-bold">{s.full_name}</span>
-          <span className="block text-sm text-muted">{[s.olympiad, s.club].filter(Boolean).join(' · ') || '—'}</span></span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-lg font-bold">{s.full_name}</span>
+          <span className="block text-sm text-muted">{[s.olympiad, s.club].filter(Boolean).join(' · ') || '—'}</span>
+        </span>
       </Card>
 
       <div className="grid gap-3 lg:grid-cols-2 items-start">
+        {/* Left Column: Plan & Meetings */}
         <div className="grid gap-3">
+          <Card className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold">{tx('Жоспар (мақсат, әдет, тапсырма)')}</p>
+              <Button kind="ghost" onClick={() => setAddPlan(true)}>
+                <Icon n="plus" size={15} />
+                {tx('Қосу')}
+              </Button>
+            </div>
+            {d.items.length ? (
+              <Items items={d.items} />
+            ) : (
+              <p className="text-sm text-muted">
+                {tx('Оқушыға арналған мақсат, әдет немесе тапсырмалар әлі жоқ. «+ Жоспар құру» арқылы қосыңыз.')}
+              </p>
+            )}
+          </Card>
+
           {next.map((m) => (
             <Card key={m.id} className="grid gap-2 border-accent/40">
               <div className="flex items-start gap-2">
-                <span className="size-10 shrink-0 rounded-md bg-accent-soft text-accent grid place-items-center"><Icon n="clock" /></span>
-                <span className="flex-1 min-w-0"><span className="block font-semibold break-words">{m.topic}</span><span className="block text-xs text-muted">{at(m.starts_at)} · {m.visible ? tx('Оқушыға көрінеді') : tx('Тек ұстаздарға')}{m.place ? ` · ${m.place}` : ''}</span></span>
-                <button type="button" aria-label={tx('Өшіру')} onClick={() => removeMentorMeeting(m.id).then(data.reload, (e) => toast(errText(e)))} className="size-9 grid place-items-center rounded-md text-muted hover:bg-surface-2"><Icon n="x" size={16} /></button>
+                <span className="size-10 shrink-0 rounded-md bg-accent-soft text-accent grid place-items-center">
+                  <Icon n="clock" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block font-semibold break-words">{m.topic}</span>
+                  <span className="block text-xs text-muted">
+                    {at(m.starts_at)} · {m.visible ? tx('Оқушыға көрінеді') : tx('Тек ұстаздарға')}
+                    {m.place ? ` · ${m.place}` : ''}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  aria-label={tx('Өшіру')}
+                  onClick={() => removeMentorMeeting(m.id).then(data.reload, (e) => toast(errText(e)))}
+                  className="size-9 grid place-items-center rounded-md text-muted hover:bg-surface-2"
+                >
+                  <Icon n="x" size={16} />
+                </button>
               </div>
-              <Button onClick={() => setFinish(m)}><Icon n="check" size={18} />{tx('Қорытынды жазу')}</Button>
+              <Button onClick={() => setFinish(m)}>
+                <Icon n="check" size={18} />
+                {tx('Қорытынды жазу')}
+              </Button>
             </Card>
           ))}
 
           <Card className="grid gap-2">
-            <p className="font-semibold">{tx('Міндеттер')}</p>
-            {d.items.length ? <Items items={d.items} /> : <p className="text-sm text-muted">{tx('Кездесу қорытындысында берілген тапсырмалар мен әдеттер осында бақыланады.')}</p>}
+            <div className="flex items-center justify-between">
+              <p className="font-semibold">{tx('Кездесу уақыттары')}</p>
+              <button
+                type="button"
+                onClick={() => go(`/journal/${s.class_id}?tab=mentor&add=mentor&student=${s.id}`)}
+                className="text-xs font-semibold text-accent hover:underline flex items-center gap-1"
+              >
+                <Icon n="calendar" size={14} />
+                {tx('Күнтізбеде қою →')}
+              </button>
+            </div>
+            {!next.length && !past.length ? (
+              <p className="text-sm text-muted">
+                {tx('Жоспарланған кездесу жоқ. «Кездесу қою» батырмасы арқылы күнтізбеге оқиға ретінде белгілеңіз.')}
+              </p>
+            ) : null}
+            {past.length > 0 && (
+              <div className="grid gap-1.5 mt-1">
+                <p className="text-xs text-muted font-semibold uppercase">{tx('Өткен кездесулер · {0}', past.length)}</p>
+                {past.map((m) => (
+                  <details key={m.id} className="rounded-md bg-surface-2 px-3 py-2">
+                    <summary className="cursor-pointer text-sm">
+                      <b>{m.topic}</b> ·{' '}
+                      <span className="text-muted">
+                        {fmtDate(m.starts_at.slice(0, 10))} · {staffName(m.staff_id)}
+                        {m.place ? ` · ${m.place}` : ''}
+                      </span>
+                    </summary>
+                    {m.actions && <p className="mt-2 text-sm whitespace-pre-line">{m.actions}</p>}
+                    {m.notes && (
+                      <p className="mt-2 text-sm whitespace-pre-line text-muted">
+                        <Icon n="lock" size={12} className="inline mr-1" />
+                        {m.notes}
+                      </p>
+                    )}
+                  </details>
+                ))}
+              </div>
+            )}
           </Card>
-
-          {past.length > 0 && <Card className="grid gap-2">
-            <p className="font-semibold">{tx('Өткен кездесулер · {0}', past.length)}</p>
-            {past.map((m) => (
-              <details key={m.id} className="rounded-md bg-surface-2 px-3 py-2">
-                <summary className="cursor-pointer text-sm"><b>{m.topic}</b> · <span className="text-muted">{fmtDate(m.starts_at.slice(0, 10))} · {staffName(m.staff_id)}{m.place ? ` · ${m.place}` : ''}</span></summary>
-                {m.actions && <p className="mt-2 text-sm whitespace-pre-line">{m.actions}</p>}
-                {m.notes && <p className="mt-2 text-sm whitespace-pre-line text-muted"><Icon n="lock" size={12} className="inline mr-1" />{m.notes}</p>}
-              </details>
-            ))}
-          </Card>}
         </div>
 
+        {/* Right Column: Questionnaire & History */}
         <div className="grid gap-3">
           <Card className="grid gap-2">
-            <p className="font-semibold">{tx('Оқушы анкетасы')}</p>
-            {!d.form ? <p className="text-sm text-muted">{tx('Оқушы әлі толтырмаған. Ол Профиль → Жеке кездесулерім бөлімінен толтырады.')}</p> : (
-              <dl className="grid gap-2 text-sm">{FORM.filter(([k]) => d.form!.answers[k]).map(([k, q]) => (
-                <div key={k}><dt className="text-xs text-muted">{q}</dt><dd className="whitespace-pre-line">{d.form!.answers[k]}</dd></div>
-              ))}</dl>
+            <div className="flex items-center justify-between">
+              <p className="font-semibold">{tx('Оқушы анкетасы')}</p>
+              <Button kind="ghost" onClick={() => setEditForm(true)}>
+                <Icon n="compose" size={15} />
+                {d.form ? tx('Өңдеу') : tx('Толтыру')}
+              </Button>
+            </div>
+            {!d.form ? (
+              <p className="text-sm text-muted">
+                {tx('Оқушы әлі толтырмаған. «Толтыру» батырмасы арқылы ақпаратты бірге жазуға болады.')}
+              </p>
+            ) : (
+              <dl className="grid gap-2 text-sm">
+                {FORM.filter(([k]) => d.form!.answers[k]).map(([k, q]) => (
+                  <div key={k}>
+                    <dt className="text-xs text-muted">{q}</dt>
+                    <dd className="whitespace-pre-line font-medium">{d.form!.answers[k]}</dd>
+                  </div>
+                ))}
+              </dl>
             )}
-            {(mbti || mi || hol) && <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm border-t border-line pt-2">
-              {mbti && <><dt className="text-muted">MBTI</dt><dd className="font-bold tracking-wider text-accent">{mbtiScore(mbti.answers).type}</dd></>}
-              {mi && <><dt className="text-muted">{tx('Интеллект')}</dt><dd>{miScore(mi.answers).map((v, k) => [k, v]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => MI_KINDS[k][ru ? 1 : 0]).join(', ')}</dd></>}
-              {hol && (() => { const h = hollandScore(hol.answers); return <><dt className="text-muted">{tx('Холланд')}</dt><dd><b className="tracking-wider text-accent">{h.code}</b>{' · '}{h.code.split('').map((l) => RIASEC.find((x) => x[0] === l)![ru ? 2 : 1]).join(', ')}</dd></> })()}
-            </dl>}
+            {(mbti || mi || hol) && (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm border-t border-line pt-2">
+                {mbti && (
+                  <>
+                    <dt className="text-muted">MBTI</dt>
+                    <dd className="font-bold tracking-wider text-accent">{mbtiScore(mbti.answers).type}</dd>
+                  </>
+                )}
+                {mi && (
+                  <>
+                    <dt className="text-muted">{tx('Интеллект')}</dt>
+                    <dd>
+                      {miScore(mi.answers)
+                        .map((v, k) => [k, v])
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 3)
+                        .map(([k]) => MI_KINDS[k][ru ? 1 : 0])
+                        .join(', ')}
+                    </dd>
+                  </>
+                )}
+                {hol &&
+                  (() => {
+                    const h = hollandScore(hol.answers)
+                    return (
+                      <>
+                        <dt className="text-muted">{tx('Холланд')}</dt>
+                        <dd>
+                          <b className="tracking-wider text-accent">{h.code}</b>
+                          {' · '}
+                          {h.code
+                            .split('')
+                            .map((l) => RIASEC.find((x) => x[0] === l)![ru ? 2 : 1])
+                            .join(', ')}
+                        </dd>
+                      </>
+                    )
+                  })()}
+              </dl>
+            )}
           </Card>
-          {history.length > 0 && <Card className="grid gap-3">
-            <p className="font-semibold">{tx('Тарих')}</p>
-            <ol className="grid gap-3">{history.map((h) => (
-              <li key={h.key} className="flex gap-3">
-                <span className="size-8 shrink-0 rounded-sm bg-surface-2 text-muted grid place-items-center"><Icon n={h.icon} size={16} /></span>
-                <span className="min-w-0 text-sm"><span className="block text-xs text-muted">{h.title} · {h.when.length > 10 ? chatTime(h.when) : fmtDate(h.when)}</span>
-                  <span className="block whitespace-pre-line break-words">{h.body}</span></span>
-              </li>
-            ))}</ol>
-          </Card>}
+
+          {history.length > 0 && (
+            <Card className="grid gap-3">
+              <p className="font-semibold">{tx('Тарих')}</p>
+              <ol className="grid gap-3">
+                {history.map((h) => (
+                  <li key={h.key} className="flex gap-3">
+                    <span className="size-8 shrink-0 rounded-sm bg-surface-2 text-muted grid place-items-center">
+                      <Icon n={h.icon} size={16} />
+                    </span>
+                    <span className="min-w-0 text-sm">
+                      <span className="block text-xs text-muted">
+                        {h.title} · {h.when.length > 10 ? chatTime(h.when) : fmtDate(h.when)}
+                      </span>
+                      <span className="block whitespace-pre-line break-words">{h.body}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </Card>
+          )}
         </div>
       </div>
+
+      {editForm && (
+        <StudentFormEditSheet
+          student={s}
+          initial={d.form?.answers ?? {}}
+          onClose={() => setEditForm(false)}
+          onSaved={() => {
+            setEditForm(false)
+            data.reload()
+          }}
+        />
+      )}
+      {addPlan && (
+        <AddPlanSheet
+          student={s}
+          meetings={d.meetings}
+          onClose={() => setAddPlan(false)}
+          onDone={() => {
+            setAddPlan(false)
+            data.reload()
+          }}
+        />
+      )}
       {plan && <PlanSheet student={s} onClose={() => setPlan(false)} onDone={() => { setPlan(false); data.reload() }} />}
       {finish && <FinishSheet m={finish} onClose={() => setFinish(null)} onDone={() => { setFinish(null); data.reload() }} />}
     </div>
+  )
+}
+
+function StudentFormEditSheet({
+  student,
+  initial,
+  onClose,
+  onSaved,
+}: {
+  student: { id: string; full_name: string }
+  initial: Record<string, string>
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [a, setA] = useState<Record<string, string>>(initial)
+  const [busy, setBusy] = useState(false)
+  return (
+    <Sheet title={tx('Анкета толтыру / өңдеу')} onClose={onClose}>
+      <div className="grid gap-3">
+        <p className="text-xs text-muted">
+          {tx('{0} үшін анкета ақпараты. Сұрақтарға жауаптарды оқушымен бірге немесе жеке толтыруға болады.', student.full_name.split(' ').slice(0, 2).join(' '))}
+        </p>
+        {FORM.map(([k, q, hint]) => (
+          <label key={k} className="grid gap-1 text-sm">
+            <span className="font-medium">{q}</span>
+            <textarea
+              value={a[k] ?? ''}
+              onChange={(e) => setA({ ...a, [k]: e.target.value })}
+              maxLength={600}
+              rows={2}
+              className={`${inputCls} py-2 h-auto`}
+              placeholder={hint}
+            />
+          </label>
+        ))}
+        <Button
+          loading={busy}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              await saveMyForm(
+                student.id,
+                Object.fromEntries(
+                  Object.entries(a)
+                    .map(([k, v]) => [k, v.trim()])
+                    .filter(([, v]) => v)
+                )
+              )
+              toast(tx('Сақталды'))
+              onSaved()
+            } catch (e) {
+              toast(errText(e))
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          {tx('Сақтау')}
+        </Button>
+      </div>
+    </Sheet>
+  )
+}
+
+function AddPlanSheet({
+  student,
+  meetings,
+  onClose,
+  onDone,
+}: {
+  student: { id: string; class_id: string; full_name: string }
+  meetings: MentorMeeting[]
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [kind, setKind] = useState<'task' | 'habit'>('task')
+  const [title, setTitle] = useState('')
+  const [due, setDue] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => {
+    if (title.trim().length < 2) return toast(tx('Атауын жазыңыз'))
+    setBusy(true)
+    try {
+      if (kind === 'task') {
+        await addTask({
+          title: title.trim(),
+          notes: null,
+          due_on: due || null,
+          class_id: null,
+          activity_id: null,
+          assignee_id: student.id,
+        })
+      } else {
+        let mId = meetings[0]?.id
+        if (!mId) {
+          const res = await addMentorMeeting({
+            class_id: student.class_id,
+            student_id: student.id,
+            starts_at: new Date().toISOString(),
+            topic: tx('Жеке жоспар мен әдеттер'),
+            visible: false,
+          })
+          mId = res.id
+        }
+        await mentorAssign(mId, 'habit', title.trim(), null)
+      }
+      toast(tx('Жоспар сақталды'))
+      onDone()
+    } catch (e) {
+      toast(errText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Sheet title={tx('Жоспар құру (тапсырма, әдет, мақсат)')} onClose={onClose}>
+      <div className="grid gap-3">
+        <p className="text-xs text-muted">
+          {tx('{0} үшін тапсырма немесе әдет бекіту. Оқушының жеке Жоспарына түседі.', student.full_name)}
+        </p>
+
+        <Chips
+          label={tx('Түрі')}
+          value={kind}
+          onChange={(k) => setKind(k as 'task' | 'habit')}
+          items={[
+            ['task', tx('Тапсырма / Мақсат')],
+            ['habit', tx('Әдет')],
+          ]}
+        />
+
+        <Field label={tx('Атауы')}>
+          {(id) => (
+            <input
+              id={id}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={kind === 'task' ? tx('Мысалы: Кітапты 50-бетке дейін оқу') : tx('Мысалы: Күнде таңертең 15 мин жаттығу')}
+              maxLength={200}
+              className={inputCls}
+            />
+          )}
+        </Field>
+
+        {kind === 'task' && (
+          <Field label={tx('Мерзімі (дедлайн)')}>
+            {(id) => (
+              <input
+                id={id}
+                type="date"
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+                className={`${inputCls} min-w-0`}
+              />
+            )}
+          </Field>
+        )}
+
+        <Button loading={busy} disabled={title.trim().length < 2} onClick={save}>
+          {tx('Қосу')}
+        </Button>
+      </div>
+    </Sheet>
   )
 }
 

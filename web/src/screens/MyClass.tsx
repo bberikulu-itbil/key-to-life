@@ -112,7 +112,7 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
           [`#/hub/${cls.id}`, 'book', tx('Сынып жобалары'), tx('Кітап, фильм, рецепт және сынып жоспары'), mineOrDeputy],
           [`#/journal/${cls.id}`, 'file', tx('Сынып күнтізбесі'), tx('Тәрбие сағаттары, оқиғалар, фото'), mineOrDeputy],
           ['#/leaves', 'clock', tx('Рұқсаттар'), pending.length ? tx('{0} сұрау шешім күтуде', pending.length) : tx('Сұраулар, кім сыртта, қатысу'), true],
-          [`#/mentor?class=${cls.id}`, 'user', tx('Жеке кездесулер'), tx('Оқушымен жеке сөйлесу, тест нәтижелері'), mineOrDeputy],
+          [`#/mentor?class=${cls.id}`, 'file', tx('Анкета'), tx('Оқушы анкетасы, мақсат-жоспарлары, тесттер'), mineOrDeputy],
           [`#/council/${cls.id}`, 'lock', tx('Сынып кеңесі'), tx('Жазбалар, жиналыс, тапсырмалар, ата-аналар'), mineOrDeputy],
         ] as const).filter((r) => r[4]).map(([href, icon, label, sub]) => (
           <li key={href}><a href={href} className="flex items-center gap-3 px-4 min-h-16 py-2">
@@ -210,7 +210,7 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
                 </label>
               )}
             </div>
-            {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && <Button kind="secondary" onClick={() => go(`/mentor/${open.id}`)}><Icon n="user" size={18} />{tx('Жеке кездесу')}</Button>}
+            {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && <Button kind="secondary" onClick={() => go(`/mentor/${open.id}`)}><Icon n="file" size={18} />{tx('Анкета')}</Button>}
             {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && <EditStudent key={open.id} s={open} onSaved={(v) => { setOpen({ ...open, ...v }); data.reload() }} />}
             {me.role === 'admin' && <RemoveStudent s={open} onDone={() => { setOpen(null); data.reload() }} />}
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">

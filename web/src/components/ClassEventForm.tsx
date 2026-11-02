@@ -18,8 +18,8 @@ const listText = (v: string) => v.split(/[\n,;]+/).map((x) => x.trim()).filter(B
 type ExpenseRow = { key: string; wallet: string; walletName: string; amount: string; note: string }
 const newExpenseRow = (e?: ClassEventExpense): ExpenseRow => ({ key: e?.id ?? `new-${Math.random().toString(36).slice(2)}`, wallet: e?.wallet_id ?? '', walletName: '', amount: e ? String(e.amount) : '', note: e?.note ?? '' })
 
-export default function ClassEventForm({ classId, date, existing, defaultTypes, students, staff, places, media, meetings, hours, wallets, meId, onDone }: {
-  classId: string; date: string; existing?: ClassEvent; defaultTypes?: EventTypeCode[]; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; meId: string; onDone: () => void
+export default function ClassEventForm({ classId, date, existing, defaultTypes, defaultStudentId, students, staff, places, media, meetings, hours, wallets, meId, onDone }: {
+  classId: string; date: string; existing?: ClassEvent; defaultTypes?: EventTypeCode[]; defaultStudentId?: string; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; meId: string; onDone: () => void
 }) {
   const initialTypes: EventTypeCode[] = existing?.type_codes?.length ? existing.type_codes : defaultTypes?.length ? defaultTypes : existing?.kind === 'parents' ? ['visit'] : existing?.kind === 'fun' ? ['film'] : ['exam']
   const [title, setTitle] = useState(existing?.title ?? '')
@@ -34,7 +34,9 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
   const [audience, setAudience] = useState<CalAudience>(existing?.audience ?? (existing?.visible ? 'students' : 'all'))
   const [status, setStatus] = useState<ClassEventStatus>(existing?.status ?? 'planned')
   const [participantType, setParticipantType] = useState<'student' | 'group' | 'room'>('student')
-  const [selected, setSelected] = useState<string[]>(existing?.participants?.filter((p) => p.kind === 'student').map((p) => p.student_id!).filter(Boolean) ?? [])
+  const [selected, setSelected] = useState<string[]>(
+    existing?.participants?.filter((p) => p.kind === 'student').map((p) => p.student_id!).filter(Boolean) ?? (defaultStudentId ? [defaultStudentId] : [])
+  )
   const [groups, setGroups] = useState(existing?.participants?.filter((p) => p.kind === 'group').map((p) => p.label).join(', ') ?? '')
   const [rooms, setRooms] = useState(existing?.participants?.filter((p) => p.kind === 'room').map((p) => p.label).join(', ') ?? '')
   const [link, setLink] = useState(existing?.linked_kind && existing.linked_id ? `${existing.linked_kind}:${existing.linked_id}` : '')
@@ -89,7 +91,20 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
     ...types.some((x) => ['hour_lead', 'hour_parent'].includes(x)) ? hours.map((h) => [`hour:${h.id}`, `${tx('Тәрбие сағаты')}: ${h.topic}`] as [string, string]) : [],
   ]
   return <div className="grid gap-3">
-    <Field label={tx('Атауы')}>{(id) => <input id={id} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className={inputCls} />}</Field>
+    <Field label={tx('Атауы')}>{(id) => (
+      <div className="grid gap-1.5">
+        <input id={id} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className={inputCls} placeholder={types.includes('mentor') ? tx('Жеке кездесу тақырыбы (не төмендегіден таңдаңыз)') : ''} />
+        {types.includes('mentor') && (
+          <div className="flex flex-wrap gap-1.5">
+            {[tx('Үлгерім мен БЖБ'), tx('Бейімделу және көңіл-күй'), tx('Олимпиадаға дайындық'), tx('Мамандық пен болашақ'), tx('Тәртіп пен ереже'), tx('Жеке әңгіме')].map((topic) => (
+              <button key={topic} type="button" onClick={() => setTitle(topic)} className={`h-7 px-2.5 rounded-full text-xs font-medium transition border ${title === topic ? 'bg-accent text-on-accent border-accent' : 'bg-surface-2 hover:bg-surface border-line text-ink'}`}>
+                {topic}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    )}</Field>
     <Field label={tx('Іс-шара типтері')} hint={tx('Бірнеше тип таңдауға болады')}>{() => <div className="flex flex-wrap gap-1.5">{TYPES.map(([code, label, color]) => <button key={code} type="button" aria-pressed={types.includes(code)} onClick={() => toggle(code)} className={`min-h-9 px-3 rounded-full text-sm border ${types.includes(code) ? 'text-white border-transparent' : 'bg-surface border-line'}`} style={types.includes(code) ? { backgroundColor: color } : undefined}>{label}</button>)}</div>}</Field>
     <input aria-label={tx('Күні')} type="date" value={onDate} onChange={(e) => setOnDate(e.target.value)} className={`${inputCls} min-w-0`} />
     <div className="grid grid-cols-2 gap-2"><Field label={tx('Басталуы')}>{(id) => <input id={id} type="time" value={start} onChange={(e) => setStart(e.target.value)} className={`${inputCls} min-w-0`} />}</Field><Field label={tx('Аяқталуы')}>{(id) => <input id={id} type="time" value={end} onChange={(e) => setEnd(e.target.value)} className={`${inputCls} min-w-0`} />}</Field></div>
