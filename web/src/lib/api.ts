@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Extra, TimeSlot } from './time'
 import { iso } from './time'
 import { tx, type Lang } from './i18n'
+import type { RoadmapGoal, RoadmapHabit, RoadmapTask, StudentRoadmap } from './mentor'
 
 export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY)
 
@@ -752,8 +753,65 @@ export type MentorMeeting = { id: string; student_id: string; staff_id: string |
 const MM = 'id, student_id, staff_id, starts_at, topic, visible, actions, notes, done_at, place'
 export const classMentorMeetings = (classId: string) =>
   ok(supabase.from('mentor_meetings').select(MM).eq('class_id', classId).order('starts_at', { ascending: false }).limit(500)) as Promise<MentorMeeting[]>
+export const loadStudentRoadmap = async (studentId: string): Promise<StudentRoadmap> => {
+  try {
+    const res = (await ok(
+      supabase.from('student_roadmaps').select('goals, habits, tasks').eq('student_id', studentId).maybeSingle()
+    )) as { goals?: RoadmapGoal[]; habits?: RoadmapHabit[]; tasks?: RoadmapTask[] } | null
+    if (res && (res.goals || res.habits || res.tasks)) {
+      return {
+        goals: Array.isArray(res.goals) ? res.goals : [],
+        habits: Array.isArray(res.habits) ? res.habits : [],
+        tasks: Array.isArray(res.tasks) ? res.tasks : [],
+      }
+    }
+  } catch {
+    // If student_roadmaps table does not exist or fails, fall through to student_forms
+  }
+  try {
+    const form = await studentForm(studentId)
+    if (form?.answers?.['__roadmap']) {
+      const parsed = JSON.parse(form.answers['__roadmap'])
+      return {
+        goals: Array.isArray(parsed.goals) ? parsed.goals : [],
+        habits: Array.isArray(parsed.habits) ? parsed.habits : [],
+        tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return { goals: [], habits: [], tasks: [] }
+}
+
+export const saveStudentRoadmap = async (studentId: string, roadmap: StudentRoadmap): Promise<void> => {
+  let savedToTable = false
+  try {
+    await ok(
+      supabase.from('student_roadmaps').upsert({
+        student_id: studentId,
+        goals: roadmap.goals,
+        habits: roadmap.habits,
+        tasks: roadmap.tasks,
+        updated_at: new Date().toISOString(),
+      })
+    )
+    savedToTable = true
+  } catch {
+    // Table might not exist yet before migration
+  }
+  try {
+    const existing = await studentForm(studentId)
+    const answers = { ...(existing?.answers ?? {}) }
+    answers['__roadmap'] = JSON.stringify(roadmap)
+    await saveMyForm(studentId, answers)
+  } catch (err) {
+    if (!savedToTable) throw err
+  }
+}
+
 export const studentMentor = async (id: string) => {
-  const [student, meetings, tests, notes, contacts, form, items] = await Promise.all([
+  const [student, meetings, tests, notes, contacts, form, items, roadmap] = await Promise.all([
     ok(supabase.from('profiles').select('id, full_name, photo, class_id, olympiad, club').eq('id', id).single()) as Promise<{ id: string; full_name: string; photo: string | null; class_id: string; olympiad: string | null; club: string | null }>,
     ok(supabase.from('mentor_meetings').select(MM).eq('student_id', id).order('starts_at', { ascending: false })) as Promise<MentorMeeting[]>,
     rpc<{ type: 'mbti' | 'mi' | 'holland'; answers: number[]; answered_at: string }[]>('student_tests', { p_student: id }),
@@ -761,9 +819,11 @@ export const studentMentor = async (id: string) => {
     ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('student_id', id).order('on_date', { ascending: false })) as Promise<ParentContact[]>,
     studentForm(id),
     mentorItems(id),
+    loadStudentRoadmap(id),
   ])
-  return { student, meetings, tests, notes, contacts, form, items }
+  return { student, meetings, tests, notes, contacts, form, items, roadmap }
 }
+
 export const addMentorMeeting = (row: { class_id: string; student_id: string; starts_at: string; topic: string; visible: boolean; place?: string | null }) => ok(supabase.from('mentor_meetings').insert(row))
 export const finishMentorMeeting = (id: string, actions: string, notes: string) =>
   ok(supabase.from('mentor_meetings').update({ actions: actions || null, notes: notes || null, done_at: new Date().toISOString() }).eq('id', id))
