@@ -28,7 +28,9 @@ export type CalItem = {
   isSchoolEvent?: boolean
 }
 
-export type CalViewMode = 'month' | 'week' | 'day' | 'year'
+export type CalViewMode = 'month' | 'week' | 'day' | 'year' | 'agenda'
+
+const dayLabel = (d: string) => `${WD_SHORT[isoDow(d) - 1]}, ${fmtDate(d)}`
 
 const TYPE_COLORS: Record<EventTypeCode, string> = {
   sport: '#2563eb',
@@ -98,6 +100,8 @@ export default function ClassCalendarView({
   const [view, setView] = useState<CalViewMode>('month')
   const [selectedDay, setSelectedDay] = useState(today())
   const [currentMonth, setCurrentMonth] = useState(() => today().slice(0, 7)) // YYYY-MM
+  const [showPhotos, setShowPhotos] = useState(false)
+  const [viewPhoto, setViewPhoto] = useState<ClassPhoto | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [showSidebar, setShowSidebar] = useState(true)
@@ -146,7 +150,7 @@ export default function ClassCalendarView({
 
   // Shift current date / month
   const shift = (delta: number) => {
-    if (view === 'month') {
+    if (view === 'month' || view === 'agenda') {
       const nextDate = new Date(y, m - 1 + delta, 1)
       const nextMonth = iso(nextDate).slice(0, 7)
       setCurrentMonth(nextMonth)
@@ -186,7 +190,7 @@ export default function ClassCalendarView({
   // Header Title
   const headerTitle = useMemo(() => {
     if (view === 'year') return `${y} ${tx('жыл')}`
-    if (view === 'month') {
+    if (view === 'month' || view === 'agenda') {
       return `${MONTHS[m - 1]} ${y}`
     }
     if (view === 'week') {
@@ -232,22 +236,23 @@ export default function ClassCalendarView({
 
         {/* Right: Switcher, Nav (Prev, Today, Next), Search */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* View Mode Switcher Pills: Day, Week, Month, Year */}
-          <div className="flex items-center bg-surface-2 p-1 rounded-xl border border-line text-xs font-semibold">
-            {(['day', 'week', 'month', 'year'] as CalViewMode[]).map((v) => {
+          {/* View Mode Switcher Pills: Day, Week, Month, Year, Agenda/List */}
+          <div className="flex items-center bg-surface-2 p-1 rounded-xl border border-line text-xs font-semibold overflow-x-auto">
+            {(['day', 'week', 'month', 'year', 'agenda'] as CalViewMode[]).map((v) => {
               const active = view === v
               const labels: Record<CalViewMode, string> = {
                 day: tx('Күн'),
                 week: tx('Апта'),
                 month: tx('Ай'),
                 year: tx('Жыл'),
+                agenda: tx('Тізім'),
               }
               return (
                 <button
                   key={v}
                   type="button"
                   onClick={() => setView(v)}
-                  className={`h-8 px-2.5 sm:px-3 rounded-lg transition ${
+                  className={`h-8 px-2.5 sm:px-3 rounded-lg transition shrink-0 ${
                     active ? 'bg-surface text-ink shadow-xs font-bold' : 'text-muted hover:text-ink'
                   }`}
                 >
@@ -377,6 +382,21 @@ export default function ClassCalendarView({
                 <span className="font-medium truncate flex-1">{tx('Қазақстандағы мерекелер')}</span>
               </label>
 
+              {/* Photo Album Checkbox */}
+              <label className="flex items-center gap-2.5 text-xs text-ink cursor-pointer hover:bg-surface-2 p-1.5 rounded-lg transition">
+                <input
+                  type="checkbox"
+                  checked={showPhotos}
+                  onChange={(e) => setShowPhotos(e.target.checked)}
+                  className="size-4 rounded accent-pink-500 cursor-pointer"
+                />
+                <span className="size-2.5 rounded-full bg-pink-500 shrink-0" />
+                <span className="font-medium truncate flex-1">{tx('Фотоальбом')}</span>
+                {photos.length > 0 && (
+                  <span className="text-[11px] text-muted tabular-nums">({photos.length})</span>
+                )}
+              </label>
+
               {/* Event Types Checkboxes */}
               <div className="max-h-60 overflow-y-auto pr-1 grid gap-1">
                 {ALL_TYPES.map((code) => {
@@ -456,10 +476,12 @@ export default function ClassCalendarView({
               items={filteredItems}
               holidays={holidays}
               photos={photos}
+              showPhotos={showPhotos}
               onSelectDay={(d) => setSelectedDay(d)}
               onAddEvent={onAdd}
               onEditEvent={onEdit}
               onInspectDay={(d) => setInspectDay(d)}
+              onViewPhoto={(p) => setViewPhoto(p)}
             />
           )}
 
@@ -469,8 +491,11 @@ export default function ClassCalendarView({
               items={filteredItems}
               holidays={holidays}
               photos={photos}
+              showPhotos={showPhotos}
               onAddEvent={onAdd}
               onEditEvent={onEdit}
+              onInspectDay={(d) => setInspectDay(d)}
+              onViewPhoto={(p) => setViewPhoto(p)}
             />
           )}
 
@@ -482,6 +507,7 @@ export default function ClassCalendarView({
               photos={photos}
               onAddEvent={onAdd}
               onEditEvent={onEdit}
+              onViewPhoto={(p) => setViewPhoto(p)}
             />
           )}
 
@@ -493,6 +519,18 @@ export default function ClassCalendarView({
                 setCurrentMonth(targetMonth)
                 setView('month')
               }}
+            />
+          )}
+
+          {view === 'agenda' && (
+            <AgendaGrid
+              month={currentMonth}
+              items={filteredItems}
+              photos={photos}
+              showPhotos={showPhotos}
+              onEditEvent={onEdit}
+              onInspectDay={(d) => setInspectDay(d)}
+              onViewPhoto={(p) => setViewPhoto(p)}
             />
           )}
         </div>
@@ -585,8 +623,71 @@ export default function ClassCalendarView({
                   ))}
               </div>
             )}
+            {photos.filter((p) => p.on_date === inspectDay).length > 0 && (
+              <div className="pt-2 border-t border-line">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted mb-2 block">
+                  {tx('Осы күннің фотосуреттері ({0})', photos.filter((p) => p.on_date === inspectDay).length)}
+                </span>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {photos.filter((p) => p.on_date === inspectDay).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setViewPhoto(p)}
+                      className="group relative aspect-square rounded-lg overflow-hidden border border-line"
+                    >
+                      <img
+                        src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
+                        alt={p.caption ?? ''}
+                        className="w-full h-full object-cover group-hover:scale-105 transition"
+                      />
+                      {p.caption && (
+                        <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] px-1 py-0.5 truncate text-left">
+                          {p.caption}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </Sheet>
+      )}
+
+      {/* Lightbox / Fullscreen Photo Viewer */}
+      {viewPhoto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 grid grid-rows-[1fr_auto] p-4 gap-3 animate-in fade-in duration-150"
+          onClick={() => setViewPhoto(null)}
+          role="dialog"
+          aria-label={tx('Сурет')}
+        >
+          <img
+            src={`https://itbil.kz/storage/v1/object/public/photos/${viewPhoto.path}`}
+            alt={viewPhoto.caption ?? ''}
+            className="m-auto max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
+          />
+          <div
+            className="flex items-center gap-3 text-white max-w-2xl mx-auto w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="flex-1 min-w-0">
+              {viewPhoto.caption && (
+                <span className="block text-sm font-semibold truncate">{viewPhoto.caption}</span>
+              )}
+              <span className="block text-xs opacity-70">{fmtDate(viewPhoto.on_date)}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setViewPhoto(null)}
+              aria-label={tx('Жабу')}
+              className="size-10 grid place-items-center rounded-lg bg-white/15 hover:bg-white/25 text-white"
+            >
+              <Icon n="x" size={18} />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -602,20 +703,24 @@ function MonthGrid({
   items,
   holidays,
   photos,
+  showPhotos,
   onSelectDay,
   onAddEvent,
   onEditEvent,
   onInspectDay,
+  onViewPhoto,
 }: {
   month: string
   selectedDay: string
   items: CalItem[]
   holidays: { date: string; name: string; color: string }[]
   photos: ClassPhoto[]
+  showPhotos?: boolean
   onSelectDay: (d: string) => void
   onAddEvent: (d: string) => void
   onEditEvent: (e: ClassEvent) => void
   onInspectDay: (d: string) => void
+  onViewPhoto?: (p: ClassPhoto) => void
 }) {
   const [y, m] = month.split('-').map(Number)
   const firstDow = isoDow(`${month}-01`) // 1..7 (Mon..Sun)
@@ -783,11 +888,29 @@ function MonthGrid({
               )}
             </div>
 
-            {/* Bottom thumbnail or photo badge if available */}
-            {dayPics.length > 0 && (
-              <div className="pt-1 flex items-center gap-1 text-[10px] text-muted">
-                <span className="size-1.5 rounded-full bg-accent" />
-                <span>{tx('{0} фото', dayPics.length)}</span>
+            {/* Bottom thumbnail or photo badge if showPhotos is checked */}
+            {showPhotos && dayPics.length > 0 && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (onViewPhoto && dayPics[0]) onViewPhoto(dayPics[0])
+                  else onInspectDay(c)
+                }}
+                className="pt-1 flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/25 text-[10px] font-semibold hover:bg-pink-500/25 transition cursor-pointer mt-auto truncate"
+                title={tx('{0} фото', dayPics.length)}
+              >
+                <span className="text-[10px] shrink-0">📷</span>
+                <span className="truncate flex-1">{tx('{0} фото', dayPics.length)}</span>
+                <div className="flex -space-x-1 shrink-0">
+                  {dayPics.slice(0, 2).map((p) => (
+                    <img
+                      key={p.id}
+                      src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
+                      alt=""
+                      className="size-3.5 rounded-full object-cover ring-1 ring-white"
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -806,15 +929,21 @@ function WeekGrid({
   items,
   holidays,
   photos,
+  showPhotos,
   onAddEvent,
   onEditEvent,
+  onInspectDay,
+  onViewPhoto,
 }: {
   day: string
   items: CalItem[]
   holidays: { date: string; name: string; color: string }[]
   photos: ClassPhoto[]
+  showPhotos?: boolean
   onAddEvent: (d: string) => void
   onEditEvent: (e: ClassEvent) => void
+  onInspectDay?: (d: string) => void
+  onViewPhoto?: (p: ClassPhoto) => void
 }) {
   const mon = addDays(day, 1 - isoDow(day))
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(mon, i))
@@ -858,6 +987,30 @@ function WeekGrid({
                 <Icon n="plus" size={15} />
               </button>
             </div>
+
+            {/* Photo thumbnails if showPhotos */}
+            {showPhotos && dayPics.length > 0 && (
+              <div
+                onClick={() => {
+                  if (onViewPhoto && dayPics[0]) onViewPhoto(dayPics[0])
+                  else if (onInspectDay) onInspectDay(d)
+                }}
+                className="flex items-center gap-1.5 p-1 rounded-md bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20 text-[11px] font-semibold hover:bg-pink-500/20 transition cursor-pointer mb-1.5 truncate"
+              >
+                <span className="text-[10px]">📷</span>
+                <span className="truncate flex-1">{tx('{0} фото', dayPics.length)}</span>
+                <div className="flex -space-x-1 shrink-0">
+                  {dayPics.slice(0, 3).map((p) => (
+                    <img
+                      key={p.id}
+                      src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
+                      alt=""
+                      className="size-4 rounded-full object-cover ring-1 ring-white"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* List */}
             <div className="flex-1 flex flex-col gap-1.5 overflow-y-auto">
@@ -935,6 +1088,7 @@ function DayView({
   photos,
   onAddEvent,
   onEditEvent,
+  onViewPhoto,
 }: {
   day: string
   items: CalItem[]
@@ -942,6 +1096,7 @@ function DayView({
   photos: ClassPhoto[]
   onAddEvent: (d: string) => void
   onEditEvent: (e: ClassEvent) => void
+  onViewPhoto?: (p: ClassPhoto) => void
 }) {
   const dayItems = items.filter((i) => i.date === day)
   const dayHolidays = holidays.filter((h) => h.date === day)
@@ -1040,17 +1195,139 @@ function DayView({
           </h4>
           <div className="grid grid-cols-4 gap-2">
             {dayPics.map((p) => (
-              <img
+              <button
                 key={p.id}
-                src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
-                alt={p.caption ?? ''}
-                className="aspect-square rounded-lg object-cover border border-line"
-                loading="lazy"
-              />
+                type="button"
+                onClick={() => onViewPhoto && onViewPhoto(p)}
+                className="aspect-square rounded-lg overflow-hidden border border-line group relative"
+              >
+                <img
+                  src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
+                  alt={p.caption ?? ''}
+                  className="w-full h-full object-cover group-hover:scale-105 transition"
+                  loading="lazy"
+                />
+              </button>
             ))}
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* =========================================================================
+   3b. Agenda / List View
+   ========================================================================= */
+
+function AgendaGrid({
+  month,
+  items,
+  photos,
+  showPhotos,
+  onEditEvent,
+  onInspectDay,
+  onViewPhoto,
+}: {
+  month: string
+  items: CalItem[]
+  photos: ClassPhoto[]
+  showPhotos: boolean
+  onEditEvent: (e: ClassEvent) => void
+  onInspectDay: (d: string) => void
+  onViewPhoto: (p: ClassPhoto) => void
+}) {
+  const monthItems = items.filter((i) => i.date.startsWith(month))
+  const monthPhotos = photos.filter((p) => p.on_date.startsWith(month))
+  const days = [...new Set([...monthItems.map((i) => i.date), ...(showPhotos ? monthPhotos.map((p) => p.on_date) : [])])].sort().reverse()
+  const todayStr = today()
+
+  if (!days.length) {
+    return (
+      <div className="p-8 max-w-md mx-auto text-center border border-dashed border-line rounded-2xl bg-surface">
+        <p className="font-semibold text-ink mb-1">{tx('Бұл айда оқиғалар жоқ')}</p>
+        <p className="text-xs text-muted">{tx('Жоғарғы «+» батырмасы арқылы жаңа оқиға қосыңыз.')}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto grid gap-3.5">
+      {days.map((d) => {
+        const dayItems = monthItems.filter((i) => i.date === d)
+        const dayPics = monthPhotos.filter((p) => p.on_date === d)
+        const isToday = d === todayStr
+        return (
+          <div key={d} className="rounded-xl bg-surface border border-line p-3 sm:p-4 shadow-2xs grid gap-2.5">
+            <div className="flex items-center justify-between border-b border-line pb-2">
+              <span className={`text-sm font-bold ${isToday ? 'text-accent' : 'text-ink'}`}>
+                {isToday ? `${tx('Бүгін')} · ${dayLabel(d)}` : dayLabel(d)}
+              </span>
+              <span className="text-xs text-muted tabular-nums">
+                {dayItems.length > 0 && tx('{0} оқиға', dayItems.length)}
+                {dayItems.length > 0 && showPhotos && dayPics.length > 0 && ' · '}
+                {showPhotos && dayPics.length > 0 && tx('{0} фото', dayPics.length)}
+              </span>
+            </div>
+
+            {dayItems.length > 0 && (
+              <div className="grid gap-1.5">
+                {dayItems.map((i) => (
+                  <div
+                    key={i.key}
+                    onClick={() => {
+                      if (i.rawEvent) onEditEvent(i.rawEvent)
+                      else onInspectDay(d)
+                    }}
+                    className="flex items-start gap-3 p-2 rounded-lg hover:bg-surface-2 transition cursor-pointer border border-line/60 bg-surface-2/20"
+                  >
+                    <span className="size-2.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: i.color ?? '#2563eb' }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-ink">{i.title}</span>
+                        {i.place && <span className="text-xs text-muted">📍 {i.place}</span>}
+                        {i.time && <span className="text-xs text-muted tabular-nums">⏰ {i.time}</span>}
+                      </div>
+                      {i.note && <p className="text-xs text-muted mt-1 whitespace-pre-line">{i.note}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {showPhotos && dayPics.length > 0 && (
+              <div className="pt-2 border-t border-line/50">
+                <div className="text-xs font-semibold text-muted mb-2 flex items-center gap-1.5">
+                  <span className="text-pink-500">📷</span>
+                  <span>{tx('Осы күннің суреттері')} ({dayPics.length})</span>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                  {dayPics.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => onViewPhoto(p)}
+                      className="group relative aspect-square rounded-lg overflow-hidden border border-line hover:ring-2 hover:ring-accent transition"
+                    >
+                      <img
+                        src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
+                        alt={p.caption ?? ''}
+                        className="w-full h-full object-cover group-hover:scale-105 transition"
+                        loading="lazy"
+                      />
+                      {p.caption && (
+                        <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] px-1 py-0.5 truncate text-left">
+                          {p.caption}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

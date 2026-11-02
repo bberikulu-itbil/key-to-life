@@ -371,7 +371,7 @@ function SideNav({
           {link('/dorm', 'home', tx('Жатақхана'), seg === 'dorm')}
           {link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
           {link('/journal', 'file', tx('Сынып күнтізбесі'), seg === 'journal')}
-          {link('/mentor', 'user', tx('Жеке кездесулер'), seg === 'mentor')}
+          {link('/mentor', 'file', tx('Анкета'), seg === 'mentor')}
           {link('/council', 'lock', tx('Сынып кеңесі'), seg === 'council')}
         </>
       )}

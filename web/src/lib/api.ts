@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Extra, TimeSlot } from './time'
 import { iso } from './time'
 import { tx, type Lang } from './i18n'
+import type { RoadmapGoal, RoadmapHabit, RoadmapTask, StudentRoadmap } from './mentor'
 
 export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY)
 
@@ -671,7 +672,7 @@ export const dormResidents = (classId: string) =>
 export const getDormSettings = async (classId: string): Promise<DormSettings> =>
   (await ok(supabase.from('dorm_settings').select('class_id, mode, swap, linen_days, linen_time, linen_last, clean_criteria, period_from, period_to, weekend_move').eq('class_id', classId).maybeSingle()))
   ?? { class_id: classId, mode: 'self', swap: 'confirm', linen_days: null, linen_time: '18:00', linen_last: null, clean_criteria: CLEAN_DEFAULT, period_from: null, period_to: null, weekend_move: false }
-export const CLEAN_DEFAULT: CleanCriterion[] = [{ name: 'Төсек жиналған', max: 5 }, { name: 'Еден таза', max: 5 }, { name: 'Заттар орнында', max: 5 }]
+export const CLEAN_DEFAULT: CleanCriterion[] = [{ name: tx('Төсек жиналған'), max: 5 }, { name: tx('Еден таза'), max: 5 }, { name: tx('Заттар орнында'), max: 5 }]
 export const saveDormSettings = (s: DormSettings) =>
   rpc('save_dorm_settings', { p_class: s.class_id, p_mode: s.mode, p_swap: s.swap, p_linen_days: s.linen_days, p_linen_time: s.linen_time, p_criteria: s.clean_criteria,
     p_weekend: s.weekend_move, p_from: s.period_from || null, p_to: s.period_to || null })
@@ -745,14 +746,72 @@ export const addCouncilTask = (row: { class_id: string; title: string; assignee_
 export const setCouncilTask = (id: string, status: CouncilTask['status']) => ok(supabase.from('council_tasks').update({ status }).eq('id', id))
 export const removeCouncilTask = (id: string) => ok(supabase.from('council_tasks').delete().eq('id', id))
 export const addParentContact = (row: { class_id: string; student_id: string; on_date: string; channel: ParentContact['channel']; summary: string }) => ok(supabase.from('parent_contacts').insert(row))
+export const removeParentContact = (id: string) => ok(supabase.from('parent_contacts').delete().eq('id', id))
 
 /* ---------- one-on-one meetings with a student ---------- */
 export type MentorMeeting = { id: string; student_id: string; staff_id: string | null; starts_at: string; topic: string; visible: boolean; actions: string | null; notes: string | null; done_at: string | null; place?: string | null }
 const MM = 'id, student_id, staff_id, starts_at, topic, visible, actions, notes, done_at, place'
 export const classMentorMeetings = (classId: string) =>
   ok(supabase.from('mentor_meetings').select(MM).eq('class_id', classId).order('starts_at', { ascending: false }).limit(500)) as Promise<MentorMeeting[]>
+export const loadStudentRoadmap = async (studentId: string): Promise<StudentRoadmap> => {
+  try {
+    const res = (await ok(
+      supabase.from('student_roadmaps').select('goals, habits, tasks').eq('student_id', studentId).maybeSingle()
+    )) as { goals?: RoadmapGoal[]; habits?: RoadmapHabit[]; tasks?: RoadmapTask[] } | null
+    if (res && (res.goals || res.habits || res.tasks)) {
+      return {
+        goals: Array.isArray(res.goals) ? res.goals : [],
+        habits: Array.isArray(res.habits) ? res.habits : [],
+        tasks: Array.isArray(res.tasks) ? res.tasks : [],
+      }
+    }
+  } catch {
+    // If student_roadmaps table does not exist or fails, fall through to student_forms
+  }
+  try {
+    const form = await studentForm(studentId)
+    if (form?.answers?.['__roadmap']) {
+      const parsed = JSON.parse(form.answers['__roadmap'])
+      return {
+        goals: Array.isArray(parsed.goals) ? parsed.goals : [],
+        habits: Array.isArray(parsed.habits) ? parsed.habits : [],
+        tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return { goals: [], habits: [], tasks: [] }
+}
+
+export const saveStudentRoadmap = async (studentId: string, roadmap: StudentRoadmap): Promise<void> => {
+  let savedToTable = false
+  try {
+    await ok(
+      supabase.from('student_roadmaps').upsert({
+        student_id: studentId,
+        goals: roadmap.goals,
+        habits: roadmap.habits,
+        tasks: roadmap.tasks,
+        updated_at: new Date().toISOString(),
+      })
+    )
+    savedToTable = true
+  } catch {
+    // Table might not exist yet before migration
+  }
+  try {
+    const existing = await studentForm(studentId)
+    const answers = { ...(existing?.answers ?? {}) }
+    answers['__roadmap'] = JSON.stringify(roadmap)
+    await saveMyForm(studentId, answers)
+  } catch (err) {
+    if (!savedToTable) throw err
+  }
+}
+
 export const studentMentor = async (id: string) => {
-  const [student, meetings, tests, notes, contacts, form, items] = await Promise.all([
+  const [student, meetings, tests, notes, contacts, form, items, roadmap] = await Promise.all([
     ok(supabase.from('profiles').select('id, full_name, photo, class_id, olympiad, club').eq('id', id).single()) as Promise<{ id: string; full_name: string; photo: string | null; class_id: string; olympiad: string | null; club: string | null }>,
     ok(supabase.from('mentor_meetings').select(MM).eq('student_id', id).order('starts_at', { ascending: false })) as Promise<MentorMeeting[]>,
     rpc<{ type: 'mbti' | 'mi' | 'holland'; answers: number[]; answered_at: string }[]>('student_tests', { p_student: id }),
@@ -760,9 +819,11 @@ export const studentMentor = async (id: string) => {
     ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('student_id', id).order('on_date', { ascending: false })) as Promise<ParentContact[]>,
     studentForm(id),
     mentorItems(id),
+    loadStudentRoadmap(id),
   ])
-  return { student, meetings, tests, notes, contacts, form, items }
+  return { student, meetings, tests, notes, contacts, form, items, roadmap }
 }
+
 export const addMentorMeeting = (row: { class_id: string; student_id: string; starts_at: string; topic: string; visible: boolean; place?: string | null }) => ok(supabase.from('mentor_meetings').insert(row))
 export const finishMentorMeeting = (id: string, actions: string, notes: string) =>
   ok(supabase.from('mentor_meetings').update({ actions: actions || null, notes: notes || null, done_at: new Date().toISOString() }).eq('id', id))
@@ -790,8 +851,25 @@ export type ClassEventExpenseDraft = { wallet_id: string; amount: number; note: 
 export type ClassEvent = { id: string; class_id?: string | null; school_id?: string | null; on_date: string; at_time: string | null; end_time: string | null; kind: 'school' | 'fun' | 'parents'; type_codes: EventTypeCode[]; title: string; visible: boolean; note: string | null; place: string | null; responsible_id: string | null; linked_kind: string | null; linked_id: string | null; status: ClassEventStatus; archived_at?: string | null; participants?: ClassEventParticipant[]; expenses?: ClassEventExpense | ClassEventExpense[] | null; audience?: CalAudience }
 export type ClassEventDraft = { class_id?: string | null; school_id?: string | null; on_date: string; at_time: string | null; end_time?: string | null; kind: ClassEvent['kind']; type_codes?: EventTypeCode[]; title: string; visible: boolean; note: string | null; place?: string | null; responsible_id?: string | null; linked_kind?: string | null; linked_id?: string | null; status?: ClassEventStatus; archived_at?: string | null; audience?: CalAudience }
 export type ClassPhoto = { id: string; on_date: string; path: string; caption: string | null; event_id?: string | null }
-export const listSchoolEvents = async () =>
-  ok(supabase.from('class_events').select('id, class_id, school_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at, audience, participants:class_event_participants(id, kind, student_id, label, student:profiles!student_id(full_name)), expenses:class_event_expenses(event_id, wallet_id, amount, note, wallet:class_wallets(name))').is('class_id', null).order('on_date').limit(1000)) as Promise<ClassEvent[]>
+export const isMissingColErr = (e: unknown) => {
+  const err = e as { message?: string; details?: string } | null
+  const m = String(err?.message || err?.details || e || '')
+  return m.includes('does not exist') || m.includes('42703')
+}
+
+const CE_SELECT_FIELDS = 'id, class_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at, audience, participants:class_event_participants(id, kind, student_id, label, student:profiles!student_id(full_name)), expenses:class_event_expenses(event_id, wallet_id, amount, note, wallet:class_wallets(name))'
+const CE_SELECT_SAFE = 'id, class_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at, participants:class_event_participants(id, kind, student_id, label, student:profiles!student_id(full_name)), expenses:class_event_expenses(event_id, wallet_id, amount, note, wallet:class_wallets(name))'
+
+export const listSchoolEvents = async (): Promise<ClassEvent[]> => {
+  try {
+    return (await ok(supabase.from('class_events').select(CE_SELECT_FIELDS).is('class_id', null).order('on_date').limit(1000))) as ClassEvent[]
+  } catch (err: unknown) {
+    if (isMissingColErr(err)) {
+      return (await ok(supabase.from('class_events').select(CE_SELECT_SAFE).is('class_id', null).order('on_date').limit(1000))) as ClassEvent[]
+    }
+    return []
+  }
+}
 export const listJournal = async (classId: string) => {
   if (classId === 'school') {
     const [events, staff, places] = await Promise.all([
@@ -801,9 +879,19 @@ export const listJournal = async (classId: string) => {
     ])
     return { hours: [], events, photos: [], meetings: [], contacts: [], plan: [], schoolEvents: events, staff, places, students: [], media: [], wallets: [] }
   }
+  const fetchClassEvents = async () => {
+    try {
+      return (await ok(supabase.from('class_events').select(CE_SELECT_FIELDS).eq('class_id', classId).order('on_date').limit(1000))) as ClassEvent[]
+    } catch (err: unknown) {
+      if (isMissingColErr(err)) {
+        return (await ok(supabase.from('class_events').select(CE_SELECT_SAFE).eq('class_id', classId).order('on_date').limit(1000))) as ClassEvent[]
+      }
+      throw err
+    }
+  }
   const [hours, events, photos, meetings, contacts, plan, schoolEvents] = await Promise.all([
     ok(supabase.from('class_hours').select('id, on_date, direction, topic, led_by, absent, grp, note').eq('class_id', classId).order('on_date', { ascending: false }).limit(500)),
-    ok(supabase.from('class_events').select('id, class_id, school_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at, audience, participants:class_event_participants(id, kind, student_id, label, student:profiles!student_id(full_name)), expenses:class_event_expenses(event_id, wallet_id, amount, note, wallet:class_wallets(name))').eq('class_id', classId).order('on_date').limit(1000)),
+    fetchClassEvents(),
     ok(supabase.from('class_photos').select('id, on_date, path, caption, event_id').eq('class_id', classId).order('created_at').limit(2000)),
     classMentorMeetings(classId),
     ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('class_id', classId).in('channel', ['meeting', 'visit']).limit(500)),
@@ -814,8 +902,30 @@ export const listJournal = async (classId: string) => {
 }
 export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok(supabase.from('class_hours').insert(row))
 export const removeClassHour = (id: string) => ok(supabase.from('class_hours').delete().eq('id', id))
-export const addClassEvent = (row: ClassEventDraft) => ok(supabase.from('class_events').insert(row).select('id').single()) as unknown as Promise<{ id: string }>
-export const updateClassEvent = (id: string, row: Partial<ClassEventDraft>) => ok(supabase.from('class_events').update(row).eq('id', id))
+export const addClassEvent = async (row: ClassEventDraft) => {
+  try {
+    return (await ok(supabase.from('class_events').insert(row).select('id').single())) as unknown as { id: string }
+  } catch (err: unknown) {
+    if (isMissingColErr(err)) {
+      const { audience: _a, school_id: _s, ...safe } = row
+      void _a; void _s
+      return (await ok(supabase.from('class_events').insert(safe).select('id').single())) as unknown as { id: string }
+    }
+    throw err
+  }
+}
+export const updateClassEvent = async (id: string, row: Partial<ClassEventDraft>) => {
+  try {
+    return await ok(supabase.from('class_events').update(row).eq('id', id))
+  } catch (err: unknown) {
+    if (isMissingColErr(err)) {
+      const { audience: _a, school_id: _s, ...safe } = row
+      void _a; void _s
+      return await ok(supabase.from('class_events').update(safe).eq('id', id))
+    }
+    throw err
+  }
+}
 export const removeClassEvent = (id: string) => ok(supabase.from('class_events').delete().eq('id', id))
 export const setClassEventParticipants = async (eventId: string, rows: { kind: 'student' | 'group' | 'room'; student_id?: string | null; label: string }[]) => {
   await ok(supabase.from('class_event_participants').delete().eq('event_id', eventId))
@@ -834,11 +944,21 @@ export const addClassWallet = (class_id: string, name: string) => ok(supabase.fr
 export const addClassPhoto = async (class_id: string, on_date: string, me: string, file: File, caption: string | null = null, event_id: string | null = null) => ok(supabase.from('class_photos').insert({ class_id, on_date, caption, event_id, path: await uploadPhoto(me, file) }))
 export const setHourPlan = (class_id: string, direction: string, target: number) => ok(supabase.from('class_hour_plan').upsert({ class_id, direction, target }))
 export const classEventsForMe = async (classId: string) => {
+  const fetchMyEvents = async () => {
+    try {
+      return (await ok(supabase.from('class_events').select('id, class_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at, audience').eq('class_id', classId).gte('on_date', iso(new Date(Date.now() - 7 * 86400e3))).neq('status', 'archived').order('on_date').limit(200))) as ClassEvent[]
+    } catch (err: unknown) {
+      if (isMissingColErr(err)) {
+        return (await ok(supabase.from('class_events').select('id, class_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at').eq('class_id', classId).gte('on_date', iso(new Date(Date.now() - 7 * 86400e3))).neq('status', 'archived').order('on_date').limit(200))) as ClassEvent[]
+      }
+      throw err
+    }
+  }
   const [classEvs, schoolEvs] = await Promise.all([
-    ok(supabase.from('class_events').select('id, class_id, school_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at, audience').eq('class_id', classId).gte('on_date', iso(new Date(Date.now() - 7 * 86400e3))).neq('status', 'archived').order('on_date').limit(200)) as Promise<ClassEvent[]>,
+    fetchMyEvents(),
     listSchoolEvents().catch(() => [] as ClassEvent[]),
   ])
-  const combined = [...classEvs, ...schoolEvs.filter((e) => e.audience === 'all' || e.audience === 'students')]
+  const combined = [...classEvs, ...schoolEvs.filter((e) => e.audience === 'all' || e.audience === 'students' || !e.audience)]
   return combined.sort((a, b) => a.on_date.localeCompare(b.on_date))
 }
 export const removeClassPhoto = (id: string) => ok(supabase.from('class_photos').delete().eq('id', id))
