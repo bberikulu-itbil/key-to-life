@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import {
   addClassEvent, addClassHour, addClassPhoto, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
-  removeClassPhoto, setHourPlan, type ClassEvent, type ClassEventStatus, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student,
+  removeClassPhoto, setHourPlan, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student,
 } from '../lib/api'
 import { MONTHS, WD_SHORT, addDays, fmtDate, iso, isoDow, today } from '../lib/time'
 import { useMe } from '../App'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import ClassEventForm from '../components/ClassEventForm'
+import ClassCalendarView, { type CalItem } from '../components/ClassCalendarView'
 import { tx } from '../lib/i18n'
 
 /* «Сынып күнтізбесі» — the class calendar (week and month), class hours with their plan, and the photo album.
@@ -22,8 +23,8 @@ const KIND = {
   fun: ['#eab308', tx('Фильм, спорт')], parents: ['#9333ea', tx('Ата-ана, қонаққа бару')],
 } as const
 type Kind = keyof typeof KIND
-type Item = { key: string; date: string; kind: Kind; title: string; note?: string | null; shown?: boolean; personal?: boolean; color?: string; status?: ClassEventStatus; types?: EventTypeCode[]; eventId?: string; edit?: () => void; remove?: () => Promise<unknown> }
-type Tab = 'week' | 'month' | 'hours' | 'album'
+type Item = CalItem
+type Tab = 'calendar' | 'hours' | 'album' | 'week' | 'month'
 type Add = { what: 'event' | 'hour' | 'photo'; date: string }
 
 const Dot = ({ k, size = 8, color }: { k: Kind; size?: number; color?: string }) => <span className="block shrink-0 rounded-full" style={{ background: color ?? KIND[k][0], width: size, height: size }} />
@@ -39,14 +40,47 @@ export default function Journal({ classId }: { classId?: string }) {
 function StudentCalendar() {
   const { me } = useMe()
   const list = useLoad(async () => (me.class ? classEventsForMe(me.class.id) : []), [me.class?.id])
-  const rows = list.data ?? []
-  const upcoming = rows.filter((e) => e.on_date >= today())
+  const rows = useMemo(() => list.data ?? [], [list.data])
+  const [mode, setMode] = useState<'calendar' | 'list'>('calendar')
+  const items = useMemo(() => rows.map((e) => eventItem(e)), [rows])
+  const upcoming = useMemo(() => rows.filter((e) => e.on_date >= today()), [rows])
+
   return (
     <div className="grid gap-3 pb-6">
-      <PageHead title={tx('Сынып күнтізбесі')} back />
-      {list.loading && !list.data ? <Skeleton /> : list.error ? <ErrorBox text={list.error} retry={list.reload} /> : !upcoming.length
-        ? <Empty icon="clock" title={tx('Алда оқиға жоқ')} text={tx('Сынып жетекшісі не тәрбиеші оқиға қосса, осында шығады және хабарлама келеді.')} />
-        : <ItemList items={upcoming.map((e) => eventItem(e))} />}
+      <PageHead
+        title={tx('Сынып күнтізбесі')}
+        back
+        right={
+          <Chips
+            label={tx('Көрініс')}
+            value={mode}
+            onChange={setMode}
+            items={[['calendar', tx('Күнтізбе')], ['list', tx('Тізім')]]}
+          />
+        }
+      />
+      {list.loading && !list.data ? (
+        <Skeleton />
+      ) : list.error ? (
+        <ErrorBox text={list.error} retry={list.reload} />
+      ) : mode === 'calendar' ? (
+        <ClassCalendarView
+          items={items}
+          photos={[]}
+          onAdd={() => {}}
+          onEdit={() => {}}
+          classTitle={me.class?.name ?? tx('Сынып күнтізбесі')}
+          typeLabels={TYPE_LABELS}
+        />
+      ) : !upcoming.length ? (
+        <Empty
+          icon="clock"
+          title={tx('Алда оқиға жоқ')}
+          text={tx('Сынып жетекшісі не тәрбиеші оқиға қосса, осында шығады және хабарлама келеді.')}
+        />
+      ) : (
+        <ItemList items={upcoming.map((e) => eventItem(e))} />
+      )}
     </div>
   )
 }
@@ -57,8 +91,6 @@ const TYPE_LABELS: Record<EventTypeCode, string> = {
   hour_lead: tx('Жетекші тәрбие сағаты'), hour_parent: tx('Ата-ана тәрбие сағаты'), meeting: tx('Жиналыс'), parent_activity: tx('Ата-ана белсенділігі'),
   visit: tx('Қонаққа бару'), mentor: tx('Жеке кездесу'), exam: tx('Емтихан'), birthday: tx('Туған күн'), competition: tx('Жарыс'), other: tx('Басқа'),
 }
-const TYPE_ORDER: EventTypeCode[] = ['sport', 'food', 'game', 'film', 'cleaning', 'walk', 'outing', 'trip', 'hour_lead', 'hour_parent', 'meeting', 'parent_activity', 'visit', 'mentor', 'exam', 'birthday', 'competition', 'other']
-const typeLabel = (code: EventTypeCode) => TYPE_LABELS[code] ?? code
 const eventKind = (e: ClassEvent): Kind => {
   const codes = e.type_codes ?? []
   if (codes.some((x) => ['mentor', 'meeting'].includes(x))) return 'mentor'
@@ -72,9 +104,26 @@ const eventPersonal = (e: ClassEvent) => (e.type_codes ?? []).some((x) => ['ment
 const eventStatus = (e: ClassEvent) => e.status === 'postponed' ? tx('Кейінге қалдырылды') : e.status === 'passed' ? tx('Өтті') : e.status === 'archived' ? tx('Мұрағатта') : ''
 
 const eventItem = (e: ClassEvent, remove?: () => Promise<unknown>, edit?: () => void): Item => {
-  const time = e.at_time ? e.at_time.slice(0, 5) + (e.end_time ? '–' + e.end_time.slice(0, 5) : '') + ' · ' : ''
+  const time = e.at_time ? e.at_time.slice(0, 5) + (e.end_time ? '–' + e.end_time.slice(0, 5) : '') : ''
   const state = eventStatus(e)
-  return { key: 'e' + e.id, date: e.on_date, kind: eventKind(e), title: time + e.title + (state ? ' · ' + state : ''), note: [e.place, e.note].filter(Boolean).join(' · ') || null, shown: e.visible, personal: eventPersonal(e), color: eventColor(e), status: e.status, types: e.type_codes ?? [], eventId: e.id, remove, edit }
+  return {
+    key: 'e' + e.id,
+    date: e.on_date,
+    kind: eventKind(e),
+    title: (time ? time + ' · ' : '') + e.title + (state ? ' · ' + state : ''),
+    note: [e.place, e.note].filter(Boolean).join(' · ') || null,
+    shown: e.visible,
+    personal: eventPersonal(e),
+    color: eventColor(e),
+    status: e.status,
+    types: e.type_codes ?? [],
+    eventId: e.id,
+    remove,
+    edit,
+    time: e.at_time ? e.at_time.slice(0, 5) : undefined,
+    place: e.place,
+    rawEvent: e,
+  }
 }
 /** Items grouped under their dates. */
 function ItemList({ items, onRemove, flat }: { items: Item[]; onRemove?: (i: Item) => void; flat?: boolean }) {
@@ -104,11 +153,8 @@ function StaffCalendar({ classId }: { classId?: string }) {
   const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
   const options = deputy ? classes.data ?? [] : mine
   const cls = options.find((c) => c.id === classId) ?? mine[0] ?? options[0]
-  const [tab, setTab] = useState<Tab>('week')
+  const [tab, setTab] = useState<Tab>('calendar')
   const [day, setDay] = useState(today())
-  const [filter, setFilter] = useState<'all' | 'personal' | 'archive'>('all')
-  const [typeFilter, setTypeFilter] = useState<'all' | EventTypeCode>('all')
-  const [showPhotos, setShowPhotos] = useState(true)
   const [add, setAdd] = useState<Add | null>(null)
   const [editing, setEditing] = useState<ClassEvent | null>(null)
   const data = useLoad(async () => {
@@ -120,20 +166,9 @@ function StaffCalendar({ classId }: { classId?: string }) {
   const short = (id: string) => d?.students.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
   const editEvent = (e: ClassEvent) => setEditing(e)
   const items = useMemo(() => (d ? journalItems(d, short, editEvent) : []), [d]) // eslint-disable-line react-hooks/exhaustive-deps
-  const typeOptions = useMemo(() => TYPE_ORDER.filter((code) => d?.events.some((e) => (e.type_codes ?? []).includes(code))), [d])
-  const visibleItems = useMemo(() => {
-    const base = filter === 'archive' ? items.filter((x) => x.status === 'archived') : filter === 'personal' ? items.filter((x) => x.personal && x.status !== 'archived') : items.filter((x) => x.status !== 'archived')
-    return typeFilter === 'all' ? base : base.filter((x) => x.types?.includes(typeFilter))
-  }, [items, filter, typeFilter])
-  const visiblePhotos = useMemo(() => {
-    if (!showPhotos || !d) return []
-    if (typeFilter === 'all') return d.photos
-    return d.photos.filter((p) => !!p.event_id && d.events.some((e) => e.id === p.event_id && (e.type_codes ?? []).includes(typeFilter)))
-  }, [d, showPhotos, typeFilter])
   if (classes.loading && !classes.data) return <><PageHead title={tx('Сынып күнтізбесі')} back /><Skeleton /></>
   if (!cls) return <><PageHead title={tx('Сынып күнтізбесі')} back /><Empty icon="file" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></>
   const staffName = (id: string | null) => d?.staff.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
-  const remove = (i: Item) => i.remove?.().then(data.reload, (e) => toast(errText(e)))
   const closeForm = () => { setAdd(null); setEditing(null) }
   return (
     <div className="grid gap-3 pb-6">
@@ -143,24 +178,21 @@ function StaffCalendar({ classId }: { classId?: string }) {
         </select>}
         <button type="button" onClick={() => { setEditing(null); setAdd({ what: tab === 'hours' ? 'hour' : tab === 'album' ? 'photo' : 'event', date: day }) }} aria-label={tx('Қосу')} className="size-11 rounded-full bg-accent text-on-accent grid place-items-center shadow-card"><Icon n="plus" /></button>
       </div>} />
-      <Chips label={tx('Бөлім')} value={tab} onChange={setTab} items={[['week', tx('Апта')], ['month', tx('Ай')], ['hours', tx('Тәрбие сағаттары')], ['album', tx('Альбом')]]} />
-      {tab !== 'hours' && tab !== 'album' && <Chips label={tx('Сүзгі')} value={filter} onChange={setFilter} items={[['all', tx('Барлығы')], ['personal', tx('Жеке оқиғалар')], ['archive', tx('Мұрағат')]]} />}
-      {tab !== 'hours' && <>
-        {tab !== 'album' && <button type="button" role="switch" aria-checked={showPhotos} onClick={() => setShowPhotos(!showPhotos)} className={`h-10 rounded-md text-sm font-semibold ${showPhotos ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-muted'}`}>{showPhotos ? tx('Суреттер көрсетілуде') : tx('Суреттер жасырылды')}</button>}
-        <div className="grid gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted">{tx('Іс-шара типі')}</span>
-          <div className="flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => setTypeFilter('all')} className={`h-9 px-3 rounded-full text-sm ${typeFilter === 'all' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Барлығы')}</button>
-            {typeOptions.map((code) => <button key={code} type="button" onClick={() => setTypeFilter(code)} className={`h-9 px-3 rounded-full text-sm ${typeFilter === code ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{typeLabel(code)}</button>)}
-          </div>
-        </div>
-      </>}
+      <Chips label={tx('Бөлім')} value={tab === 'week' || tab === 'month' ? 'calendar' : tab} onChange={setTab} items={[['calendar', tx('Күнтізбе')], ['hours', tx('Тәрбие сағаттары')], ['album', tx('Альбом')]]} />
 
       {data.loading && !d ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : d && (
-        tab === 'week' ? <Week items={visibleItems} photos={visiblePhotos} events={d.events} day={day} setDay={setDay} onRemove={remove} />
-        : tab === 'month' ? <Month items={visibleItems} photos={visiblePhotos} onPick={(x) => { setDay(x); setTab('week') }} />
+        (tab === 'calendar' || tab === 'week' || tab === 'month') ? (
+          <ClassCalendarView
+            items={items}
+            photos={d.photos}
+            onAdd={(date) => { setEditing(null); setDay(date); setAdd({ what: 'event', date }) }}
+            onEdit={editEvent}
+            classTitle={`${cls.name} ${tx('сыныбы')}`}
+            typeLabels={TYPE_LABELS}
+          />
+        )
         : tab === 'hours' ? <Hours classId={cls.id} d={d} staffName={staffName} reload={data.reload} />
-        : <Album photos={visiblePhotos} events={d.events} reload={data.reload} />
+        : <Album photos={d.photos} events={d.events} reload={data.reload} />
       )}
       {(add?.what === 'event' || editing) && d && <Sheet title={editing ? tx('Оқиғаны өзгерту') : tx('Оқиға қосу')} onClose={closeForm}>
         <ClassEventForm classId={cls.id} date={add?.date ?? editing?.on_date ?? day} existing={editing ?? undefined} students={d.students} staff={d.staff} places={d.places} media={d.media} meetings={d.meetings} hours={d.hours} wallets={d.wallets} meId={me.id} onDone={() => { closeForm(); data.reload() }} />
@@ -175,99 +207,44 @@ type D = Awaited<ReturnType<typeof listJournal>> & { students: Student[]; staff:
 /** Everything on the calendar, by date. */
 function journalItems(d: Pick<D, 'hours' | 'events' | 'meetings' | 'contacts'>, studentName: (id: string) => string, edit?: (e: ClassEvent) => void): Item[] {
   return [
-    ...d.hours.map((h) => ({ key: 'h' + h.id, date: h.on_date, kind: 'hour' as Kind, title: (DIRECTION[h.direction] ?? h.direction) + ': ' + h.topic, remove: () => removeClassHour(h.id) })),
+    ...d.hours.map((h) => ({
+      key: 'h' + h.id,
+      date: h.on_date,
+      kind: 'hour' as Kind,
+      title: (DIRECTION[h.direction] ?? h.direction) + ': ' + h.topic,
+      color: '#16a34a',
+      types: ['hour_lead' as EventTypeCode],
+      remove: () => removeClassHour(h.id),
+    })),
     ...d.events.map((e) => eventItem(e, () => removeClassEvent(e.id), () => edit?.(e))),
-    ...d.meetings.map((m) => ({ key: 'm' + m.id, date: iso(new Date(m.starts_at)), kind: 'mentor' as Kind, title: new Date(m.starts_at).toTimeString().slice(0, 5) + ' · ' + studentName(m.student_id) + ': ' + m.topic, personal: true })),
-    ...d.contacts.map((c) => ({ key: 'c' + c.id, date: c.on_date, kind: 'parents' as Kind, title: studentName(c.student_id) + ': ' + c.summary, personal: true })),
+    ...d.meetings.map((m) => {
+      const time = new Date(m.starts_at).toTimeString().slice(0, 5)
+      return {
+        key: 'm' + m.id,
+        date: iso(new Date(m.starts_at)),
+        kind: 'mentor' as Kind,
+        title: studentName(m.student_id) + ': ' + m.topic,
+        color: '#2563eb',
+        types: ['mentor' as EventTypeCode],
+        time,
+        personal: true,
+        place: m.place,
+      }
+    }),
+    ...d.contacts.map((c) => ({
+      key: 'c' + c.id,
+      date: c.on_date,
+      kind: 'parents' as Kind,
+      title: studentName(c.student_id) + ': ' + c.summary,
+      color: '#9333ea',
+      types: ['visit' as EventTypeCode],
+      personal: true,
+    })),
   ]
 }
 const photoEventTitle = (p: ClassPhoto, events: ClassEvent[]) => p.event_id ? events.find((e) => e.id === p.event_id)?.title ?? null : null
 
-/** A week strip with the chosen day below it, then the next two weeks. */
-function Week({ items, photos, events, day, setDay, onRemove }: { items: Item[]; photos: ClassPhoto[]; events: ClassEvent[]; day: string; setDay: (d: string) => void; onRemove: (i: Item) => void }) {
-  const mon = addDays(day, 1 - isoDow(day))
-  const week = Array.from({ length: 7 }, (_, i) => addDays(mon, i))
-  const todays = items.filter((i) => i.date === day)
-  const pics = photos.filter((p) => p.on_date === day)
-  const ahead = items.filter((i) => i.date > day && i.date <= addDays(today() > day ? today() : day, 14))
-  const [big, setBig] = useState<ClassPhoto | null>(null)
-  return (
-    <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr] items-start">
-      <div className="grid gap-3">
-        <Card className="grid gap-2 p-3">
-          <div className="flex items-center gap-1">
-            <button type="button" aria-label={tx('Алдыңғы апта')} onClick={() => setDay(addDays(day, -7))} className="size-9 grid place-items-center rounded-md hover:bg-surface-2"><Icon n="back" size={18} /></button>
-            <p className="flex-1 text-center text-sm font-semibold">{fmtDate(week[0])} – {fmtDate(week[6])}</p>
-            {day !== today() && <button type="button" onClick={() => setDay(today())} className="h-8 px-3 rounded-full bg-accent-soft text-accent text-xs font-semibold">{tx('Бүгін')}</button>}
-            <button type="button" aria-label={tx('Келесі апта')} onClick={() => setDay(addDays(day, 7))} className="size-9 grid place-items-center rounded-md hover:bg-surface-2"><Icon n="chev" size={18} /></button>
-          </div>
-          <div className="grid grid-cols-7 gap-1">{week.map((w, k) => {
-            const kinds = [...new Set(items.filter((i) => i.date === w).map((i) => i.kind))]
-            const on = w === day
-            return (
-              <button key={w} type="button" aria-pressed={on} onClick={() => setDay(w)} aria-label={dayLabel(w)}
-                className={`grid justify-items-center gap-1 rounded-lg py-2 ${on ? 'bg-accent text-on-accent' : w === today() ? 'bg-accent-soft' : 'hover:bg-surface-2'}`}>
-                <span className={`text-[11px] ${on ? '' : 'text-muted'}`}>{WD_SHORT[k]}</span>
-                <span className="text-base font-semibold tabular-nums">{Number(w.slice(8))}</span>
-                <span className="flex h-2 gap-0.5">{kinds.slice(0, 3).map((x) => <Dot key={x} k={x} size={6} />)}</span>
-              </button>
-            )
-          })}</div>
-        </Card>
-        <h2 className="text-sm font-semibold">{day === today() ? tx('Бүгін') : dayLabel(day)}</h2>
-        {!todays.length && !pics.length ? <p className="text-sm text-muted">{tx('Бұл күні жазба жоқ.')}</p> : <ItemList items={todays} onRemove={onRemove} flat />}
-        {pics.length > 0 && <div className="grid grid-cols-4 gap-1.5">{pics.map((p) => {
-          const linked = photoEventTitle(p, events)
-          return <button key={p.id} type="button" onClick={() => setBig(p)} className="relative">
-            <img src={photoUrl(p.path)} alt={linked ?? p.caption ?? tx('{0} күнгі сурет', fmtDate(p.on_date))} className="aspect-square w-full rounded-md object-cover" loading="lazy" />
-            {(linked || p.caption) && <span className="absolute inset-x-0 bottom-0 rounded-b-md bg-black/55 px-1 py-0.5 text-left text-[10px] text-white truncate">{linked ?? p.caption}</span>}
-          </button>
-        })}</div>}
-      </div>
-      <div className="grid gap-2">
-        <h2 className="text-sm font-semibold">{tx('Алда')}</h2>
-        {!ahead.length ? <p className="text-sm text-muted">{tx('Алдағы екі аптада ештеңе жоқ.')}</p> : <ItemList items={ahead} onRemove={onRemove} />}
-        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-          {(Object.keys(KIND) as Kind[]).map((k) => <li key={k} className="flex items-center gap-1.5"><Dot k={k} />{KIND[k][1]}</li>)}
-        </ul>
-      </div>
-      {big && <Viewer p={big} eventTitle={photoEventTitle(big, events)} onClose={() => setBig(null)} />}
-    </div>
-  )
-}
 
-function Month({ items, photos, onPick }: { items: Item[]; photos: ClassPhoto[]; onPick: (d: string) => void }) {
-  const [month, setMonth] = useState(() => today().slice(0, 7))
-  const [y, m] = month.split('-').map(Number)
-  const first = new Date(y, m - 1, 1)
-  const start = new Date(y, m - 1, 1 - ((first.getDay() + 6) % 7))
-  const cells = Array.from({ length: 42 }, (_, i) => iso(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)))
-  const shift = (k: number) => setMonth(iso(new Date(y, m - 1 + k, 1)).slice(0, 7))
-  return (
-    <Card className="grid gap-3">
-      <div className="flex items-center gap-2">
-        <button type="button" aria-label={tx('Алдыңғы ай')} onClick={() => shift(-1)} className="size-10 grid place-items-center rounded-md hover:bg-surface-2"><Icon n="back" /></button>
-        <h2 className="flex-1 text-center font-semibold capitalize">{MONTHS[m - 1]} {y}</h2>
-        <button type="button" aria-label={tx('Келесі ай')} onClick={() => shift(1)} className="size-10 grid place-items-center rounded-md hover:bg-surface-2"><Icon n="chev" /></button>
-      </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted">{WD_SHORT.map((w) => <span key={w}>{w}</span>)}</div>
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((c) => {
-          const its = items.filter((i) => i.date === c), pic = photos.find((p) => p.on_date === c)
-          const kinds = [...new Set(its.map((i) => i.kind))]
-          return (
-            <button key={c} type="button" onClick={() => onPick(c)} aria-label={`${fmtDate(c)}${its.length ? ' · ' + tx('{0} жазба', its.length) : ''}`}
-              className={`relative min-h-14 lg:min-h-20 overflow-hidden rounded-md p-1 grid content-start justify-items-center gap-1 text-sm ${c.slice(0, 7) !== month ? 'opacity-40' : ''} ${c === today() ? 'ring-2 ring-accent' : ''} hover:bg-surface-2`}>
-              {pic && <img src={photoUrl(pic.path)} alt="" className="absolute inset-0 size-full object-cover opacity-30" loading="lazy" />}
-              <span className="relative tabular-nums font-medium">{Number(c.slice(8))}</span>
-              <span className="relative flex flex-wrap justify-center gap-0.5">{kinds.map((k) => <Dot key={k} k={k} size={7} />)}</span>
-            </button>
-          )
-        })}
-      </div>
-    </Card>
-  )
-}
 
 /** Class hours: the plan per direction, attendance per student, the log. */
 function Hours({ classId, d, staffName, reload }: { classId: string; d: D; staffName: (id: string | null) => string; reload: () => void }) {
