@@ -697,10 +697,31 @@ function MonthGrid({
                 </div>
               ))}
 
-              {/* Event Rows (With vertical color stripe on left like in screenshot) */}
+              {/* Event Rows (Google Calendar style: solid banner for all-day/school, dot + time + title for timed) */}
               {dayItems.slice(0, maxVisible - dayHolidays.length).map((i) => {
                 const typeCode = (i.types ?? [])[0]
                 const emoji = typeCode ? TYPE_EMOJIS[typeCode] : null
+                const isBanner = i.kind === 'school' || !i.time
+
+                if (isBanner) {
+                  return (
+                    <button
+                      key={i.key}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (i.rawEvent) onEditEvent(i.rawEvent)
+                        else onInspectDay(c)
+                      }}
+                      className="w-full text-left flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold text-white shadow-2xs transition hover:brightness-95 truncate"
+                      style={{ backgroundColor: i.color ?? '#2563eb' }}
+                    >
+                      {emoji && <span className="text-[10px] shrink-0">{emoji}</span>}
+                      <span className="truncate flex-1">{i.title}</span>
+                    </button>
+                  )
+                }
+
                 return (
                   <button
                     key={i.key}
@@ -710,23 +731,26 @@ function MonthGrid({
                       if (i.rawEvent) onEditEvent(i.rawEvent)
                       else onInspectDay(c)
                     }}
-                    className="w-full text-left flex items-center justify-between gap-1 px-1.5 py-0.5 rounded bg-surface-2/90 hover:bg-surface border-l-[3px] shadow-2xs transition truncate text-[11px]"
-                    style={{ borderColor: i.color ?? '#2563eb' }}
+                    className="w-full text-left flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-2 transition truncate text-[11px]"
                   >
+                    <span
+                      className="size-2 rounded-full shrink-0"
+                      style={{ backgroundColor: i.color ?? '#2563eb' }}
+                    />
+                    {i.time && (
+                      <span className="text-[10px] text-muted tabular-nums shrink-0 font-medium">
+                        {i.time}
+                      </span>
+                    )}
                     <span className="font-medium truncate flex-1 flex items-center gap-1 text-ink">
                       {emoji && <span className="text-[10px] shrink-0">{emoji}</span>}
                       <span className="truncate">{i.title}</span>
                     </span>
-                    {i.time && (
-                      <span className="text-[10px] text-muted tabular-nums shrink-0 font-normal">
-                        {i.time}
-                      </span>
-                    )}
                   </button>
                 )
               })}
 
-              {/* +N more link */}
+              {/* Overflow link: "Тағы {N}" (Google Calendar Image 2) */}
               {overflow > 0 && (
                 <button
                   type="button"
@@ -734,9 +758,9 @@ function MonthGrid({
                     e.stopPropagation()
                     onInspectDay(c)
                   }}
-                  className="text-left text-[11px] font-semibold text-accent hover:underline px-1 py-0.5 mt-auto"
+                  className="text-left text-[11px] font-bold text-muted hover:text-ink hover:underline px-1 py-0.5 mt-auto"
                 >
-                  {tx('+{0} басқа', overflow)}
+                  {tx('Тағы {0}', overflow)}
                 </button>
               )}
             </div>

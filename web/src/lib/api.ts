@@ -246,8 +246,9 @@ export const setCurator = (activity: string, student: string | null) => setCurat
 
 /* ---------- calendars ---------- */
 export type CalKind = 'personal' | 'class' | 'school' | 'olympiad'
+export type CalAudience = 'all' | 'students' | 'staff' | 'teachers' | 'tutors'
 export type Calendar = { id: string; kind: CalKind; name: string; color: string; class_id: string | null; owner_id: string | null }
-export type CalEvent = { id: string; calendar_id: string; title: string; starts_at: string; ends_at: string; all_day: boolean; location: string | null; notes: string | null; responsible_name: string | null }
+export type CalEvent = { id: string; calendar_id: string; title: string; starts_at: string; ends_at: string; all_day: boolean; location: string | null; notes: string | null; responsible_name: string | null; audience?: CalAudience }
 export type Lesson = { id: string; class_id: string; weekday: number; start_time: string; end_time: string; subject: string; teacher_id: string | null; teacher_name: string | null; room: string | null
   valid_from: string | null; valid_to: string | null; teacher: { full_name: string } | null; class: { name: string } }
 export type SchoolBreak = { name: string; from_date: string; to_date: string }
@@ -256,8 +257,8 @@ export const listBreaks = () => ok(supabase.from('school_breaks').select('name, 
 export const ensureCalendars = () => rpc('ensure_calendars', {})
 export const listCalendars = () => ok(supabase.from('calendars').select('id, kind, name, color, class_id, owner_id').order('kind')) as Promise<Calendar[]>
 export const listEvents = (from: string, to: string) =>
-  ok(supabase.from('calendar_events').select('id, calendar_id, title, starts_at, ends_at, all_day, location, notes, responsible_name').lt('starts_at', to).gt('ends_at', from).order('starts_at')) as Promise<CalEvent[]>
-export const addEvents = async (rows: { calendar_id: string; title: string; starts_at: string; ends_at: string; all_day?: boolean; location?: string | null; notes?: string | null; responsible_name?: string | null; import_uid?: string }[]) => {
+  ok(supabase.from('calendar_events').select('id, calendar_id, title, starts_at, ends_at, all_day, location, notes, responsible_name, audience').lt('starts_at', to).gt('ends_at', from).order('starts_at')) as Promise<CalEvent[]>
+export const addEvents = async (rows: { calendar_id: string; title: string; starts_at: string; ends_at: string; all_day?: boolean; location?: string | null; notes?: string | null; responsible_name?: string | null; audience?: CalAudience; import_uid?: string }[]) => {
   const manual = rows.filter((r) => !r.import_uid)
   const imported = rows.filter((r) => !!r.import_uid)
   const [inserted, deduplicated] = await Promise.all([
@@ -270,6 +271,8 @@ export const addEvents = async (rows: { calendar_id: string; title: string; star
   ])
   return [...inserted, ...deduplicated]
 }
+export const updateEvent = (id: string, patch: Partial<Omit<CalEvent, 'id'>>) =>
+  ok(supabase.from('calendar_events').update(patch).eq('id', id))
 export const removeEvent = (id: string) => ok(supabase.from('calendar_events').delete().eq('id', id))
 export const listHidden = async () => ((await ok(supabase.from('calendar_hidden').select('cal_key'))) as { cal_key: string }[]).map((r) => r.cal_key)
 export const setHidden = (key: string, hidden: boolean) =>
@@ -784,8 +787,8 @@ export type ClassEventParticipant = { id: string; kind: 'student' | 'group' | 'r
 export type ClassWallet = { id: string; class_id: string; name: string; archived: boolean }
 export type ClassEventExpense = { id?: string; event_id: string; wallet_id: string; amount: number; note: string | null; wallet: { name: string } }
 export type ClassEventExpenseDraft = { wallet_id: string; amount: number; note: string | null }
-export type ClassEvent = { id: string; on_date: string; at_time: string | null; end_time: string | null; kind: 'school' | 'fun' | 'parents'; type_codes: EventTypeCode[]; title: string; visible: boolean; note: string | null; place: string | null; responsible_id: string | null; linked_kind: string | null; linked_id: string | null; status: ClassEventStatus; archived_at?: string | null; participants?: ClassEventParticipant[]; expenses?: ClassEventExpense | ClassEventExpense[] | null }
-export type ClassEventDraft = { class_id: string; on_date: string; at_time: string | null; end_time?: string | null; kind: ClassEvent['kind']; type_codes?: EventTypeCode[]; title: string; visible: boolean; note: string | null; place?: string | null; responsible_id?: string | null; linked_kind?: string | null; linked_id?: string | null; status?: ClassEventStatus; archived_at?: string | null }
+export type ClassEvent = { id: string; on_date: string; at_time: string | null; end_time: string | null; kind: 'school' | 'fun' | 'parents'; type_codes: EventTypeCode[]; title: string; visible: boolean; note: string | null; place: string | null; responsible_id: string | null; linked_kind: string | null; linked_id: string | null; status: ClassEventStatus; archived_at?: string | null; participants?: ClassEventParticipant[]; expenses?: ClassEventExpense | ClassEventExpense[] | null; audience?: CalAudience }
+export type ClassEventDraft = { class_id: string; on_date: string; at_time: string | null; end_time?: string | null; kind: ClassEvent['kind']; type_codes?: EventTypeCode[]; title: string; visible: boolean; note: string | null; place?: string | null; responsible_id?: string | null; linked_kind?: string | null; linked_id?: string | null; status?: ClassEventStatus; archived_at?: string | null; audience?: CalAudience }
 export type ClassPhoto = { id: string; on_date: string; path: string; caption: string | null; event_id?: string | null }
 export const listJournal = async (classId: string) => {
   const [hours, events, photos, meetings, contacts, plan] = await Promise.all([

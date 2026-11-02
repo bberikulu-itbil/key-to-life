@@ -1,8 +1,8 @@
-import { listActivities, listBreaks, listCalendars, listEvents, listHidden, listLessons, type Activity, type CalEvent, type Calendar, type Lesson, type Me, type SchoolBreak, type SessionType } from './api'
+import { listActivities, listBreaks, listCalendars, listEvents, listHidden, listLessons, type Activity, type CalAudience, type CalEvent, type Calendar, type Lesson, type Me, type SchoolBreak, type SessionType } from './api'
 import { IMPORTANCE, addDays, inBreak, isSession, lessonOn, parse, sessionTime, sessionType } from './time'
 import { tx } from './i18n'
 
-export type Item = { key: string; src: string; color: string; title: string; start: Date; end: Date; allDay: boolean; place?: string | null; responsible?: string | null; link?: string; kind: 'activity' | 'event' | 'lesson'; stype?: SessionType }
+export type Item = { key: string; src: string; color: string; title: string; start: Date; end: Date; allDay: boolean; place?: string | null; responsible?: string | null; link?: string; kind: 'activity' | 'event' | 'lesson'; stype?: SessionType; audience?: CalAudience; notes?: string | null; calEvent?: CalEvent }
 export type Source = { key: string; name: string; color: string; editable?: boolean; cal?: Calendar }
 
 export const ACT_COLOR = '#3b5bab'
@@ -29,7 +29,7 @@ export function buildItems(from: string, to: string, me: Me, d: { activities: Ac
       items.push({ key: `l${l.id}${day}`, src: 'timetable', color: LESSON_COLOR, title: me.role === 'student' ? l.subject : `${l.subject} · ${l.class.name}`, start: at(day, l.start_time), end: at(day, l.end_time), allDay: false, place: l.room, kind: 'lesson' })
   }
   const color = Object.fromEntries(d.calendars.map((c) => [c.id, c.color]))
-  for (const e of d.events) items.push({ key: `e${e.id}`, src: e.calendar_id, color: color[e.calendar_id] ?? ACT_COLOR, title: e.title, start: new Date(e.starts_at), end: new Date(e.ends_at), allDay: e.all_day, place: e.location, responsible: e.responsible_name, kind: 'event' })
+  for (const e of d.events) items.push({ key: `e${e.id}`, src: e.calendar_id, color: color[e.calendar_id] ?? ACT_COLOR, title: e.title, start: new Date(e.starts_at), end: new Date(e.ends_at), allDay: e.all_day, place: e.location, responsible: e.responsible_name, kind: 'event', audience: e.audience, notes: e.notes, calEvent: e })
   return items.sort((x, y) => x.start.getTime() - y.start.getTime())
 }
 

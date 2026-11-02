@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   addClassEvent, addClassPhoto, addClassWallet, errText, setClassEventExpenses, setClassEventParticipants, updateClassEvent,
-  type ClassEvent, type ClassEventExpense, type ClassEventStatus, type ClassHour, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student, type ClassWallet,
+  type CalAudience, type ClassEvent, type ClassEventExpense, type ClassEventStatus, type ClassHour, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student, type ClassWallet,
 } from '../lib/api'
 import { Button, Field, inputCls, toast } from './ui'
 import LocationPicker from './LocationPicker'
@@ -31,6 +31,7 @@ export default function ClassEventForm({ classId, date, existing, students, staf
   const [responsible, setResponsible] = useState(existing?.responsible_id ?? '')
   const [note, setNote] = useState(existing?.note ?? '')
   const [visible, setVisible] = useState(existing?.visible ?? false)
+  const [audience, setAudience] = useState<CalAudience>(existing?.audience ?? (existing?.visible ? 'students' : 'all'))
   const [status, setStatus] = useState<ClassEventStatus>(existing?.status ?? 'planned')
   const [participantType, setParticipantType] = useState<'student' | 'group' | 'room'>('student')
   const [selected, setSelected] = useState<string[]>(existing?.participants?.filter((p) => p.kind === 'student').map((p) => p.student_id!).filter(Boolean) ?? [])
@@ -55,7 +56,7 @@ export default function ClassEventForm({ classId, date, existing, students, staf
     if (expense && new Set(selectedWallets).size !== selectedWallets.length) return toast(tx('Бір әмиянды екі рет таңдамаңыз'))
     setBusy(true)
     try {
-      const row = { class_id: classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible, note: note.trim() || null, place: place.trim() || null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
+      const row = { class_id: classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible: audience === 'students' || audience === 'all' || visible, audience, note: note.trim() || null, place: place.trim() || null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
       const id = existing ? existing.id : (await addClassEvent(row)).id
       if (existing) {
         const changes = Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'class_id')) as Partial<Parameters<typeof updateClassEvent>[1]>
@@ -95,7 +96,25 @@ export default function ClassEventForm({ classId, date, existing, students, staf
     {linkOptions.length > 0 && <Field label={tx('Ресурспен байланыстыру')}>{() => <select value={link} onChange={(e) => setLink(e.target.value)} className={inputCls}><option value="">{tx('Байланыстырмау')}</option>{linkOptions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>}</Field>}
     <Field label={tx('Ескертпе')} hint={tx('Міндетті емес')}>{(id) => <textarea id={id} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} className={`${inputCls} h-20 py-2`} />}</Field>
     <Field label={tx('Статус')}>{() => <select value={status} onChange={(e) => setStatus(e.target.value as ClassEventStatus)} className={inputCls}><option value="planned">{tx('Жоспарланған')}</option><option value="passed">{tx('Өтті')}</option><option value="postponed">{tx('Кейінге қалдырылды')}</option><option value="archived">{tx('Мұрағаттау')}</option></select>}</Field>
-    <label className="flex items-start gap-3 rounded-md bg-surface-2 p-3"><input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} className="mt-0.5 size-5 accent-[var(--accent)]" /><span className="text-sm"><span className="block font-semibold">{tx('Оқушыларға көрсету')}</span><span className="block text-muted">{tx('Қаржы мәліметтері оқушыларға көрінбейді')}</span></span></label>
+    <Field label={tx('Көрінетін аудитория')} hint={tx('Оқиға кімдерге көрінетінін таңдаңыз')}>
+      {() => (
+        <select
+          value={audience}
+          onChange={(e) => {
+            const val = e.target.value as CalAudience
+            setAudience(val)
+            setVisible(val === 'all' || val === 'students')
+          }}
+          className={inputCls}
+        >
+          <option value="all">{tx('Барлығына (оқушылар мен ұстаздар)')}</option>
+          <option value="students">{tx('Тек оқушыларға')}</option>
+          <option value="staff">{tx('Мұғалімдер мен тәрбиешілерге')}</option>
+          <option value="teachers">{tx('Тек мұғалімдерге')}</option>
+          <option value="tutors">{tx('Тек тәрбиешілерге')}</option>
+        </select>
+      )}
+    </Field>
     <div className="grid gap-2 rounded-md bg-surface-2 p-3">
       <label className="flex items-center gap-2 text-sm font-semibold">
         <input type="checkbox" checked={expense} onChange={(e) => setExpense(e.target.checked)} className="size-5 accent-[var(--accent)]" />{tx('Қаржы қосу')}
