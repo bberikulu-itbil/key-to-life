@@ -2425,5 +2425,7 @@
   "Алдағы оқиғалар жоқ": "No upcoming events",
   "Күнтізбеде алдағы оқиғалар табылмады.": "No upcoming events found on the calendar.",
   "Google Calendar немесе Apple Calendar-дан экспортталған .ics файлын таңдаңыз.": "Choose a .ics file exported from Google Calendar or Apple Calendar.",
-  "{0} оқиға табылды": "{0} events found"
+  "{0} оқиға табылды": "{0} events found",
+  "Мәзірді ашу": "Expand sidebar",
+  "Мәзірді жиыру": "Collapse sidebar"
 }

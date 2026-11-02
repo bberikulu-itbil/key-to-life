@@ -100,6 +100,17 @@ function Shell({ me }: { me: Me }) {
   // who may write in the feed: staff, parliament, and students who lead an initiative or hold a role in one
   const voice = useLoad(async () => me.role !== 'student' || me.parliament ? true
     : Promise.all([myRoles(me.id), listActivities()]).then(([r, a]) => r.length > 0 || ledActivities(me, a).length > 0), [me.id])
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('desktop_nav_collapsed') === '1' }
+    catch { return false }
+  })
+  const toggleCollapse = () => {
+    setCollapsed((prev) => {
+      const next = !prev
+      try { localStorage.setItem('desktop_nav_collapsed', next ? '1' : '0') } catch { /* ignore */ }
+      return next
+    })
+  }
   const toPlan = () => { setSheet(null); setPlanKey(planKey + 1); go('/plan') }
   // notifications + unread chat messages; shortcut: polled on navigation, add realtime for the badge if it feels stale
   // muted and archived chats do not count
@@ -168,9 +179,9 @@ function Shell({ me }: { me: Me }) {
 
   return (
     <Ctx.Provider value={{ me, refreshBadge }}>
-      <SideNav me={me} seg={seg} active={active} badge={badge} onPlus={() => setSheet('menu')} />
-      <div className="min-h-dvh pb-[calc(80px+env(safe-area-inset-bottom))] lg:pb-8 lg:pl-72">
-        <main className={`mx-auto ${['council', 'mentor', 'journal', 'resources'].includes(seg) ? 'max-w-[640px] lg:max-w-[1100px]' : 'max-w-[640px]'} pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]`}>{screen}</main>
+      <SideNav me={me} seg={seg} active={active} badge={badge} onPlus={() => setSheet('menu')} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
+      <div className={`min-h-dvh pb-[calc(80px+env(safe-area-inset-bottom))] lg:pb-8 ${collapsed ? 'lg:pl-[72px]' : 'lg:pl-72'} transition-[padding] duration-200`}>
+        <main className={`mx-auto ${['council', 'mentor', 'journal', 'resources', 'calendars', 'class', 'hub'].includes(seg) ? (collapsed ? 'max-w-[640px] lg:max-w-[1380px]' : 'max-w-[640px] lg:max-w-[1140px]') : 'max-w-[640px]'} pt-[max(8px,env(safe-area-inset-top))] pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))]`}>{screen}</main>
       </div>
       <nav aria-label={tx('Негізгі мәзір')} className="print:hidden lg:hidden fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto max-w-[640px] grid grid-cols-5 h-16 items-center">
@@ -219,30 +230,151 @@ function Shell({ me }: { me: Me }) {
 
 
 /** Wide screens: the main tabs and, for staff, the class management sections on the left. */
-function SideNav({ me, seg, active, badge, onPlus }: { me: Me; seg: string; active: (p: string) => boolean; badge: number; onPlus: () => void }) {
-  const link = (href: string, icon: string, label: string, on: boolean, extra?: ReactNode) => (
-    <a key={href} href={`#${href}`} aria-current={on ? 'page' : undefined}
-      className={`flex items-center gap-3 h-11 px-3 rounded-md text-sm ${on ? 'bg-accent-soft text-accent font-semibold' : 'hover:bg-surface-2'}`}><Icon n={icon} size={20} /><span className="flex-1">{label}</span>{extra}</a>
-  )
+function SideNav({
+  me,
+  seg,
+  active,
+  badge,
+  onPlus,
+  collapsed,
+  onToggleCollapse,
+}: {
+  me: Me
+  seg: string
+  active: (p: string) => boolean
+  badge: number
+  onPlus: () => void
+  collapsed: boolean
+  onToggleCollapse: () => void
+}) {
+  const link = (href: string, icon: string, label: string, on: boolean, extra?: ReactNode) => {
+    if (collapsed) {
+      return (
+        <a
+          key={href}
+          href={`#${href}`}
+          aria-current={on ? 'page' : undefined}
+          title={label}
+          aria-label={label}
+          className={`relative size-11 mx-auto rounded-xl grid place-items-center transition-colors ${
+            on ? 'bg-accent-soft text-accent' : 'text-muted hover:text-base hover:bg-surface-2'
+          }`}
+        >
+          <Icon n={icon} size={20} />
+          {extra}
+        </a>
+      )
+    }
+    return (
+      <a
+        key={href}
+        href={`#${href}`}
+        aria-current={on ? 'page' : undefined}
+        className={`flex items-center gap-3 h-11 px-3 rounded-xl text-sm transition-colors ${
+          on ? 'bg-accent-soft text-accent font-semibold' : 'hover:bg-surface-2'
+        }`}
+      >
+        <Icon n={icon} size={20} />
+        <span className="flex-1 truncate">{label}</span>
+        {extra}
+      </a>
+    )
+  }
+
+  const chatBadge = badge > 0 ? (
+    collapsed ? (
+      <span
+        className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-danger text-white text-[10px] font-semibold grid place-items-center ring-2 ring-surface"
+        aria-label={tx('{0} оқылмаған', badge)}
+      >
+        {badge > 9 ? '9+' : badge}
+      </span>
+    ) : (
+      <span
+        className="min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center"
+        aria-label={tx('{0} оқылмаған', badge)}
+      >
+        {badge > 9 ? '9+' : badge}
+      </span>
+    )
+  ) : null
+
   return (
-    <aside aria-label={tx('Бүйір мәзір')} className="print:hidden hidden lg:flex fixed inset-y-0 left-0 z-30 w-72 flex-col gap-1 overflow-y-auto border-r border-line bg-surface p-3">
-      <p className="px-3 py-3 text-lg font-bold">Key To Life</p>
-      <button type="button" onClick={onPlus} className="mb-2 flex items-center justify-center gap-2 h-11 rounded-md bg-hero text-gold font-semibold"><Icon n="plus" size={20} />{tx('Әрекет')}</button>
+    <aside
+      aria-label={tx('Бүйір мәзір')}
+      className={`print:hidden hidden lg:flex fixed inset-y-0 left-0 z-30 ${
+        collapsed ? 'w-[72px] px-2 py-3' : 'w-72 p-3'
+      } flex-col gap-1 overflow-x-hidden overflow-y-auto border-r border-line bg-surface transition-[width] duration-200`}
+    >
+      {collapsed ? (
+        <div className="flex flex-col items-center gap-2 mb-2">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title={tx('Мәзірді ашу')}
+            aria-label={tx('Мәзірді ашу')}
+            className="size-10 rounded-xl grid place-items-center text-muted hover:text-base hover:bg-surface-2 transition"
+          >
+            <Icon n="chev" size={20} />
+          </button>
+          <button
+            type="button"
+            onClick={onPlus}
+            title={tx('Әрекет')}
+            aria-label={tx('Әрекет')}
+            className="size-11 rounded-xl bg-hero text-gold grid place-items-center shadow-xs hover:opacity-95 transition"
+          >
+            <Icon n="plus" size={22} />
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between px-3 py-2 mb-1">
+            <span className="text-lg font-bold tracking-tight">Key To Life</span>
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              title={tx('Мәзірді жиыру')}
+              aria-label={tx('Мәзірді жиыру')}
+              className="p-1.5 rounded-lg text-muted hover:text-base hover:bg-surface-2 transition"
+            >
+              <Icon n="back" size={18} />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onPlus}
+            className="mb-2 flex items-center justify-center gap-2 h-11 w-full rounded-xl bg-hero text-gold font-semibold shadow-xs hover:opacity-95 transition"
+          >
+            <Icon n="plus" size={20} />
+            {tx('Әрекет')}
+          </button>
+        </>
+      )}
+
       {link('/', 'home', tx('Home'), active('/'))}
       {link('/plan', 'clock', tx('Жоспар'), active('/plan'))}
-      {link('/chats', 'chat', tx('Чаттар'), active('/chats'), badge > 0 ? <span className="min-w-5 h-5 px-1 rounded-full bg-danger text-white text-xs font-semibold grid place-items-center">{badge > 9 ? '9+' : badge}</span> : null)}
+      {link('/chats', 'chat', tx('Чаттар'), active('/chats'), chatBadge)}
       {link('/profile', 'user', tx('Профиль'), active('/profile') && seg !== 'dorm')}
       {me.role === 'student' && me.class && link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
       {me.role === 'student' && me.class && link('/journal', 'file', tx('Сынып күнтізбесі'), seg === 'journal')}
-      {me.role !== 'student' && <>
-        <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted">{tx('Сыныпты басқару')}</p>
-        {link('/class', 'users', tx('Менің сыныбым'), seg === 'class')}
-        {link('/dorm', 'home', tx('Жатақхана'), seg === 'dorm')}
-        {link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
-        {link('/journal', 'file', tx('Сынып күнтізбесі'), seg === 'journal')}
-        {link('/mentor', 'user', tx('Жеке кездесулер'), seg === 'mentor')}
-        {link('/council', 'lock', tx('Сынып кеңесі'), seg === 'council')}
-      </>}
+      {me.role !== 'student' && (
+        <>
+          {collapsed ? (
+            <div className="my-2.5 mx-auto w-8 h-px bg-line" title={tx('Сыныпты басқару')} />
+          ) : (
+            <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted">
+              {tx('Сыныпты басқару')}
+            </p>
+          )}
+          {link('/class', 'users', tx('Менің сыныбым'), seg === 'class')}
+          {link('/dorm', 'home', tx('Жатақхана'), seg === 'dorm')}
+          {link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
+          {link('/journal', 'file', tx('Сынып күнтізбесі'), seg === 'journal')}
+          {link('/mentor', 'user', tx('Жеке кездесулер'), seg === 'mentor')}
+          {link('/council', 'lock', tx('Сынып кеңесі'), seg === 'council')}
+        </>
+      )}
     </aside>
   )
 }
