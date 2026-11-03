@@ -33,7 +33,7 @@ import MyClass from './screens/MyClass'
 import MyActivities from './screens/MyActivities'
 import Dorm from './screens/Dorm'
 import Council from './screens/Council'
-import Mentor from './screens/Mentor'
+import Mentor, { RoadmapBuilderSheet } from './screens/Mentor'
 import Journal from './screens/Journal'
 import Resources from './screens/Resources'
 import ClassHub from './screens/ClassHub'
@@ -219,7 +219,18 @@ function Shell({ me }: { me: Me }) {
           </div>
         </Sheet>
       )}
-      {sheet === 'goal' && <Sheet title={tx('Жаңа жоспар')} onClose={() => setSheet(null)}><GoalForm parent={null} pick onDone={toPlan} /></Sheet>}
+      {sheet === 'goal' && (
+        me.role === 'student' ? (
+          <RoadmapBuilderSheet
+            student={{ id: me.id, class_id: me.class?.id, full_name: me.full_name }}
+            currentRoadmap={{ goals: [], habits: [], tasks: [] }}
+            onClose={() => setSheet(null)}
+            onDone={toPlan}
+          />
+        ) : (
+          <Sheet title={tx('Жаңа жоспар')} onClose={() => setSheet(null)}><GoalForm parent={null} pick onDone={toPlan} /></Sheet>
+        )
+      )}
       {sheet === 'habit' && <Sheet title={tx('Жаңа әдет')} onClose={() => setSheet(null)}><HabitForm onDone={toPlan} /></Sheet>}
       {sheet === 'adduser' && <Sheet title={tx('Пайдаланушы қосу')} onClose={() => setSheet(null)}><AddUser /></Sheet>}
       <Toaster />

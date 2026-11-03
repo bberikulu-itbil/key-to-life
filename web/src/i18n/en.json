@@ -3017,5 +3017,18 @@
   "Сынып жоспары (Этюд) және күнтізбесі": "Class plan (Etude) and calendar",
   "Күнтізбеде көру →": "View in calendar →",
   "Сынып жоспары (Этюд-1, Этюд-2, т.б.) әлі қойылмаған.": "Class plan (Etude-1, Etude-2, etc.) is not set yet.",
-  "Этюд немесе жоспар қосу": "Add Etude or plan"
+  "Этюд немесе жоспар қосу": "Add Etude or plan",
+  "Мақсат қосу": "Add goal",
+  "Әзірге мақсат жоқ": "No goals yet",
+  "Үлкен мақсат белгілеп, оны нақты қадамдарға бөліңіз.": "Set a big goal and break it down into actionable steps.",
+  "Жаңа мақсат қою": "Set a new goal",
+  "Үлгілерден таңдау": "Choose from presets",
+  "{0} — қадамды өшіру": "{0} — delete step",
+  "Жаңа мақсат сәтті қосылды": "New goal added successfully",
+  "Жаңа әдет сәтті қосылды": "New habit added successfully",
+  "Жаңа тапсырма сәтті қосылды": "New task added successfully",
+  "Барлығын бір бетте көру": "View everything on one page",
+  "Бүгін {0} сабақ және шара бар": "{0} lessons and events today",
+  "Бүгінгі сабақтар аяқталды": "Today's lessons are over",
+  "Кестені ашу": "Open schedule"
 }

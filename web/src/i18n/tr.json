@@ -3017,5 +3017,18 @@
   "Сынып жоспары (Этюд) және күнтізбесі": "Sınıf planı (Etüt) ve takvimi",
   "Күнтізбеде көру →": "Takvimde gör →",
   "Сынып жоспары (Этюд-1, Этюд-2, т.б.) әлі қойылмаған.": "Sınıf planı (Etüt-1, Etüt-2 vb.) henüz ayarlanmadı.",
-  "Этюд немесе жоспар қосу": "Etüt veya plan ekle"
+  "Этюд немесе жоспар қосу": "Etüt veya plan ekle",
+  "Мақсат қосу": "Hedef ekle",
+  "Әзірге мақсат жоқ": "Henüz hedef yok",
+  "Үлкен мақсат белгілеп, оны нақты қадамдарға бөліңіз.": "Büyük bir hedef belirleyin ve onu somut adımlara bölün.",
+  "Жаңа мақсат қою": "Yeni hedef koy",
+  "Үлгілерден таңдау": "Şablonlardan seç",
+  "{0} — қадамды өшіру": "{0} — adımı sil",
+  "Жаңа мақсат сәтті қосылды": "Yeni hedef başarıyla eklendi",
+  "Жаңа әдет сәтті қосылды": "Yeni alışkanlık başarıyla eklendi",
+  "Жаңа тапсырма сәтті қосылды": "Yeni görev başarıyla eklendi",
+  "Барлығын бір бетте көру": "Hepsini tek sayfada gör",
+  "Бүгін {0} сабақ және шара бар": "Bugün {0} ders ve etkinlik var",
+  "Бүгінгі сабақтар аяқталды": "Bugünkü dersler bitti",
+  "Кестені ашу": "Programı aç"
 }

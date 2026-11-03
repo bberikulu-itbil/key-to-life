@@ -784,7 +784,7 @@ export const normalizeRoadmapGoal = (g: unknown): RoadmapGoal => {
     title: (rec.title as string) || '',
     category: cat,
     metric: (rec.metric as string) || (rec.target ? `${rec.target}${rec.unit || ''}` : undefined),
-    priority: rec.priority === 'medium' ? 'normal' : ((rec.priority as 'high' | 'normal') || 'normal'),
+    priority: rec.priority === 'high' ? 'high' : rec.priority === 'medium' ? 'medium' : 'normal',
     due_on: (rec.due_on as string) || (rec.deadline as string) || null,
     done: !!rec.done,
     steps: Array.isArray(rec.steps) ? rec.steps.map((s: unknown) => {
@@ -839,12 +839,13 @@ export const normalizeRoadmapTask = (t: unknown): RoadmapTask => {
 
 export const loadStudentRoadmap = async (studentId: string): Promise<StudentRoadmap> => {
   const t = today()
+  let roadmap: StudentRoadmap = { goals: [], habits: [], tasks: [] }
   try {
     const res = (await ok(
       supabase.from('student_roadmaps').select('goals, habits, tasks').eq('student_id', studentId).maybeSingle()
     )) as { goals?: unknown[]; habits?: unknown[]; tasks?: unknown[] } | null
     if (res && (res.goals || res.habits || res.tasks)) {
-      return {
+      roadmap = {
         goals: (Array.isArray(res.goals) ? res.goals : []).map(normalizeRoadmapGoal),
         habits: (Array.isArray(res.habits) ? res.habits : []).map((h) => normalizeRoadmapHabit(h, t)),
         tasks: (Array.isArray(res.tasks) ? res.tasks : []).map(normalizeRoadmapTask),
@@ -853,20 +854,57 @@ export const loadStudentRoadmap = async (studentId: string): Promise<StudentRoad
   } catch {
     // If student_roadmaps table does not exist or fails, fall through to student_forms
   }
+  if (!roadmap.goals.length && !roadmap.habits.length && !roadmap.tasks.length) {
+    try {
+      const form = await studentForm(studentId)
+      if (form?.answers?.['__roadmap']) {
+        const parsed = JSON.parse(form.answers['__roadmap'])
+        roadmap = {
+          goals: (Array.isArray(parsed.goals) ? parsed.goals : []).map(normalizeRoadmapGoal),
+          habits: (Array.isArray(parsed.habits) ? parsed.habits : []).map((h: unknown) => normalizeRoadmapHabit(h, t)),
+          tasks: (Array.isArray(parsed.tasks) ? parsed.tasks : []).map(normalizeRoadmapTask),
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Also merge any goals from legacy goals table for backward compatibility
   try {
-    const form = await studentForm(studentId)
-    if (form?.answers?.['__roadmap']) {
-      const parsed = JSON.parse(form.answers['__roadmap'])
-      return {
-        goals: (Array.isArray(parsed.goals) ? parsed.goals : []).map(normalizeRoadmapGoal),
-        habits: (Array.isArray(parsed.habits) ? parsed.habits : []).map((h: unknown) => normalizeRoadmapHabit(h, t)),
-        tasks: (Array.isArray(parsed.tasks) ? parsed.tasks : []).map(normalizeRoadmapTask),
+    const legacy = (await ok(
+      supabase.from('goals').select('id, parent_id, title, due_on, done_at, created_at').eq('owner_id', studentId)
+    )) as { id: string; parent_id: string | null; title: string; due_on: string | null; done_at: string | null; created_at: string }[] | null
+    if (Array.isArray(legacy) && legacy.length > 0) {
+      const topGoals = legacy.filter((lg) => !lg.parent_id)
+      const childPlans = legacy.filter((lg) => !!lg.parent_id)
+      for (const tg of topGoals) {
+        const exists = roadmap.goals.some((g) => g.id === tg.id || g.title.trim().toLowerCase() === tg.title.trim().toLowerCase())
+        if (!exists) {
+          const steps = childPlans
+            .filter((cp) => cp.parent_id === tg.id)
+            .map((cp) => ({
+              id: cp.id,
+              title: cp.title,
+              done: !!cp.done_at,
+            }))
+          roadmap.goals.push({
+            id: tg.id,
+            title: tg.title,
+            category: 'study',
+            due_on: tg.due_on,
+            done: !!tg.done_at,
+            steps,
+            created_at: tg.created_at || new Date().toISOString(),
+          })
+        }
       }
     }
   } catch {
     // ignore
   }
-  return { goals: [], habits: [], tasks: [] }
+
+  return roadmap
 }
 
 export const saveStudentRoadmap = async (studentId: string, roadmap: StudentRoadmap): Promise<void> => {

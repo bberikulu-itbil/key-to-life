@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   addMedia, addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting,
   listClasses, listClassResources, listStaff, mentorAssign, mentorEvery, photoUrl, rateMedia, removeMentorMeeting, saveStudentForm,
-  saveStudentRoadmap, seedDemoClass, setMediaProgress, staffClasses, studentMentor, supabase, updateStudentAccount, uploadPhoto,
+  loadStudentRoadmap, saveStudentRoadmap, seedDemoClass, setMediaProgress, staffClasses, studentMentor, supabase, updateStudentAccount, uploadPhoto,
   type Media, type MediaProgressState, type MentorMeeting,
 } from '../lib/api'
 import { toLatin, makeEasyPassword } from '../lib/translit'
@@ -19,7 +19,7 @@ import { addDays, fmtDate, streak, today } from '../lib/time'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import LocationPicker from '../components/LocationPicker'
-import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad, usePath } from '../components/ui'
 import { lang, tx } from '../lib/i18n'
 
 const BLOOD_TYPES = [
@@ -3117,7 +3117,9 @@ function RateBookSheet({
 
 function StudentOwnDossier() {
   const { me } = useMe()
-  const [tab, setTab] = useState<DossierTab>('info')
+  const path = usePath()
+  const qTab = (new URLSearchParams(path.split('?')[1] ?? '').get('tab') as DossierTab) || 'info'
+  const [tab, setTab] = useState<DossierTab>(qTab)
   return (
     <div className="grid gap-3 pb-6 w-full">
       <PageHead title={tx('Менің анкетам')} back />
@@ -3291,19 +3293,28 @@ export function RoadmapSection({
   roadmap,
   onUpdate,
   onOpenAdd,
+  initialTab = 'all',
 }: {
   studentId: string
   roadmap: StudentRoadmap
   onUpdate: (r: StudentRoadmap) => void
   onOpenAdd?: () => void
+  initialTab?: 'all' | 'goals' | 'habits' | 'tasks'
 }) {
-  const [tab, setTab] = useState<'all' | 'goals' | 'habits' | 'tasks'>('all')
+  const [tab, setTab] = useState<'all' | 'goals' | 'habits' | 'tasks'>(initialTab)
   const [catFilter, setCatFilter] = useState<string>('all')
   const [newStepInputs, setNewStepInputs] = useState<Record<string, string>>({})
   const [editingGoal, setEditingGoal] = useState<RoadmapGoal | null>(null)
   const [editingHabit, setEditingHabit] = useState<RoadmapHabit | null>(null)
   const [editingTask, setEditingTask] = useState<RoadmapTask | null>(null)
+  const [creatingGoal, setCreatingGoal] = useState(false)
+  const [creatingHabit, setCreatingHabit] = useState(false)
+  const [creatingTask, setCreatingTask] = useState(false)
   const t = today()
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab)
+  }, [initialTab])
 
   const goals = roadmap.goals ?? []
   const habits = roadmap.habits ?? []
@@ -3332,6 +3343,18 @@ export function RoadmapSection({
       goals: prev.goals.map((g) => {
         if (g.id !== goalId) return g
         const nextSteps = g.steps.map((s) => (s.id === stepId ? { ...s, done: !s.done } : s))
+        const allDone = nextSteps.length > 0 && nextSteps.every((s) => s.done)
+        return { ...g, steps: nextSteps, done: allDone ? true : g.done }
+      }),
+    }))
+  }
+
+  const removeStep = (goalId: string, stepId: string) => {
+    update((prev) => ({
+      ...prev,
+      goals: prev.goals.map((g) => {
+        if (g.id !== goalId) return g
+        const nextSteps = g.steps.filter((s) => s.id !== stepId)
         const allDone = nextSteps.length > 0 && nextSteps.every((s) => s.done)
         return { ...g, steps: nextSteps, done: allDone ? true : g.done }
       }),
@@ -3528,152 +3551,203 @@ export function RoadmapSection({
       ) : null}
 
       {/* 1. Мақсаттар (Goals) */}
-      {(tab === 'all' || tab === 'goals') && filteredGoals.length > 0 && (
+      {(tab === 'all' || tab === 'goals') && (
         <div className="grid gap-2">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">🎯 {tx('Мақсаттар мен қадамдар')}</p>
-          {filteredGoals.map((g) => {
-            const cat = getCategoryMeta(g.category)
-            const prog = calcGoalProgress(g, tasks)
-            const prio = PRIORITY_LABELS[g.priority ?? 'normal']
-            const linkedH = habits.filter((h) => h.goal_id === g.id)
-            const linkedT = tasks.filter((tk) => tk.goal_id === g.id)
-
-            return (
-              <div
-                key={g.id}
-                className={`rounded-lg border bg-surface p-3.5 grid gap-2.5 shadow-sm transition ${cat.border} ${g.done ? 'opacity-70 bg-surface-2' : ''}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${cat.bg} ${cat.color}`}>
-                      <Icon n={cat.icon} size={12} />
-                      {cat.label}
-                    </span>
-                    {g.priority && g.priority !== 'normal' && (
-                      <span className={`px-2 py-0.5 rounded-full font-medium text-[11px] ${prio.badge}`}>
-                        {prio.label}
-                      </span>
-                    )}
-                    {g.due_on && (
-                      <span className="text-muted text-[11px] flex items-center gap-1">
-                        <Icon n="calendar" size={11} />
-                        {fmtDate(g.due_on)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setEditingGoal(g)}
-                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg transition"
-                      aria-label={tx('Өңдеу')}
-                      title={tx('Өңдеу')}
-                    >
-                      <Icon n="pencil" size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeGoal(g.id, g.title)}
-                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger transition"
-                      aria-label={tx('Өшіру')}
-                      title={tx('Өшіру')}
-                    >
-                      <Icon n="x" size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={g.done}
-                    onChange={() => toggleGoal(g.id)}
-                    aria-label={tx('{0} орындалды', g.title)}
-                    className="mt-0.5 size-5 shrink-0 accent-[var(--accent)] cursor-pointer"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-sm leading-snug break-words ${g.done ? 'line-through text-muted' : ''}`}>
-                      {g.title}
-                    </p>
-                    {g.metric && (
-                      <p className="text-xs text-accent mt-1 flex items-center gap-1 font-medium">
-                        🎯 {tx('Нәтиже:')} {g.metric}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Прогресс сызығы */}
-                <div className="grid gap-1">
-                  <div className="flex items-center justify-between text-xs text-muted tabular-nums">
-                    <span>{tx('Прогресс')}</span>
-                    <span className="font-semibold text-foreground">{prog}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${prog === 100 ? 'bg-success' : 'bg-accent'}`}
-                      style={{ width: `${prog}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Қадамдар тізімі (Milestones checklist) */}
-                {g.steps.length > 0 && (
-                  <div className="rounded-md bg-surface-2/60 p-2.5 grid gap-1.5 text-xs">
-                    <p className="font-semibold text-muted text-[11px] uppercase tracking-wider">{tx('Қадамдары')}:</p>
-                    {g.steps.map((st) => (
-                      <label key={st.id} className="flex items-center gap-2 cursor-pointer hover:bg-surface-2 p-1 rounded">
-                        <input
-                          type="checkbox"
-                          checked={st.done}
-                          onChange={() => toggleStep(g.id, st.id)}
-                          className="size-4 shrink-0 accent-[var(--accent)]"
-                        />
-                        <span className={`flex-1 break-words ${st.done ? 'line-through text-muted' : ''}`}>
-                          {st.title}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-                {/* Қадам қосу inline */}
-                <div className="flex gap-1.5 pt-0.5">
-                  <input
-                    value={newStepInputs[g.id] ?? ''}
-                    onChange={(e) => setNewStepInputs({ ...newStepInputs, [g.id]: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        addStep(g.id)
-                      }
-                    }}
-                    placeholder={tx('+ Қадам қосу...')}
-                    className={`${inputCls} h-8 text-xs py-1 flex-1 min-w-0`}
-                  />
-                  <Button kind="secondary" onClick={() => addStep(g.id)}>
-                    {tx('Қосу')}
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted uppercase tracking-wider">🎯 {tx('Мақсаттар мен қадамдар')}</p>
+            <button
+              type="button"
+              onClick={() => setCreatingGoal(true)}
+              className="text-xs text-accent font-semibold flex items-center gap-1 hover:underline min-h-8"
+            >
+              <Icon n="plus" size={13} />
+              {tx('Мақсат қосу')}
+            </button>
+          </div>
+          {filteredGoals.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-line p-5 text-center grid gap-2">
+              <p className="text-sm font-semibold">{tx('Әзірге мақсат жоқ')}</p>
+              <p className="text-xs text-muted">
+                {tx('Үлкен мақсат белгілеп, оны нақты қадамдарға бөліңіз.')}
+              </p>
+              <div className="flex justify-center gap-2 pt-1 flex-wrap">
+                <Button kind="primary" onClick={() => setCreatingGoal(true)}>
+                  <Icon n="plus" size={16} />
+                  {tx('Жаңа мақсат қою')}
+                </Button>
+                {onOpenAdd && (
+                  <Button kind="secondary" onClick={onOpenAdd}>
+                    {tx('Үлгілерден таңдау')}
                   </Button>
-                </div>
-
-                {/* Байланысты әдеттер мен тапсырмалар */}
-                {(linkedH.length > 0 || linkedT.length > 0) && (
-                  <div className="flex gap-1 flex-wrap pt-1 border-t border-line/50 text-[11px]">
-                    {linkedH.map((lh) => (
-                      <span key={lh.id} className="px-2 py-0.5 rounded bg-surface-2 text-muted flex items-center gap-1">
-                        🔄 {lh.title}
-                      </span>
-                    ))}
-                    {linkedT.map((lt) => (
-                      <span key={lt.id} className="px-2 py-0.5 rounded bg-surface-2 text-muted flex items-center gap-1">
-                        ✅ {lt.title}
-                      </span>
-                    ))}
-                  </div>
                 )}
               </div>
-            )
-          })}
+            </div>
+          ) : (
+            <>
+              {filteredGoals.map((g) => {
+                const cat = getCategoryMeta(g.category)
+                const prog = calcGoalProgress(g, tasks)
+                const prio = PRIORITY_LABELS[g.priority ?? 'normal']
+                const linkedH = habits.filter((h) => h.goal_id === g.id)
+                const linkedT = tasks.filter((tk) => tk.goal_id === g.id)
+
+                return (
+                  <div
+                    key={g.id}
+                    className={`rounded-lg border bg-surface p-3.5 grid gap-2.5 shadow-sm transition ${cat.border} ${g.done ? 'opacity-70 bg-surface-2' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${cat.bg} ${cat.color}`}>
+                          <Icon n={cat.icon} size={12} />
+                          {cat.label}
+                        </span>
+                        {g.priority && g.priority !== 'normal' && (
+                          <span className={`px-2 py-0.5 rounded-full font-medium text-[11px] ${prio.badge}`}>
+                            {prio.label}
+                          </span>
+                        )}
+                        {g.due_on && (
+                          <span className="text-muted text-[11px] flex items-center gap-1">
+                            <Icon n="calendar" size={11} />
+                            {fmtDate(g.due_on)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingGoal(g)}
+                          className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg transition"
+                          aria-label={tx('Өңдеу')}
+                          title={tx('Өңдеу')}
+                        >
+                          <Icon n="pencil" size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeGoal(g.id, g.title)}
+                          className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger transition"
+                          aria-label={tx('Өшіру')}
+                          title={tx('Өшіру')}
+                        >
+                          <Icon n="x" size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={g.done}
+                        onChange={() => toggleGoal(g.id)}
+                        aria-label={tx('{0} орындалды', g.title)}
+                        className="mt-0.5 size-5 shrink-0 accent-[var(--accent)] cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold text-sm leading-snug break-words ${g.done ? 'line-through text-muted' : ''}`}>
+                          {g.title}
+                        </p>
+                        {g.metric && (
+                          <p className="text-xs text-accent mt-1 flex items-center gap-1 font-medium">
+                            🎯 {tx('Нәтиже:')} {g.metric}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Прогресс сызығы */}
+                    <div className="grid gap-1">
+                      <div className="flex items-center justify-between text-xs text-muted tabular-nums">
+                        <span>{tx('Прогресс')}</span>
+                        <span className="font-semibold text-foreground">{prog}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${prog === 100 ? 'bg-success' : 'bg-accent'}`}
+                          style={{ width: `${prog}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Қадамдар тізімі (Milestones checklist) */}
+                    {g.steps.length > 0 && (
+                      <div className="rounded-md bg-surface-2/60 p-2.5 grid gap-1.5 text-xs">
+                        <p className="font-semibold text-muted text-[11px] uppercase tracking-wider">{tx('Қадамдары')}:</p>
+                        {g.steps.map((st) => (
+                          <div key={st.id} className="flex items-center gap-2 hover:bg-surface-2 p-1 rounded">
+                            <input
+                              type="checkbox"
+                              checked={st.done}
+                              onChange={() => toggleStep(g.id, st.id)}
+                              className="size-4 shrink-0 accent-[var(--accent)] cursor-pointer"
+                            />
+                            <span className={`flex-1 break-words ${st.done ? 'line-through text-muted' : ''}`}>
+                              {st.title}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeStep(g.id, st.id)}
+                              className="size-6 grid place-items-center rounded text-muted hover:text-danger hover:bg-surface-3 transition shrink-0"
+                              title={tx('Өшіру')}
+                              aria-label={tx('{0} — қадамды өшіру', st.title)}
+                            >
+                              <Icon n="x" size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Қадам қосу inline */}
+                    <div className="flex gap-1.5 pt-0.5">
+                      <input
+                        value={newStepInputs[g.id] ?? ''}
+                        onChange={(e) => setNewStepInputs({ ...newStepInputs, [g.id]: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            addStep(g.id)
+                          }
+                        }}
+                        placeholder={tx('+ Қадам қосу...')}
+                        className={`${inputCls} h-8 text-xs py-1 flex-1 min-w-0`}
+                      />
+                      <Button kind="secondary" onClick={() => addStep(g.id)}>
+                        {tx('Қосу')}
+                      </Button>
+                    </div>
+
+                    {/* Байланысты әдеттер мен тапсырмалар */}
+                    {(linkedH.length > 0 || linkedT.length > 0) && (
+                      <div className="flex gap-1 flex-wrap pt-1 border-t border-line/50 text-[11px]">
+                        {linkedH.map((lh) => (
+                          <span key={lh.id} className="px-2 py-0.5 rounded bg-surface-2 text-muted flex items-center gap-1">
+                            🔄 {lh.title}
+                          </span>
+                        ))}
+                        {linkedT.map((lt) => (
+                          <span key={lt.id} className="px-2 py-0.5 rounded bg-surface-2 text-muted flex items-center gap-1">
+                            ✅ {lt.title}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <div className="flex justify-start gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setCreatingGoal(true)}
+                  className="text-xs text-accent font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line hover:bg-surface-2 transition"
+                >
+                  <Icon n="plus" size={14} />
+                  {tx('Жаңа мақсат қою')}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -3926,6 +4000,85 @@ export function RoadmapSection({
             }))
             setEditingTask(null)
             toast(tx('Тапсырма сәтті сақталды'))
+          }}
+        />
+      )}
+
+      {creatingGoal && (
+        <GoalEditSheet
+          goal={{
+            id: 'g_' + Date.now(),
+            title: '',
+            category: 'study',
+            priority: 'normal',
+            metric: '',
+            due_on: null,
+            done: false,
+            steps: [],
+            created_at: new Date().toISOString(),
+          }}
+          onClose={() => setCreatingGoal(false)}
+          onSave={(newG) => {
+            update((prev) => ({
+              ...prev,
+              goals: [...prev.goals, newG],
+            }))
+            setCreatingGoal(false)
+            toast(tx('Жаңа мақсат сәтті қосылды'))
+          }}
+        />
+      )}
+
+      {creatingHabit && (
+        <HabitEditSheet
+          habit={{
+            id: 'h_' + Date.now(),
+            title: '',
+            category: 'discipline',
+            target_val: '',
+            time_of_day: 'evening',
+            frequency: 'daily',
+            motivation: '',
+            goal_id: null,
+            archived: false,
+            checks: [],
+            created_at: new Date().toISOString(),
+          }}
+          goals={goals}
+          onClose={() => setCreatingHabit(false)}
+          onSave={(newH) => {
+            update((prev) => ({
+              ...prev,
+              habits: [...prev.habits, newH],
+            }))
+            setCreatingHabit(false)
+            toast(tx('Жаңа әдет сәтті қосылды'))
+          }}
+        />
+      )}
+
+      {creatingTask && (
+        <TaskEditSheet
+          task={{
+            id: 't_' + Date.now(),
+            title: '',
+            category: 'study',
+            due_on: null,
+            priority: 'normal',
+            notes: null,
+            goal_id: null,
+            done: false,
+            created_at: new Date().toISOString(),
+          }}
+          goals={goals}
+          onClose={() => setCreatingTask(false)}
+          onSave={(newT) => {
+            update((prev) => ({
+              ...prev,
+              tasks: [...prev.tasks, newT],
+            }))
+            setCreatingTask(false)
+            toast(tx('Жаңа тапсырма сәтті қосылды'))
           }}
         />
       )}
@@ -4446,16 +4599,16 @@ export function TaskEditSheet({
    Күрделендірілген Жоспар Құру Шебері (RoadmapBuilderSheet)
    ========================================================================== */
 
-function RoadmapBuilderSheet({
+export function RoadmapBuilderSheet({
   student,
   currentRoadmap,
-  meetings,
+  meetings = [],
   onClose,
   onDone,
 }: {
-  student: { id: string; class_id: string; full_name: string }
+  student: { id: string; class_id?: string; full_name: string }
   currentRoadmap: StudentRoadmap
-  meetings: MentorMeeting[]
+  meetings?: MentorMeeting[]
   onClose: () => void
   onDone: (r: StudentRoadmap) => void
 }) {
@@ -4499,7 +4652,8 @@ function RoadmapBuilderSheet({
   // Sync to standard mentorAssign
   const syncMeetingItem = async (kind: 'task' | 'habit', title: string, due: string | null) => {
     try {
-      let mId = meetings[0]?.id
+      if (!student.class_id) return
+      let mId = (meetings ?? [])[0]?.id
       if (!mId) {
         const res = await addMentorMeeting({
           class_id: student.class_id,
@@ -4516,10 +4670,22 @@ function RoadmapBuilderSheet({
     }
   }
 
+  const getBaseRoadmap = async (): Promise<StudentRoadmap> => {
+    if ((currentRoadmap.goals ?? []).length > 0 || (currentRoadmap.habits ?? []).length > 0 || (currentRoadmap.tasks ?? []).length > 0) {
+      return currentRoadmap
+    }
+    try {
+      return await loadStudentRoadmap(student.id)
+    } catch {
+      return currentRoadmap
+    }
+  }
+
   // 1. Preset Apply
   const applyPreset = async (p: PlanPreset) => {
     setBusy(true)
     try {
+      const base = await getBaseRoadmap()
       const gid = 'g_' + Date.now()
       const newGoal: RoadmapGoal = {
         id: gid,
@@ -4560,9 +4726,9 @@ function RoadmapBuilderSheet({
       }))
 
       const updatedRoadmap: StudentRoadmap = {
-        goals: [newGoal, ...(currentRoadmap.goals ?? [])],
-        habits: [...newHabits, ...(currentRoadmap.habits ?? [])],
-        tasks: [...newTasks, ...(currentRoadmap.tasks ?? [])],
+        goals: [newGoal, ...(base.goals ?? [])],
+        habits: [...newHabits, ...(base.habits ?? [])],
+        tasks: [...newTasks, ...(base.tasks ?? [])],
       }
 
       await saveStudentRoadmap(student.id, updatedRoadmap)
@@ -4585,6 +4751,7 @@ function RoadmapBuilderSheet({
     if (goalTitle.trim().length < 2) return toast(tx('Мақсат атауын жазыңыз'))
     setBusy(true)
     try {
+      const base = await getBaseRoadmap()
       const gid = 'g_' + Date.now()
       const steps = goalSteps
         .map((s) => s.trim())
@@ -4636,9 +4803,9 @@ function RoadmapBuilderSheet({
       }
 
       const updatedRoadmap: StudentRoadmap = {
-        goals: [newGoal, ...(currentRoadmap.goals ?? [])],
-        habits: [...extraHabits, ...(currentRoadmap.habits ?? [])],
-        tasks: [...extraTasks, ...(currentRoadmap.tasks ?? [])],
+        goals: [newGoal, ...(base.goals ?? [])],
+        habits: [...extraHabits, ...(base.habits ?? [])],
+        tasks: [...extraTasks, ...(base.tasks ?? [])],
       }
 
       await saveStudentRoadmap(student.id, updatedRoadmap)
@@ -4656,6 +4823,7 @@ function RoadmapBuilderSheet({
     if (habitTitle.trim().length < 2) return toast(tx('Әдет атауын жазыңыз'))
     setBusy(true)
     try {
+      const base = await getBaseRoadmap()
       const newHabit: RoadmapHabit = {
         id: 'h_' + Date.now(),
         title: habitTitle.trim(),
@@ -4671,9 +4839,9 @@ function RoadmapBuilderSheet({
       }
 
       const updatedRoadmap: StudentRoadmap = {
-        goals: currentRoadmap.goals ?? [],
-        habits: [newHabit, ...(currentRoadmap.habits ?? [])],
-        tasks: currentRoadmap.tasks ?? [],
+        goals: base.goals ?? [],
+        habits: [newHabit, ...(base.habits ?? [])],
+        tasks: base.tasks ?? [],
       }
 
       await saveStudentRoadmap(student.id, updatedRoadmap)
@@ -4692,6 +4860,7 @@ function RoadmapBuilderSheet({
     if (taskTitle.trim().length < 2) return toast(tx('Тапсырма атауын жазыңыз'))
     setBusy(true)
     try {
+      const base = await getBaseRoadmap()
       const newTask: RoadmapTask = {
         id: 't_' + Date.now(),
         title: taskTitle.trim(),
@@ -4705,9 +4874,9 @@ function RoadmapBuilderSheet({
       }
 
       const updatedRoadmap: StudentRoadmap = {
-        goals: currentRoadmap.goals ?? [],
-        habits: currentRoadmap.habits ?? [],
-        tasks: [newTask, ...(currentRoadmap.tasks ?? [])],
+        goals: base.goals ?? [],
+        habits: base.habits ?? [],
+        tasks: [newTask, ...(base.tasks ?? [])],
       }
 
       await saveStudentRoadmap(student.id, updatedRoadmap)
