@@ -169,7 +169,7 @@ export default function StudentDossierStructured({
             {renderText(tx('Жатақхана бөлмесі'), profileState.dorm_room, v => saveProfile({ dorm_room: v || null }))}
             {renderText(tx('Төсек орны'), profileState.dorm_bed, v => saveProfile({ dorm_bed: v || null }))}
           </div>
-          <label className="grid gap-1"><span className="text-xs font-semibold text-muted">{tx('Мекенжай')}</span><textarea className="min-h-20 rounded-md border border-input bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent" value={profileState.address ?? ''} onChange={e => setProfileState({ ...profileState, address: e.target.value })} onBlur={e => saveProfile({ address: profileState.address ?? '' })} /></label>
+          <label className="grid gap-1"><span className="text-xs font-semibold text-muted">{tx('Мекенжай')}</span><textarea className="min-h-20 rounded-md border border-input bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent" value={profileState.address ?? ''} onChange={e => setProfileState({ ...profileState, address: e.target.value })} onBlur={() => saveProfile({ address: profileState.address ?? '' })} /></label>
           {busy === 'profile' && <span className="text-xs text-muted">{tx('Сақталуда...')}</span>}
         </Card>
 
@@ -179,7 +179,7 @@ export default function StudentDossierStructured({
           {renderText(tx('Аллергия'), healthState.allergies, v => saveHealth({ allergies: v || null }))}
           {renderText(tx('Диета'), healthState.diet, v => saveHealth({ diet: v || null }))}
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(healthState.needs_attention)} onChange={e => saveHealth({ needs_attention: e.target.checked })} />{tx('Ерекше назар қажет')}</label>
-          <label className="grid gap-1"><span className="text-xs font-semibold text-muted">{tx('Қосымша түсініктеме')}</span><textarea className="min-h-20 rounded-md border border-input bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent" value={healthState.extra_notes ?? ''} onChange={e => setHealthState({ ...healthState, extra_notes: e.target.value })} onBlur={e => saveHealth({ extra_notes: healthState.extra_notes ?? '' })} /></label>
+          <label className="grid gap-1"><span className="text-xs font-semibold text-muted">{tx('Қосымша түсініктеме')}</span><textarea className="min-h-20 rounded-md border border-input bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent" value={healthState.extra_notes ?? ''} onChange={e => setHealthState({ ...healthState, extra_notes: e.target.value })} onBlur={() => saveHealth({ extra_notes: healthState.extra_notes ?? '' })} /></label>
           {busy === 'health' && <span className="text-xs text-muted">{tx('Сақталуда...')}</span>}
         </Card>
       </div>
