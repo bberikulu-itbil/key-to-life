@@ -1,340 +1,1073 @@
 import { useEffect, useState } from 'react'
 import {
-  addMentorMeeting, classMentorMeetings, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
-  loadStudentRoadmap, mentorAssign, mentorEvery, mentorItems, myMentorMeetings, removeMentorMeeting, saveMyForm,
-  saveStudentRoadmap, setMentorEvery, studentForm, studentMentor, type MentorItem, type MentorMeeting, type Staff,
+  addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
+  mentorAssign, mentorEvery, removeMentorMeeting, saveStudentForm,
+  saveStudentRoadmap, studentMentor, type MentorMeeting,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
 import { RIASEC, hollandScore } from '../lib/holland'
 import {
-  calcGoalProgress, FORM, FREQUENCY_LABELS, getCategoryMeta, mentorStatus, PLAN_CATEGORIES, PLAN_PRESETS,
+  calcGoalProgress, fmtBirthday, FORM, FREQUENCY_LABELS, getCategoryMeta, MBTI_TYPES, mentorStatus, NATIONS, PLAN_CATEGORIES, PLAN_PRESETS,
   PRIORITY_LABELS, TEMPLATES, TIME_OF_DAY_LABELS, type PlanCategory, type PlanPreset, type RoadmapGoal,
   type RoadmapHabit, type RoadmapTask, type StudentRoadmap,
 } from '../lib/mentor'
-import { addDays, chatTime, fmtDate, today } from '../lib/time'
+import { GALLUP_DOMAINS, GALLUP_THEMES, findGallup } from '../lib/gallup'
+import { addDays, fmtDate, today } from '../lib/time'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import LocationPicker from '../components/LocationPicker'
-import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { lang, tx } from '../lib/i18n'
 
 /* «Анкета және жеке даму жоспары» — 1-on-1 mentor meetings, student questionnaire, and rich roadmap (Goals, Habits, Tasks). */
 
 const at = (s: string) => new Date(s).toLocaleString(lang === 'kk' ? 'kk-KZ' : lang, { day: 'numeric', month: 'long', weekday: 'short', hour: '2-digit', minute: '2-digit' })
-const CHANNEL: Record<string, string> = { phone: tx('Телефон'), meeting: tx('Кездесу'), chat: tx('Чат'), visit: tx('Үйіне бару') }
-const EVERY: [string, string][] = [['14', tx('2 апта')], ['30', tx('1 ай')], ['60', tx('2 ай')]]
+export type DossierTab = 'info' | 'tests' | 'plan' | 'meetings' | 'resources'
 
 export default function Mentor({ studentId, classId }: { studentId?: string; classId?: string }) {
   const { me } = useMe()
-  if (me.role === 'student') return <MyMeetings />
-  return studentId ? <StudentPage id={studentId} /> : <ClassList classId={classId} />
+  if (me.role === 'student') return <StudentOwnDossier />
+  return <TeacherDossierMasterDetail initialStudentId={studentId} classId={classId} />
 }
 
 /* ==========================================================================
-   Оқушының жеке парақшасы (Менің анкетам және даму жоспарым)
+   Мұғалімдер үшін: Master-Detail Анкета және Оқушылар карточкасы
    ========================================================================== */
 
-function MyMeetings() {
-  const { me } = useMe()
-  const data = useLoad(() => Promise.all([myMentorMeetings(), mentorItems(me.id), studentForm(me.id), loadStudentRoadmap(me.id)]), [me.id])
-  if (data.loading && !data.data) return <><PageHead title={tx('Менің анкетам')} back /><Skeleton /></>
-  if (data.error || !data.data) return <><PageHead title={tx('Менің анкетам')} back /><ErrorBox text={data.error ?? ''} retry={data.reload} /></>
-  const [meetings, items, form, roadmap] = data.data
-  return <MyMeetingsLoaded meetings={meetings} items={items} form={form} initialRoadmap={roadmap} reload={data.reload} />
-}
-
-function MyMeetingsLoaded({
-  meetings,
-  items,
-  form,
-  initialRoadmap,
-  reload,
-}: {
-  meetings: Awaited<ReturnType<typeof myMentorMeetings>>
-  items: MentorItem[]
-  form: { answers: Record<string, string>; updated_at: string } | null
-  initialRoadmap: StudentRoadmap
-  reload: () => void
-}) {
-  const { me } = useMe()
-  const [editing, setEditing] = useState(false)
-  const [roadmap, setRoadmap] = useState<StudentRoadmap>(initialRoadmap)
-  const [addPlan, setAddPlan] = useState(false)
-
-  const openLegacy = items.filter((i) => i.kind === 'habit' || !i.done)
-
-  return (
-    <div className="grid gap-3 pb-6">
-      <PageHead
-        title={tx('Менің анкетам')}
-        back
-        right={
-          <Button onClick={() => setAddPlan(true)}>
-            <Icon n="plus" size={18} />
-            {tx('Жоспар құру')}
-          </Button>
-        }
-      />
-
-      {!form || editing ? (
-        <FormCard initial={form?.answers ?? {}} onSaved={() => { setEditing(false); reload() }} />
-      ) : (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="flex items-center gap-3 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 min-h-14 text-left"
-        >
-          <span className="size-9 rounded-md bg-success-soft text-success grid place-items-center"><Icon n="check" size={18} /></span>
-          <span className="flex-1">
-            <span className="block font-semibold">{tx('Анкетам толтырылған')}</span>
-            <span className="block text-xs text-muted">{tx('Өзгерту үшін басыңыз')}</span>
-          </span>
-          <Icon n="chev" className="text-muted" />
-        </button>
-      )}
-
-      {/* Оқушының бай Даму жоспары (Мақсаттар, Әдеттер, Тапсырмалар) */}
-      <RoadmapSection
-        studentId={me.id}
-        roadmap={roadmap}
-        onUpdate={setRoadmap}
-        onOpenAdd={() => setAddPlan(true)}
-      />
-
-      {openLegacy.length > 0 && (
-        <Card className="grid gap-2">
-          <p className="font-semibold">{tx('Кездесуде берілген тапсырмалар')}</p>
-          <Items items={openLegacy} />
-          <a href="#/plan" className="text-sm font-semibold text-accent">{tx('Жоспарда белгілеу →')}</a>
-        </Card>
-      )}
-
-      {!meetings.length ? (
-        <Empty icon="user" title={tx('Кездесу жоқ')} text={tx('Сынып жетекшісі не тәрбиеші сенімен жеке кездесу белгілесе, осында шығады.')} />
-      ) : (
-        meetings.map((m) => (
-          <Card key={m.id} className="grid gap-1.5">
-            <div className="flex items-center gap-2">
-              <span className="flex-1 font-semibold">{m.topic}</span>
-              {m.done_at ? <Badge tone="ok">{tx('Өтті')}</Badge> : <Badge tone="accent">{tx('Алда')}</Badge>}
-            </div>
-            <p className="text-sm text-muted">{at(m.starts_at)}{m.staff_name ? ` · ${m.staff_name}` : ''}{m.place ? ` · ${m.place}` : ''}</p>
-            {m.actions && <p className="text-sm whitespace-pre-line rounded-md bg-accent-soft p-3">{m.actions}</p>}
-          </Card>
-        ))
-      )}
-
-      {addPlan && (
-        <RoadmapBuilderSheet
-          student={{ id: me.id, class_id: me.class?.id ?? '', full_name: me.full_name }}
-          currentRoadmap={roadmap}
-          meetings={[]}
-          onClose={() => setAddPlan(false)}
-          onDone={(newR) => {
-            setRoadmap(newR)
-            setAddPlan(false)
-            reload()
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-function FormCard({ initial, onSaved }: { initial: Record<string, string>; onSaved: () => void }) {
-  const { me } = useMe()
-  const [a, setA] = useState<Record<string, string>>(initial)
-  const [busy, setBusy] = useState(false)
-  return (
-    <Card className="grid gap-3">
-      <div><p className="font-semibold">{tx('Менің анкетам')}</p><p className="text-xs text-muted">{tx('Жауаптарыңды тек сынып жетекшің мен тәрбиешің көреді. Бұл саған жақсырақ көмектесуге керек.')}</p></div>
-      {FORM.map(([k, q, hint]) => (
-        <label key={k} className="grid gap-1 text-sm"><span className="font-medium">{q}</span>
-          <textarea value={a[k] ?? ''} onChange={(e) => setA({ ...a, [k]: e.target.value })} maxLength={600} rows={2} className={`${inputCls} py-2 h-auto`} placeholder={hint} />
-        </label>
-      ))}
-      <Button loading={busy} disabled={!Object.values(a).some((v) => v.trim())} onClick={async () => {
-        setBusy(true)
-        try { await saveMyForm(me.id, Object.fromEntries(Object.entries(a).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v))); toast(tx('Сақталды')); onSaved() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
-      }}>{tx('Сақтау')}</Button>
-    </Card>
-  )
-}
-
-function Items({ items }: { items: MentorItem[] }) {
-  return (
-    <ul className="grid gap-1.5">{items.map((i) => (
-      <li key={i.id} className="flex items-center gap-3 rounded-md bg-surface-2 px-3 min-h-11 text-sm">
-        <span className={`size-6 shrink-0 rounded-full grid place-items-center ${i.kind === 'habit' ? 'bg-accent-soft text-accent' : i.done ? 'bg-success text-white' : 'border-2 border-line'}`}>
-          {i.kind === 'habit' ? <Icon n="clock" size={14} /> : i.done ? <Icon n="check" size={14} /> : null}</span>
-        <span className={`flex-1 min-w-0 ${i.done && i.kind === 'task' ? 'line-through text-muted' : ''}`}>{i.title}</span>
-        <span className={`text-xs tabular-nums ${i.kind === 'task' && !i.done && i.due_on && i.due_on < today() ? 'text-danger font-semibold' : 'text-muted'}`}>
-          {i.kind === 'habit' ? tx('{0}/7 күн', i.last7 ?? 0) : i.due_on ? fmtDate(i.due_on) : ''}</span>
-      </li>
-    ))}</ul>
-  )
-}
-
-/* ==========================================================================
-   Мұғалімдер үшін: Сынып тізімі
-   ========================================================================== */
-
-function ClassList({ classId }: { classId?: string }) {
+function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStudentId?: string; classId?: string }) {
   const { me } = useMe()
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const classes = useLoad(listClasses, [])
   const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
   const options = deputy ? classes.data ?? [] : mine
   const cls = options.find((c) => c.id === classId) ?? mine[0] ?? options[0]
-  const data = useLoad(async () => (cls ? Promise.all([classStudents(cls.id), classMentorMeetings(cls.id), mentorEvery(cls.id)]) : null), [cls?.id])
-  if (classes.loading && !classes.data) return <><PageHead title={tx('Оқушылар анкетасы')} back /><Skeleton /></>
-  if (!cls) return <><PageHead title={tx('Оқушылар анкетасы')} back /><Empty icon="user" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></>
-  const [students, meetings, every] = data.data ?? [[], [], 30]
-  const rows = students.map((s) => ({ s, st: mentorStatus(meetings.filter((m) => m.student_id === s.id), every) }))
-    .sort((a, b) => Number(b.st.due) - Number(a.st.due) || (b.st.days ?? 9999) - (a.st.days ?? 9999))
+
+  const data = useLoad(async () => {
+    if (!cls) return null
+    const [students, meetings, every] = await Promise.all([
+      classStudents(cls.id),
+      classMentorMeetings(cls.id),
+      mentorEvery(cls.id),
+    ])
+    const sids = students.map((s) => s.id)
+    const formsMap = await classStudentForms(sids)
+    return { students, meetings, every, formsMap }
+  }, [cls?.id])
+
+  const [selectedId, setSelectedId] = useState<string | null>(initialStudentId ?? null)
+  const [search, setSearch] = useState('')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [tab, setTab] = useState<DossierTab>('info')
+  const [formsState, setFormsState] = useState<Record<string, Record<string, string>>>({})
+
+  useEffect(() => {
+    if (data.data?.formsMap) {
+      setFormsState(data.data.formsMap)
+    }
+    if (data.data?.students.length && !selectedId) {
+      if (initialStudentId && data.data.students.some((s) => s.id === initialStudentId)) {
+        setSelectedId(initialStudentId)
+      } else {
+        setSelectedId(data.data.students[0].id)
+      }
+    }
+  }, [data.data, initialStudentId, selectedId])
+
+  if (classes.loading && !classes.data) {
+    return (
+      <div className="grid gap-3 pb-6">
+        <PageHead title={tx('Оқушылар анкетасы')} back />
+        <Skeleton />
+      </div>
+    )
+  }
+
+  if (!cls) {
+    return (
+      <div className="grid gap-3 pb-6">
+        <PageHead title={tx('Оқушылар анкетасы')} back />
+        <Empty
+          icon="user"
+          title={tx('Сынып бекітілмеген')}
+          text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')}
+        />
+      </div>
+    )
+  }
+
+  const { students = [], meetings = [], every = 30 } = data.data ?? {}
+  const rows = students.map((s) => {
+    const st = mentorStatus(
+      meetings.filter((m) => m.student_id === s.id),
+      every
+    )
+    const form = formsState[s.id] ?? {}
+    return { s, st, form }
+  })
+
   const covered = rows.filter((r) => !r.st.due).length
+  const selectedStudent = students.find((s) => s.id === selectedId)
+
+  const filtered = rows.filter(({ s, form }) => {
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    const matchName = s.full_name.toLowerCase().includes(q)
+    const matchIin = (form.iin ?? '').toLowerCase().includes(q)
+    const matchBday = (form.birthday ?? '').toLowerCase().includes(q)
+    const matchHobby = (form.hobby ?? '').toLowerCase().includes(q)
+    const matchSport = (form.sport ?? '').toLowerCase().includes(q)
+    const matchNation = (form.nation ?? '').toLowerCase().includes(q)
+    return matchName || matchIin || matchBday || matchHobby || matchSport || matchNation
+  })
+
   return (
-    <div className="grid gap-3 pb-6">
+    <div className="grid gap-3 pb-6 w-full">
+      {/* Top Header */}
       <PageHead
         title={tx('Оқушылар анкетасы')}
         back
         right={
           <div className="flex items-center gap-2">
             {options.length > 1 && (
-              <select aria-label={tx('Сынып')} value={cls.id} onChange={(e) => go(`/mentor?class=${e.target.value}`)} className={`${inputCls} w-auto font-medium`}>
-                {options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <select
+                aria-label={tx('Сынып')}
+                value={cls.id}
+                onChange={(e) => go(`/mentor?class=${e.target.value}`)}
+                className={`${inputCls} w-auto font-medium h-10 py-1`}
+              >
+                {options.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             )}
             <Button kind="secondary" onClick={() => go(`/journal/${cls.id}?tab=mentor`)}>
               <Icon n="calendar" size={16} />
-              {tx('Күнтізбе')}
+              <span className="hidden sm:inline">{tx('Күнтізбе')}</span>
             </Button>
           </div>
         }
       />
-      {data.loading && !data.data ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : <>
-        <Card className="grid gap-2">
-          <div className="flex items-end justify-between gap-3">
-            <span>
-              <span className="block text-3xl font-bold tabular-nums">
-                {students.length ? Math.round((100 * covered) / students.length) : 0}%
+
+      {data.loading && !data.data ? (
+        <Skeleton />
+      ) : data.error ? (
+        <ErrorBox text={data.error} retry={data.reload} />
+      ) : (
+        <div className="flex gap-4 items-start w-full">
+          {/* Left Sidebar: Student Directory */}
+          <div
+            className={`${
+              sidebarCollapsed ? 'hidden' : 'block'
+            } w-full lg:w-72 xl:w-80 shrink-0 bg-surface rounded-xl shadow-card border border-[var(--card-line,transparent)] p-3 ${
+              selectedId ? 'hidden lg:block' : 'block'
+            }`}
+          >
+            {/* Search Box matching the screenshot */}
+            <div className="relative mb-3">
+              <Icon n="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={tx('Search')}
+                className="w-full bg-surface-2 dark:bg-surface-3 rounded-lg pl-9 pr-8 py-2 text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent-soft transition"
+              />
+              {search && (
+                <button
+                  type="button"
+                  aria-label={tx('Тазарту')}
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 size-5 grid place-items-center rounded-full text-muted hover:text-fg"
+                >
+                  <Icon n="x" size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Quick stats / Progress */}
+            <div className="px-1 py-1 mb-2 flex items-center justify-between text-xs text-muted">
+              <span>{tx('{0} оқушы', students.length)}</span>
+              <span>
+                {covered}/{students.length} {tx('жұмыс жүргізілді')}
               </span>
-              <span className="block text-sm text-muted">
-                {tx('{0} / {1} оқушымен жұмыс жүргізілді', covered, students.length)}
-              </span>
-            </span>
+            </div>
+
+            {/* Students List */}
+            <div className="space-y-1 max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
+              {!filtered.length ? (
+                <div className="py-8 text-center text-xs text-muted">
+                  {tx('Оқушы табылмады')}
+                </div>
+              ) : (
+                filtered.map(({ s, st, form }) => {
+                  const isSelected = s.id === selectedId
+                  const bdayDisplay = form.birthday
+                    ? fmtBirthday(form.birthday)
+                    : form.iin
+                    ? `ЖСН: ${form.iin}`
+                    : form.hobby
+                    ? form.hobby
+                    : [s.olympiad, s.club].filter(Boolean).join(' · ') || '—'
+
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setSelectedId(s.id)}
+                      className={`w-full text-left px-3 py-2 rounded-lg transition flex items-center justify-between gap-2.5 ${
+                        isSelected
+                          ? 'bg-accent/15 dark:bg-accent/25 text-accent font-semibold border-l-4 border-accent shadow-xs'
+                          : 'hover:bg-surface-2 text-fg'
+                      }`}
+                    >
+                      <Avatar name={s.full_name} photo={s.photo} size={34} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold truncate leading-snug">{s.full_name}</div>
+                        <div
+                          className={`text-xs truncate mt-0.5 ${
+                            isSelected ? 'text-accent/80 font-medium' : 'text-muted'
+                          }`}
+                        >
+                          {bdayDisplay}
+                        </div>
+                      </div>
+                      {st.due && (
+                        <span
+                          className="size-2 rounded-full bg-danger shrink-0"
+                          title={tx('Кездесу қажет')}
+                        />
+                      )}
+                      {st.next && (
+                        <span
+                          className="size-2 rounded-full bg-accent shrink-0"
+                          title={tx('Кездесу алда')}
+                        />
+                      )}
+                    </button>
+                  )
+                })
+              )}
+            </div>
           </div>
-          <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
-            <div className="h-full rounded-full bg-accent" style={{ width: `${students.length ? (100 * covered) / students.length : 0}%` }} />
+
+          {/* Right Main Dossier Panel */}
+          <div
+            className={`flex-1 min-w-0 bg-surface rounded-xl shadow-card border border-[var(--card-line,transparent)] p-4 lg:p-6 ${
+              !selectedId ? 'hidden lg:block' : 'block'
+            }`}
+          >
+            {selectedStudent ? (
+              <StudentDossierView
+                key={selectedStudent.id}
+                student={selectedStudent}
+                classId={cls.id}
+                classNameStr={cls.name}
+                tab={tab}
+                onTabChange={setTab}
+                onBack={() => setSelectedId(null)}
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+                onFormUpdated={(newAnswers) => {
+                  setFormsState((prev) => ({ ...prev, [selectedStudent.id]: newAnswers }))
+                }}
+              />
+            ) : (
+              <div className="py-24 text-center text-muted">
+                <Icon n="user" size={44} className="mx-auto mb-3 opacity-30" />
+                <p className="font-semibold text-lg text-fg">{tx('Оқушыны таңдаңыз')}</p>
+                <p className="text-sm mt-1">{tx('Сол жақтағы тізімнен оқушының жеке анкетасын ашыңыз.')}</p>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted">{tx('Әр оқушымен:')}</span>
-            <Chips label={tx('Кездесу жиілігі')} value={String(every)} onChange={(v) => setMentorEvery(cls.id, Number(v)).then(data.reload, (e) => toast(errText(e)))} items={EVERY} />
-          </div>
-        </Card>
-        <Card className="p-0 overflow-hidden">
-          <ul className="divide-y divide-line">{rows.map(({ s, st }) => (
-            <li key={s.id}><a href={`#/mentor/${s.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-2 transition">
-              <Avatar name={s.full_name} photo={s.photo} size={40} />
-              <span className="flex-1 min-w-0">
-                <span className="block font-medium truncate">{s.full_name}</span>
-                <span className={`block text-xs ${st.due ? 'text-danger font-semibold' : 'text-muted'}`}>
-                  {st.next ? tx('Кездесу белгіленген') : st.days == null ? tx('Кездесу болмаған') : tx('{0} күн бұрын', st.days)}
-                </span>
-              </span>
-              {st.next ? <span className="size-2.5 rounded-full bg-accent" aria-hidden /> : st.due ? <span className="size-2.5 rounded-full bg-danger" aria-hidden /> : null}
-              <Icon n="chev" className="text-muted" />
-            </a></li>
-          ))}</ul>
-        </Card>
-      </>}
+        </div>
+      )}
     </div>
   )
 }
 
 /* ==========================================================================
-   Мұғалімдер үшін: Оқушының жеке парақшасы
+   Оқушының толық Dossier / Анкета витринасы (5 Tabs, 2-Column Grid, Gallup, Roadmap)
    ========================================================================== */
 
-function StudentPage({ id }: { id: string }) {
-  const data = useLoad(async () => Promise.all([studentMentor(id), listStaff()]), [id])
-  if (data.loading && !data.data) return <><PageHead title={tx('Оқушы анкетасы')} back /><Skeleton /></>
-  if (data.error || !data.data) return <><PageHead title={tx('Оқушы анкетасы')} back /><ErrorBox text={data.error ?? tx('Табылмады')} retry={data.reload} /></>
-  const [d, staff] = data.data
-  return <StudentLoaded key={d.student.id} d={d} staff={staff} reload={data.reload} />
-}
-
-function StudentLoaded({
-  d,
-  staff,
-  reload,
+function StudentDossierView({
+  student,
+  classId,
+  classNameStr,
+  tab,
+  onTabChange,
+  onBack,
+  sidebarCollapsed,
+  onToggleSidebar,
+  onFormUpdated,
 }: {
-  d: Awaited<ReturnType<typeof studentMentor>>
-  staff: Staff[]
-  reload: () => void
+  student: { id: string; full_name: string; photo: string | null; class_id?: string; olympiad?: string | null; club?: string | null }
+  classId?: string
+  classNameStr?: string
+  tab: DossierTab
+  onTabChange: (t: DossierTab) => void
+  onBack?: () => void
+  sidebarCollapsed?: boolean
+  onToggleSidebar?: () => void
+  onFormUpdated?: (answers: Record<string, string>) => void
 }) {
-  const s = d.student
-  const [roadmap, setRoadmap] = useState<StudentRoadmap>(d.roadmap ?? { goals: [], habits: [], tasks: [] })
-  const [plan, setPlan] = useState(false)
-  const [finish, setFinish] = useState<MentorMeeting | null>(null)
-  const [editForm, setEditForm] = useState(false)
+  const data = useLoad(async () => Promise.all([studentMentor(student.id), listStaff()]), [student.id])
+  const [d, staff] = data.data ?? [null, []]
+
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [roadmap, setRoadmap] = useState<StudentRoadmap>({ goals: [], habits: [], tasks: [] })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false)
+  const [dotsMenuOpen, setDotsMenuOpen] = useState(false)
+  const [gallupPicker, setGallupPicker] = useState<'top' | 'low' | null>(null)
   const [addPlan, setAddPlan] = useState(false)
+  const [addMeeting, setAddMeeting] = useState(false)
+  const [finishMeeting, setFinishMeeting] = useState<MentorMeeting | null>(null)
+  const [questionsOpen, setQuestionsOpen] = useState(true)
 
   useEffect(() => {
-    if (d.roadmap) setRoadmap(d.roadmap)
-  }, [d.roadmap])
+    if (d?.form?.answers) {
+      setAnswers(d.form.answers)
+    }
+    if (d?.roadmap) {
+      setRoadmap(d.roadmap)
+    }
+  }, [d])
 
-  const staffName = (sid: string | null) => staff.find((x) => x.id === sid)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
-  const next = d.meetings.filter((m) => !m.done_at).sort((a, b) => a.starts_at.localeCompare(b.starts_at))
-  const past = d.meetings.filter((m) => m.done_at)
-  const test = (t: string) => d.tests.find((x) => x.type === t)
-  const mbti = test('mbti'), mi = test('mi'), hol = test('holland')
-  const ru = lang === 'ru'
-  const history = [
-    ...d.notes.map((n) => ({ key: 'n' + n.id, when: n.created_at, icon: 'lock', title: tx('Сынып кеңесі · {0}', staffName(n.author_id)), body: n.body })),
-    ...d.contacts.map((c) => ({ key: 'c' + c.id, when: c.on_date, icon: 'chat', title: tx('Ата-анамен · {0} · {1}', CHANNEL[c.channel], staffName(c.staff_id)), body: c.summary })),
-  ].sort((a, b) => b.when.localeCompare(a.when))
+  const saveField = async (key: string, val: string) => {
+    const updated = { ...answers, [key]: val }
+    setAnswers(updated)
+    setSaving(true)
+    try {
+      await saveStudentForm(student.id, updated)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      onFormUpdated?.(updated)
+    } catch (e) {
+      toast(errText(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveMultipleFields = async (patch: Record<string, string>) => {
+    const updated = { ...answers, ...patch }
+    setAnswers(updated)
+    setSaving(true)
+    try {
+      await saveStudentForm(student.id, updated)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      onFormUpdated?.(updated)
+    } catch (e) {
+      toast(errText(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (data.loading && !data.data) return <Skeleton />
+  if (data.error || !d) return <ErrorBox text={data.error ?? tx('Табылмады')} retry={data.reload} />
+
+  const staffName = (sid: string | null) =>
+    staff.find((x) => x.id === sid)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
+  const nextMeetings = d.meetings.filter((m) => !m.done_at).sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+  const pastMeetings = d.meetings.filter((m) => m.done_at)
+
+  const testMbti = d.tests.find((x) => x.type === 'mbti')
+  const testMi = d.tests.find((x) => x.type === 'mi')
+  const testHol = d.tests.find((x) => x.type === 'holland')
+
+  // Calculated or manual MBTI
+  const mbtiComputed = testMbti ? mbtiScore(testMbti.answers) : null
+  const mbtiDisplayType = answers.mbti?.trim() || mbtiComputed?.type || '—'
+
+  // Gallup themes parsed from answers
+  const topGallupList = (answers.top_gallup ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const lowGallupList = (answers.low_gallup ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const tabs: { id: DossierTab; label: string; icon: string }[] = [
+    { id: 'info', label: 'Info', icon: 'file' },
+    { id: 'tests', label: 'Personalities test', icon: 'list' },
+    { id: 'plan', label: 'Plan', icon: 'grid' },
+    { id: 'meetings', label: 'Meetings', icon: 'calendar' },
+    { id: 'resources', label: 'Resources', icon: 'book' },
+  ]
 
   return (
-    <div className="grid gap-3 pb-6">
-      <PageHead
-        title={tx('Оқушы анкетасы')}
-        back
-        right={
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setAddPlan(true)}>
-              <Icon n="plus" size={18} />
-              {tx('Жоспар құру')}
-            </Button>
-            <Button kind="secondary" onClick={() => go(`/journal/${s.class_id}?tab=mentor&add=mentor&student=${s.id}`)}>
-              <Icon n="calendar" size={18} />
-              {tx('Кездесу қою')}
-            </Button>
+    <div className="grid gap-5">
+      {/* Top Header Bar matching Notion/Airtable style */}
+      <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
+        {/* Navigation Tabs Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 min-w-0">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="lg:hidden inline-flex items-center gap-1 h-9 px-2.5 rounded-lg text-sm font-semibold text-muted hover:text-fg hover:bg-surface-2 shrink-0 mr-1"
+            >
+              <Icon n="back" size={16} />
+              <span>{tx('Тізім')}</span>
+            </button>
+          )}
+
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onTabChange(t.id)}
+              className={`inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-sm font-semibold transition shrink-0 ${
+                tab === t.id
+                  ? 'bg-surface shadow-xs text-fg border border-line ring-1 ring-black/5 dark:ring-white/10'
+                  : 'text-muted hover:text-fg hover:bg-surface-2'
+              }`}
+            >
+              <Icon n={t.icon} size={15} />
+              <span>{t.label}</span>
+            </button>
+          ))}
+
+          {/* Plus button */}
+          <div className="relative">
+            <button
+              type="button"
+              aria-label={tx('Қосымша')}
+              onClick={() => setPlusMenuOpen(!plusMenuOpen)}
+              className="size-9 rounded-lg border border-line grid place-items-center text-muted hover:text-fg hover:bg-surface-2 transition shrink-0"
+            >
+              <Icon n="plus" size={16} />
+            </button>
+            {plusMenuOpen && (
+              <div className="absolute left-0 mt-1 w-52 rounded-lg bg-surface shadow-lg border border-line py-1 z-30 text-sm">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlusMenuOpen(false)
+                    window.print()
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
+                >
+                  <Icon n="file" size={15} />
+                  {tx('Басып шығару (PDF)')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlusMenuOpen(false)
+                    setAddMeeting(true)
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
+                >
+                  <Icon n="calendar" size={15} />
+                  {tx('Кездесу белгілеу')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlusMenuOpen(false)
+                    setAddPlan(true)
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
+                >
+                  <Icon n="grid" size={15} />
+                  {tx('Жоспар құру')}
+                </button>
+              </div>
+            )}
           </div>
-        }
-      />
+        </div>
 
-      <Card className="flex items-center gap-3">
-        <Avatar name={s.full_name} photo={s.photo} size={56} />
-        <span className="flex-1 min-w-0">
-          <span className="block text-lg font-bold">{s.full_name}</span>
-          <span className="block text-sm text-muted">{[s.olympiad, s.club].filter(Boolean).join(' · ') || '—'}</span>
-        </span>
-      </Card>
+        {/* Right Action Icons: ⋮ and ⤢ */}
+        <div className="flex items-center gap-1 shrink-0 relative">
+          <div className="relative">
+            <button
+              type="button"
+              aria-label={tx('Мәзір')}
+              onClick={() => setDotsMenuOpen(!dotsMenuOpen)}
+              className="size-9 rounded-lg text-muted hover:text-fg hover:bg-surface-2 grid place-items-center transition"
+            >
+              <Icon n="dots" size={18} />
+            </button>
+            {dotsMenuOpen && (
+              <div className="absolute right-0 mt-1 w-48 rounded-lg bg-surface shadow-lg border border-line py-1 z-30 text-sm">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDotsMenuOpen(false)
+                    window.print()
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
+                >
+                  <Icon n="file" size={15} />
+                  {tx('Басып шығару')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDotsMenuOpen(false)
+                    setAddPlan(true)
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
+                >
+                  <Icon n="plus" size={15} />
+                  {tx('Жоспар құру')}
+                </button>
+                {classId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDotsMenuOpen(false)
+                      go(`/journal/${classId}?tab=mentor`)
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
+                  >
+                    <Icon n="calendar" size={15} />
+                    {tx('Сынып журналы')}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
-      {/* Негізгі бөлім: Жоспар (Мақсаттар, Әдеттер, Тапсырмалар) және Кездесулер */}
-      <div className="grid gap-3 lg:grid-cols-2 items-start">
-        {/* Сол жақ: Даму Жоспары және Кездесулер */}
-        <div className="grid gap-3">
+          {onToggleSidebar && (
+            <button
+              type="button"
+              aria-label={sidebarCollapsed ? tx('Тізімді көрсету') : tx('Толық экран')}
+              onClick={onToggleSidebar}
+              className="size-9 rounded-lg text-muted hover:text-fg hover:bg-surface-2 grid place-items-center transition hidden lg:grid"
+              title={sidebarCollapsed ? tx('Тізімді көрсету') : tx('Толық экран')}
+            >
+              <Icon n="expand" size={17} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Student Name Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <Avatar name={student.full_name} photo={student.photo} size={48} />
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight text-fg">
+              {student.full_name}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted">
+              {classNameStr && <span className="font-semibold text-accent">{classNameStr}</span>}
+              {student.olympiad && <span>· 🏆 {student.olympiad}</span>}
+              {student.club && <span>· 🎭 {student.club}</span>}
+              {saving && (
+                <span className="text-muted italic animate-pulse">
+                  {tx('Сақталуда...')}
+                </span>
+              )}
+              {saved && (
+                <span className="text-success font-semibold flex items-center gap-1">
+                  ✓ {tx('Сақталды')}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ====================================================================
+          TAB 1: INFO (2-Column Property Grid matching screenshot)
+          ==================================================================== */}
+      {tab === 'info' && (
+        <div className="grid gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Father Name */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Father Name')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                <input
+                  type="text"
+                  value={answers.father_name ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, father_name: e.target.value })}
+                  onBlur={(e) => saveField('father_name', e.target.value)}
+                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                  placeholder={tx('Әкесінің аты-жөні')}
+                />
+              </div>
+            </div>
+
+            {/* Birthday */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Birthday')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <Icon n="calendar" size={16} className="text-muted" />
+                <input
+                  type="date"
+                  value={answers.birthday ?? ''}
+                  onChange={(e) => {
+                    setAnswers({ ...answers, birthday: e.target.value })
+                    saveField('birthday', e.target.value)
+                  }}
+                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                />
+              </div>
+            </div>
+
+            {/* Adress */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Adress')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <Icon n="pin" size={16} className="text-muted" />
+                <input
+                  type="text"
+                  value={answers.address ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, address: e.target.value })}
+                  onBlur={(e) => saveField('address', e.target.value)}
+                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                  placeholder={tx('Қала, көше, үй нөмірі')}
+                />
+              </div>
+            </div>
+
+            {/* Nation */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Nation')}</label>
+              <div className="relative">
+                <select
+                  value={answers.nation ?? 'қазақ'}
+                  onChange={(e) => {
+                    setAnswers({ ...answers, nation: e.target.value })
+                    saveField('nation', e.target.value)
+                  }}
+                  className="w-full appearance-none rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 pr-8 min-h-12 text-sm font-medium border border-transparent focus:border-accent focus:ring-2 focus:ring-accent-soft focus:outline-none text-fg"
+                >
+                  {NATIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <Icon
+                  n="chev"
+                  size={16}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none rotate-90"
+                />
+              </div>
+            </div>
+
+            {/* Document N */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Document N')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <Icon n="file" size={16} className="text-muted" />
+                <input
+                  type="text"
+                  value={answers.doc_number ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, doc_number: e.target.value })}
+                  onBlur={(e) => saveField('doc_number', e.target.value)}
+                  className="w-full bg-transparent text-sm font-mono focus:outline-none text-fg"
+                  placeholder="N°3805794"
+                />
+              </div>
+            </div>
+
+            {/* JSN */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('JSN')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <span className="text-xs font-mono font-bold text-muted select-none">#</span>
+                <input
+                  type="text"
+                  maxLength={12}
+                  value={answers.iin ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, iin: e.target.value })}
+                  onBlur={(e) => saveField('iin', e.target.value)}
+                  className="w-full bg-transparent text-sm font-mono focus:outline-none text-fg"
+                  placeholder="140707504592"
+                />
+              </div>
+            </div>
+
+            {/* Hobby */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Hobby')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                <input
+                  type="text"
+                  value={answers.hobby ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, hobby: e.target.value })}
+                  onBlur={(e) => saveField('hobby', e.target.value)}
+                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                  placeholder={tx('Робототехника, кітап, сурет...')}
+                />
+              </div>
+            </div>
+
+            {/* Sport */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Sport')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                <input
+                  type="text"
+                  value={answers.sport ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, sport: e.target.value })}
+                  onBlur={(e) => saveField('sport', e.target.value)}
+                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                  placeholder={tx('Футбол, үстел теннисі, шахмат...')}
+                />
+              </div>
+            </div>
+
+            {/* Mother Name */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Анасының аты-жөні')} (Mother Name)</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                <input
+                  type="text"
+                  value={answers.mother_name ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, mother_name: e.target.value })}
+                  onBlur={(e) => saveField('mother_name', e.target.value)}
+                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                  placeholder={tx('Анасының аты-жөні')}
+                />
+              </div>
+            </div>
+
+            {/* Student Phone */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Телефон (оқушы)')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <Icon n="phone" size={16} className="text-muted" />
+                <input
+                  type="tel"
+                  value={answers.phone ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, phone: e.target.value })}
+                  onBlur={(e) => saveField('phone', e.target.value)}
+                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                  placeholder="+7 700 000 0000"
+                />
+              </div>
+            </div>
+
+            {/* Father Phone */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Әкесінің тел.')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <Icon n="phone" size={16} className="text-muted" />
+                <input
+                  type="tel"
+                  value={answers.father_phone ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, father_phone: e.target.value })}
+                  onBlur={(e) => saveField('father_phone', e.target.value)}
+                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                  placeholder="+7 700 000 0000"
+                />
+              </div>
+            </div>
+
+            {/* Mother Phone */}
+            <div className="grid gap-1">
+              <label className="text-xs font-semibold text-muted">{tx('Анасының тел.')}</label>
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                <Icon n="phone" size={16} className="text-muted" />
+                <input
+                  type="tel"
+                  value={answers.mother_phone ?? ''}
+                  onChange={(e) => setAnswers({ ...answers, mother_phone: e.target.value })}
+                  onBlur={(e) => saveField('mother_phone', e.target.value)}
+                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                  placeholder="+7 700 000 0000"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Previews of Low Gallup & MBTI (from bottom of screenshot) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-line">
+            <div
+              onClick={() => onTabChange('tests')}
+              className="p-3.5 rounded-lg bg-surface-2 hover:bg-surface-2/80 transition cursor-pointer flex items-center justify-between"
+            >
+              <div>
+                <span className="text-xs font-semibold text-muted block">Low Gallup</span>
+                <span className="text-sm font-medium mt-0.5 block">
+                  {lowGallupList.length ? lowGallupList.join(', ') : tx('Белгіленбеген (толтыру →)')}
+                </span>
+              </div>
+              <Icon n="chev" size={16} className="text-muted" />
+            </div>
+
+            <div
+              onClick={() => onTabChange('tests')}
+              className="p-3.5 rounded-lg bg-surface-2 hover:bg-surface-2/80 transition cursor-pointer flex items-center justify-between"
+            >
+              <div>
+                <span className="text-xs font-semibold text-muted block">MBTI</span>
+                <span className="text-sm font-bold text-accent mt-0.5 block tracking-wider">
+                  {mbtiDisplayType}
+                </span>
+              </div>
+              <Icon n="chev" size={16} className="text-muted" />
+            </div>
+          </div>
+
+          {/* Personal reflections & detailed questionnaire questions */}
+          <div className="rounded-xl border border-line bg-surface p-4 grid gap-3">
+            <button
+              type="button"
+              onClick={() => setQuestionsOpen(!questionsOpen)}
+              className="flex items-center justify-between w-full text-left font-semibold text-sm"
+            >
+              <span className="flex items-center gap-2">
+                <Icon n="file" size={16} className="text-accent" />
+                <span>{tx('Жеке сұрақтар мен рефлексия (Анкета)')}</span>
+              </span>
+              <Icon n="chev" size={16} className={`text-muted transition-transform ${questionsOpen ? 'rotate-90' : ''}`} />
+            </button>
+
+            {questionsOpen && (
+              <div className="grid gap-3 pt-2">
+                {FORM.map(([k, q, hint]) => (
+                  <div key={k} className="grid gap-1 text-sm">
+                    <label className="font-medium text-xs text-muted">{q}</label>
+                    <textarea
+                      value={answers[k] ?? ''}
+                      onChange={(e) => setAnswers({ ...answers, [k]: e.target.value })}
+                      onBlur={(e) => saveField(k, e.target.value)}
+                      maxLength={800}
+                      rows={2}
+                      className={`${inputCls} py-2 h-auto text-sm`}
+                      placeholder={hint || tx('Жауабын жазыңыз...')}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          TAB 2: PERSONALITIES TEST (MBTI, Gallup CliftonStrengths, Holland, MI)
+          ==================================================================== */}
+      {tab === 'tests' && (
+        <div className="grid gap-5">
+          {/* 1. MBTI Card */}
+          <Card className="grid gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-base flex items-center gap-2">
+                  <span>MBTI</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-accent-soft text-accent font-bold tracking-wider">
+                    {mbtiDisplayType}
+                  </span>
+                </p>
+                <p className="text-xs text-muted">
+                  {tx('Майерс-Бриггс тұлға типі және мінез-құлық индикаторы')}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={answers.mbti ?? mbtiComputed?.type ?? ''}
+                  onChange={(e) => saveField('mbti', e.target.value)}
+                  className={`${inputCls} h-9 text-xs w-auto font-semibold`}
+                >
+                  <option value="">{tx('Таңдау...')}</option>
+                  {MBTI_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {mbtiComputed && (
+              <div className="grid gap-2 border-t border-line pt-3 text-xs">
+                <div className="flex justify-between items-center text-muted">
+                  <span>E ({mbtiComputed.pct[0]}%)</span>
+                  <span>Extraversion — Introversion</span>
+                  <span>I ({100 - mbtiComputed.pct[0]}%)</span>
+                </div>
+                <div className="h-2 rounded-full bg-surface-2 overflow-hidden flex">
+                  <div className="bg-accent" style={{ width: `${mbtiComputed.pct[0]}%` }} />
+                  <div className="bg-sky-500 flex-1" />
+                </div>
+
+                <div className="flex justify-between items-center text-muted mt-1">
+                  <span>S ({mbtiComputed.pct[1]}%)</span>
+                  <span>Sensing — Intuition</span>
+                  <span>N ({100 - mbtiComputed.pct[1]}%)</span>
+                </div>
+                <div className="h-2 rounded-full bg-surface-2 overflow-hidden flex">
+                  <div className="bg-amber-500" style={{ width: `${mbtiComputed.pct[1]}%` }} />
+                  <div className="bg-emerald-500 flex-1" />
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {/* 2. Gallup CliftonStrengths Card */}
+          <Card className="grid gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-base flex items-center gap-2">
+                  <span>Gallup CliftonStrengths</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 font-semibold">
+                    34 Themes
+                  </span>
+                </p>
+                <p className="text-xs text-muted">
+                  {tx('Оқушының туа біткен басым таланттары мен дамыту бағыттары')}
+                </p>
+              </div>
+              <Button kind="secondary" onClick={() => setGallupPicker('top')}>
+                <Icon n="plus" size={15} />
+                {tx('Таңдау / Өзгерту')}
+              </Button>
+            </div>
+
+            {/* Top 5 Gallup */}
+            <div className="grid gap-2">
+              <span className="text-xs font-bold uppercase text-muted tracking-wider">
+                Top 5 Gallup ({tx('Мықты қасиеттері')})
+              </span>
+              {!topGallupList.length ? (
+                <p className="text-sm text-muted bg-surface-2 p-3 rounded-lg">
+                  {tx('Әлі таңдалмаған. «Таңдау / Өзгерту» батырмасы арқылы 34 қасиеттен 5 негізгісін белгілеңіз.')}
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {topGallupList.map((t) => {
+                    const found = findGallup(t)
+                    const dom = found ? GALLUP_DOMAINS[found.domain] : GALLUP_DOMAINS.executing
+                    return (
+                      <span
+                        key={t}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${dom.bg} ${dom.text} ${dom.border}`}
+                      >
+                        <span className="font-bold">{t}</span>
+                        {found && <span className="text-[11px] opacity-80">({found.nameKk})</span>}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Low Gallup */}
+            <div className="grid gap-2 border-t border-line pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-muted tracking-wider">
+                  Low Gallup ({tx('Дамытуды қажет ететін тұстары')})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setGallupPicker('low')}
+                  className="text-xs font-semibold text-accent hover:underline"
+                >
+                  {tx('Өзгерту →')}
+                </button>
+              </div>
+              {!lowGallupList.length ? (
+                <p className="text-sm text-muted bg-surface-2 p-3 rounded-lg">
+                  {tx('Дамытуды қажет ететін қасиеттер белгіленбеген.')}
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {lowGallupList.map((t) => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-surface-2 text-muted border border-line"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* 3. Holland (RIASEC) Card */}
+          {testHol && (
+            <Card className="grid gap-2">
+              <p className="font-bold text-base">{tx('Холланд кәсіби бағдар тесті (RIASEC)')}</p>
+              {(() => {
+                const h = hollandScore(testHol.answers)
+                const ru = lang === 'ru'
+                return (
+                  <div className="text-sm">
+                    <p className="text-accent font-extrabold text-lg tracking-wider mb-1">{h.code}</p>
+                    <p className="text-muted">
+                      {h.code
+                        .split('')
+                        .map((l) => RIASEC.find((x) => x[0] === l)?.[ru ? 2 : 1])
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                )
+              })()}
+            </Card>
+          )}
+
+          {/* 4. Multiple Intelligences Card */}
+          {testMi && (
+            <Card className="grid gap-2">
+              <p className="font-bold text-base">{tx('Гарднер көптік интеллекті')}</p>
+              <div className="grid gap-1.5 text-sm">
+                {miScore(testMi.answers)
+                  .map((v, k) => [k, v] as [number, number])
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 4)
+                  .map(([k, score]) => (
+                    <div key={k} className="flex items-center justify-between gap-3 bg-surface-2 px-3 py-2 rounded-lg">
+                      <span className="font-medium">{MI_KINDS[k][lang === 'ru' ? 1 : 0]}</span>
+                      <span className="text-xs font-bold text-accent tabular-nums">{score} балл</span>
+                    </div>
+                  ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ====================================================================
+          TAB 3: PLAN (Rich Roadmap: Goals, Habits, Tasks, Presets Bank)
+          ==================================================================== */}
+      {tab === 'plan' && (
+        <div className="grid gap-4">
           <RoadmapSection
-            studentId={s.id}
+            studentId={student.id}
             roadmap={roadmap}
             onUpdate={setRoadmap}
             onOpenAdd={() => setAddPlan(true)}
           />
+        </div>
+      )}
 
-          {next.map((m) => (
+      {/* ====================================================================
+          TAB 4: MEETINGS (1-on-1 History & Actions)
+          ==================================================================== */}
+      {tab === 'meetings' && (
+        <div className="grid gap-4">
+          <div className="flex items-center justify-between">
+            <p className="font-bold text-base">{tx('Жеке кездесулер журналы')}</p>
+            <Button onClick={() => setAddMeeting(true)}>
+              <Icon n="plus" size={16} />
+              {tx('Кездесу белгілеу')}
+            </Button>
+          </div>
+
+          {nextMeetings.map((m) => (
             <Card key={m.id} className="grid gap-2 border-accent/40">
               <div className="flex items-start gap-2">
                 <span className="size-10 shrink-0 rounded-md bg-accent-soft text-accent grid place-items-center">
@@ -350,44 +1083,38 @@ function StudentLoaded({
                 <button
                   type="button"
                   aria-label={tx('Өшіру')}
-                  onClick={() => removeMentorMeeting(m.id).then(reload, (e) => toast(errText(e)))}
+                  onClick={() => removeMentorMeeting(m.id).then(data.reload, (e) => toast(errText(e)))}
                   className="size-9 grid place-items-center rounded-md text-muted hover:bg-surface-2"
                 >
                   <Icon n="x" size={16} />
                 </button>
               </div>
-              <Button onClick={() => setFinish(m)}>
+              <Button onClick={() => setFinishMeeting(m)}>
                 <Icon n="check" size={18} />
                 {tx('Қорытынды жазу')}
               </Button>
             </Card>
           ))}
 
-          <Card className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold">{tx('Кездесу уақыттары')}</p>
-              <button
-                type="button"
-                onClick={() => go(`/journal/${s.class_id}?tab=mentor&add=mentor&student=${s.id}`)}
-                className="text-xs font-semibold text-accent hover:underline flex items-center gap-1"
-              >
-                <Icon n="calendar" size={14} />
-                {tx('Күнтізбеде қою →')}
-              </button>
-            </div>
-            {!next.length && !past.length ? (
-              <p className="text-sm text-muted">
-                {tx('Жоспарланған кездесу жоқ. «Кездесу қою» батырмасы арқылы күнтізбеге оқиға ретінде белгілеңіз.')}
+          {!nextMeetings.length && !pastMeetings.length ? (
+            <Empty
+              icon="calendar"
+              title={tx('Кездесу жоқ')}
+              text={tx('Оқушымен жеке кездесу өткізу үшін «Кездесу белгілеу» батырмасын басыңыз.')}
+            />
+          ) : null}
+
+          {pastMeetings.length > 0 && (
+            <Card className="grid gap-2">
+              <p className="text-xs text-muted font-semibold uppercase">
+                {tx('Өткен кездесулер · {0}', pastMeetings.length)}
               </p>
-            ) : null}
-            {past.length > 0 && (
-              <div className="grid gap-1.5 mt-1">
-                <p className="text-xs text-muted font-semibold uppercase">{tx('Өткен кездесулер · {0}', past.length)}</p>
-                {past.map((m) => (
-                  <details key={m.id} className="rounded-md bg-surface-2 px-3 py-2">
-                    <summary className="cursor-pointer text-sm">
-                      <b>{m.topic}</b> ·{' '}
-                      <span className="text-muted">
+              <div className="grid gap-2">
+                {pastMeetings.map((m) => (
+                  <details key={m.id} className="rounded-lg bg-surface-2 px-3 py-2.5">
+                    <summary className="cursor-pointer text-sm font-semibold">
+                      {m.topic} ·{' '}
+                      <span className="text-muted font-normal">
                         {fmtDate(m.starts_at.slice(0, 10))} · {staffName(m.staff_id)}
                         {m.place ? ` · ${m.place}` : ''}
                       </span>
@@ -402,130 +1129,267 @@ function StudentLoaded({
                   </details>
                 ))}
               </div>
-            )}
-          </Card>
-        </div>
-
-        {/* Оң жақ: Анкета, Тесттер және Тарих */}
-        <div className="grid gap-3">
-          <Card className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold">{tx('Оқушы анкетасы')}</p>
-              <Button kind="ghost" onClick={() => setEditForm(true)}>
-                <Icon n="file" size={15} />
-                {d.form ? tx('Өңдеу') : tx('Толтыру')}
-              </Button>
-            </div>
-            {!d.form ? (
-              <p className="text-sm text-muted">
-                {tx('Оқушы әлі толтырмаған. «Толтыру» батырмасы арқылы ақпаратты бірге жазуға болады.')}
-              </p>
-            ) : (
-              <dl className="grid gap-2 text-sm">
-                {FORM.filter(([k]) => d.form!.answers[k]).map(([k, q]) => (
-                  <div key={k}>
-                    <dt className="text-xs text-muted">{q}</dt>
-                    <dd className="whitespace-pre-line font-medium">{d.form!.answers[k]}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-            {(mbti || mi || hol) && (
-              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm border-t border-line pt-2">
-                {mbti && (
-                  <>
-                    <dt className="text-muted">MBTI</dt>
-                    <dd className="font-bold tracking-wider text-accent">{mbtiScore(mbti.answers).type}</dd>
-                  </>
-                )}
-                {mi && (
-                  <>
-                    <dt className="text-muted">{tx('Интеллект')}</dt>
-                    <dd>
-                      {miScore(mi.answers)
-                        .map((v, k) => [k, v])
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 3)
-                        .map(([k]) => MI_KINDS[k][ru ? 1 : 0])
-                        .join(', ')}
-                    </dd>
-                  </>
-                )}
-                {hol &&
-                  (() => {
-                    const h = hollandScore(hol.answers)
-                    return (
-                      <>
-                        <dt className="text-muted">{tx('Холланд')}</dt>
-                        <dd>
-                          <b className="tracking-wider text-accent">{h.code}</b>
-                          {' · '}
-                          {h.code
-                            .split('')
-                            .map((l) => RIASEC.find((x) => x[0] === l)![ru ? 2 : 1])
-                            .join(', ')}
-                        </dd>
-                      </>
-                    )
-                  })()}
-              </dl>
-            )}
-          </Card>
-
-          {history.length > 0 && (
-            <Card className="grid gap-3">
-              <p className="font-semibold">{tx('Тарих')}</p>
-              <ol className="grid gap-3">
-                {history.map((h) => (
-                  <li key={h.key} className="flex gap-3">
-                    <span className="size-8 shrink-0 rounded-sm bg-surface-2 text-muted grid place-items-center">
-                      <Icon n={h.icon} size={16} />
-                    </span>
-                    <span className="min-w-0 text-sm">
-                      <span className="block text-xs text-muted">
-                        {h.title} · {h.when.length > 10 ? chatTime(h.when) : fmtDate(h.when)}
-                      </span>
-                      <span className="block whitespace-pre-line break-words">{h.body}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
             </Card>
           )}
         </div>
-      </div>
+      )}
 
-      {editForm && (
-        <StudentFormEditSheet
-          student={s}
-          initial={d.form?.answers ?? {}}
-          onClose={() => setEditForm(false)}
-          onSaved={() => {
-            setEditForm(false)
-            reload()
+      {/* ====================================================================
+          TAB 5: RESOURCES (Study materials, Books, Council notes)
+          ==================================================================== */}
+      {tab === 'resources' && (
+        <div className="grid gap-4">
+          <Card className="grid gap-3">
+            <p className="font-bold text-base">{tx('Оқушыға ұсынылған ресурстар')}</p>
+            <p className="text-sm text-muted">
+              {tx('Оқушының мақсаттарына, олимпиада бағытына және қызығушылығына сай кітаптар, материалдар мен құжаттар.')}
+            </p>
+            {d.notes.length > 0 && (
+              <div className="grid gap-2 border-t border-line pt-3">
+                <p className="text-xs font-bold uppercase text-muted">{tx('Сынып кеңесінің жазбалары')}</p>
+                {d.notes.map((n) => (
+                  <div key={n.id} className="p-3 rounded-lg bg-surface-2 text-sm">
+                    <span className="text-xs text-muted block mb-1">
+                      {staffName(n.author_id)} · {fmtDate(n.created_at.slice(0, 10))}
+                    </span>
+                    <p className="whitespace-pre-line">{n.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* Gallup Picker Modal */}
+      {gallupPicker && (
+        <GallupPickerSheet
+          mode={gallupPicker}
+          selectedTop={topGallupList}
+          selectedLow={lowGallupList}
+          onClose={() => setGallupPicker(null)}
+          onSave={async (newTop, newLow) => {
+            setGallupPicker(null)
+            await saveMultipleFields({
+              top_gallup: newTop.join(', '),
+              low_gallup: newLow.join(', '),
+            })
           }}
         />
       )}
 
+      {/* 1-on-1 Roadmap Builder Sheet */}
       {addPlan && (
         <RoadmapBuilderSheet
-          student={s}
+          student={{ id: student.id, class_id: classId ?? student.class_id ?? '', full_name: student.full_name }}
           currentRoadmap={roadmap}
           meetings={d.meetings}
           onClose={() => setAddPlan(false)}
           onDone={(newR) => {
             setRoadmap(newR)
             setAddPlan(false)
-            reload()
+            data.reload()
           }}
         />
       )}
 
-      {plan && <PlanSheet student={s} onClose={() => setPlan(false)} onDone={() => { setPlan(false); reload() }} />}
-      {finish && <FinishSheet m={finish} onClose={() => setFinish(null)} onDone={() => { setFinish(null); reload() }} />}
+      {/* Schedule 1-on-1 Meeting Sheet */}
+      {addMeeting && (
+        <PlanSheet
+          student={{ id: student.id, class_id: classId ?? student.class_id ?? '' }}
+          onClose={() => setAddMeeting(false)}
+          onDone={() => {
+            setAddMeeting(false)
+            data.reload()
+          }}
+        />
+      )}
+
+      {/* Finish Meeting Sheet */}
+      {finishMeeting && (
+        <FinishSheet
+          m={finishMeeting}
+          onClose={() => setFinishMeeting(null)}
+          onDone={() => {
+            setFinishMeeting(null)
+            data.reload()
+          }}
+        />
+      )}
     </div>
   )
 }
+
+/* ==========================================================================
+   Оқушының өзі үшін: Менің анкетам мен даму жоспарым
+   ========================================================================== */
+
+function StudentOwnDossier() {
+  const { me } = useMe()
+  const [tab, setTab] = useState<DossierTab>('info')
+  return (
+    <div className="grid gap-3 pb-6 w-full">
+      <PageHead title={tx('Менің анкетам')} back />
+      <div className="bg-surface rounded-xl shadow-card border border-[var(--card-line,transparent)] p-4 lg:p-6">
+        <StudentDossierView
+          student={{ id: me.id, full_name: me.full_name, photo: me.photo, class_id: me.class?.id }}
+          classId={me.class?.id}
+          classNameStr={me.class?.name}
+          tab={tab}
+          onTabChange={setTab}
+        />
+      </div>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   Gallup CliftonStrengths Picker Sheet (34 Themes Selector)
+   ========================================================================== */
+
+function GallupPickerSheet({
+  mode,
+  selectedTop,
+  selectedLow,
+  onClose,
+  onSave,
+}: {
+  mode: 'top' | 'low'
+  selectedTop: string[]
+  selectedLow: string[]
+  onClose: () => void
+  onSave: (top: string[], low: string[]) => void
+}) {
+  const [top, setTop] = useState<string[]>(selectedTop)
+  const [low, setLow] = useState<string[]>(selectedLow)
+  const [activeMode, setActiveMode] = useState<'top' | 'low'>(mode)
+  const [query, setQuery] = useState('')
+
+  const toggleTheme = (name: string) => {
+    if (activeMode === 'top') {
+      if (top.includes(name)) {
+        setTop(top.filter((x) => x !== name))
+      } else {
+        if (top.length >= 5) {
+          toast(tx('Ең көп дегенде 5 мықты қасиет таңдалады'))
+          return
+        }
+        setTop([...top, name])
+      }
+    } else {
+      if (low.includes(name)) {
+        setLow(low.filter((x) => x !== name))
+      } else {
+        setLow([...low, name])
+      }
+    }
+  }
+
+  const filteredThemes = GALLUP_THEMES.filter((t) => {
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+    return (
+      t.nameEn.toLowerCase().includes(q) ||
+      t.nameKk.toLowerCase().includes(q) ||
+      t.nameRu.toLowerCase().includes(q)
+    )
+  })
+
+  return (
+    <Sheet
+      title={tx('Gallup CliftonStrengths')}
+      onClose={onClose}
+    >
+      <div className="grid gap-4">
+        {/* Switcher: Top 5 vs Low */}
+        <div className="flex rounded-lg bg-surface-2 p-1">
+          <button
+            type="button"
+            onClick={() => setActiveMode('top')}
+            className={`flex-1 py-1.5 rounded-md text-xs font-bold transition ${
+              activeMode === 'top' ? 'bg-surface text-fg shadow-xs' : 'text-muted'
+            }`}
+          >
+            Top 5 ({top.length}/5)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveMode('low')}
+            className={`flex-1 py-1.5 rounded-md text-xs font-bold transition ${
+              activeMode === 'low' ? 'bg-surface text-fg shadow-xs' : 'text-muted'
+            }`}
+          >
+            Low Gallup ({low.length})
+          </button>
+        </div>
+
+        {/* Selected chips bar */}
+        <div className="flex flex-wrap gap-1.5 min-h-8">
+          {(activeMode === 'top' ? top : low).map((name) => {
+            const found = findGallup(name)
+            const dom = found ? GALLUP_DOMAINS[found.domain] : GALLUP_DOMAINS.executing
+            return (
+              <span
+                key={name}
+                onClick={() => toggleTheme(name)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer border ${dom.bg} ${dom.text} ${dom.border}`}
+              >
+                <span>{name}</span>
+                <span className="opacity-70">✕</span>
+              </span>
+            )
+          })}
+        </div>
+
+        {/* Search Input */}
+        <div className="relative">
+          <Icon n="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={tx('Қасиет атауын іздеу (EN / KK / RU)...')}
+            className={`${inputCls} pl-9 h-10 text-sm`}
+          />
+        </div>
+
+        {/* Themes Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto pr-1">
+          {filteredThemes.map((t) => {
+            const isSelected = activeMode === 'top' ? top.includes(t.nameEn) : low.includes(t.nameEn)
+            const dom = GALLUP_DOMAINS[t.domain]
+
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => toggleTheme(t.nameEn)}
+                className={`text-left p-2.5 rounded-lg border transition flex flex-col justify-between ${
+                  isSelected
+                    ? `${dom.bg} ${dom.text} ${dom.border} shadow-xs ring-1 ring-current`
+                    : 'bg-surface border-line hover:bg-surface-2 text-fg'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1 w-full">
+                  <span className="font-bold text-sm">{t.nameEn}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${dom.bg} ${dom.text}`}>
+                    {dom.label.split(' ')[0]}
+                  </span>
+                </div>
+                <div className="text-xs text-muted mt-1">{t.nameKk}</div>
+                <div className="text-[11px] text-muted opacity-80 mt-1 line-clamp-2">{t.descKk}</div>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Action Button */}
+        <Button onClick={() => onSave(top, low)}>{tx('Дайын')}</Button>
+      </div>
+    </Sheet>
+  )
+}
+
 
 /* ==========================================================================
    Күрделендірілген Даму Жоспары бөлімі (RoadmapSection)
@@ -1891,66 +2755,6 @@ function RoadmapBuilderSheet({
    Анкета өңдеу, Кездесу жоспарлау және Қорытынды жазу
    ========================================================================== */
 
-function StudentFormEditSheet({
-  student,
-  initial,
-  onClose,
-  onSaved,
-}: {
-  student: { id: string; full_name: string }
-  initial: Record<string, string>
-  onClose: () => void
-  onSaved: () => void
-}) {
-  const [a, setA] = useState<Record<string, string>>(initial)
-  const [busy, setBusy] = useState(false)
-  return (
-    <Sheet title={tx('Анкета толтыру / өңдеу')} onClose={onClose}>
-      <div className="grid gap-3">
-        <p className="text-xs text-muted">
-          {tx('{0} үшін анкета ақпараты. Сұрақтарға жауаптарды оқушымен бірге немесе жеке толтыруға болады.', student.full_name.split(' ').slice(0, 2).join(' '))}
-        </p>
-        {FORM.map(([k, q, hint]) => (
-          <label key={k} className="grid gap-1 text-sm">
-            <span className="font-medium">{q}</span>
-            <textarea
-              value={a[k] ?? ''}
-              onChange={(e) => setA({ ...a, [k]: e.target.value })}
-              maxLength={600}
-              rows={2}
-              className={`${inputCls} py-2 h-auto`}
-              placeholder={hint}
-            />
-          </label>
-        ))}
-        <Button
-          loading={busy}
-          onClick={async () => {
-            setBusy(true)
-            try {
-              await saveMyForm(
-                student.id,
-                Object.fromEntries(
-                  Object.entries(a)
-                    .map(([k, v]) => [k, v.trim()])
-                    .filter(([, v]) => v)
-                )
-              )
-              toast(tx('Сақталды'))
-              onSaved()
-            } catch (e) {
-              toast(errText(e))
-            } finally {
-              setBusy(false)
-            }
-          }}
-        >
-          {tx('Сақтау')}
-        </Button>
-      </div>
-    </Sheet>
-  )
-}
 
 function PlanSheet({ student, onClose, onDone }: { student: { id: string; class_id: string }; onClose: () => void; onDone: () => void }) {
   const [f, setF] = useState({ when: '', topic: '', place: '', show: 'show' as 'show' | 'staff' })

@@ -833,8 +833,18 @@ export const mentorItems = (student: string) => rpc<MentorItem[]>('mentor_items'
 export const mentorAssign = (meeting: string, kind: 'task' | 'habit', title: string, due: string | null) => rpc('mentor_assign', { p_meeting: meeting, p_kind: kind, p_title: title, p_due: due })
 export const studentForm = async (id: string) =>
   ((await ok(supabase.from('student_forms').select('answers, updated_at').eq('student_id', id).maybeSingle())) ?? null) as { answers: Record<string, string>; updated_at: string } | null
+export const classStudentForms = async (studentIds: string[]) => {
+  if (!studentIds.length) return {}
+  const res = (await ok(supabase.from('student_forms').select('student_id, answers, updated_at').in('student_id', studentIds))) as { student_id: string; answers: Record<string, string>; updated_at: string }[] | null
+  const map: Record<string, Record<string, string>> = {}
+  for (const r of res ?? []) {
+    map[r.student_id] = r.answers ?? {}
+  }
+  return map
+}
 export const saveMyForm = (student_id: string, answers: Record<string, string>) =>
   ok(supabase.from('student_forms').upsert({ student_id, answers, updated_at: new Date().toISOString() }))
+export const saveStudentForm = saveMyForm
 export const mentorEvery = async (classId: string) =>
   ((await ok(supabase.from('mentor_settings').select('every_days').eq('class_id', classId).maybeSingle())) as { every_days: number } | null)?.every_days ?? 30
 export const setMentorEvery = (class_id: string, every_days: number) => ok(supabase.from('mentor_settings').upsert({ class_id, every_days }))
