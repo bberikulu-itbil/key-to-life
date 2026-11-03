@@ -9,12 +9,15 @@ create table if not exists student_profile_details (
   nation text,
   city text,
   address text,
+  phone text,
   tribe text,
   dorm_room text,
   dorm_bed text,
   updated_by uuid references profiles(id) on delete set null,
   updated_at timestamptz not null default now()
 );
+
+alter table student_profile_details add column if not exists phone text;
 
 create table if not exists student_health_profiles (
   student_id uuid primary key references profiles(id) on delete cascade,
@@ -108,7 +111,7 @@ begin
   if jsonb_typeof(p_data) <> 'object' then raise exception 'Дерек пішімі қате'; end if;
 
   insert into student_profile_details(
-    student_id, birthday, iin, document_number, nation, city, address, tribe, dorm_room, dorm_bed, updated_by, updated_at
+    student_id, birthday, iin, document_number, nation, city, address, phone, tribe, dorm_room, dorm_bed, updated_by, updated_at
   )
   values (
     p_student_id,
@@ -118,6 +121,7 @@ begin
     nullif(trim(p_data->>'nation'), ''),
     nullif(trim(p_data->>'city'), ''),
     nullif(trim(p_data->>'address'), ''),
+    nullif(trim(p_data->>'phone'), ''),
     nullif(trim(p_data->>'tribe'), ''),
     nullif(trim(p_data->>'dorm_room'), ''),
     nullif(trim(p_data->>'dorm_bed'), ''),
@@ -130,6 +134,7 @@ begin
     nation = case when p_data ? 'nation' then excluded.nation else student_profile_details.nation end,
     city = case when p_data ? 'city' then excluded.city else student_profile_details.city end,
     address = case when p_data ? 'address' then excluded.address else student_profile_details.address end,
+    phone = case when p_data ? 'phone' then excluded.phone else student_profile_details.phone end,
     tribe = case when p_data ? 'tribe' then excluded.tribe else student_profile_details.tribe end,
     dorm_room = case when p_data ? 'dorm_room' then excluded.dorm_room else student_profile_details.dorm_room end,
     dorm_bed = case when p_data ? 'dorm_bed' then excluded.dorm_bed else student_profile_details.dorm_bed end,
@@ -330,13 +335,14 @@ begin
 end
 $$;
 
-insert into student_profile_details(student_id, birthday, iin, document_number, address, nation, updated_at)
+insert into student_profile_details(student_id, birthday, iin, document_number, address, phone, nation, updated_at)
 select
   student_id,
-  case when answers->>'birthday' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then (answers->>'birthday')::date end,
-  case when answers->>'iin' ~ '^[0-9]{12}
+  case when answers->>'birthday' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' then (answers->>'birthday')::date end,
+  case when length(answers->>'iin') = 12 and answers->>'iin' !~ '[^0-9]' then answers->>'iin' end,
   nullif(answers->>'doc_number', ''),
   nullif(answers->>'address', ''),
+  nullif(answers->>'phone', ''),
   nullif(answers->>'nation', ''),
   now()
 from student_forms
@@ -355,35 +361,13 @@ from student_forms
 where nullif(answers->>'mother_name', '') is not null or nullif(answers->>'mother_phone', '') is not null
 on conflict (student_id, relationship) do nothing;
 
-grant execute on function student_dossier_staff to authenticated;
-
-revoke execute on function student_dossier_staff, save_student_profile_details, save_student_health_profile,
-  save_student_family_contact, save_student_health_event, patch_student_form, student_dossier
-from public, anon;
-grant execute on function save_student_profile_details, save_student_health_profile,
-  save_student_family_contact, save_student_health_event, patch_student_form, student_dossier
-to authenticated;
-notify pgrst, 'reload schema';
- then answers->>'iin' end,
-  nullif(answers->>'doc_number', ''),
-  nullif(answers->>'address', ''),
-  nullif(answers->>'nation', ''),
-  now()
-from student_forms
-where jsonb_typeof(answers) = 'object'
-on conflict (student_id) do nothing;
-
-insert into student_family_contacts(student_id, relationship, full_name, phone, updated_at)
-select student_id, 'father', nullif(answers->>'father_name', ''), nullif(answers->>'father_phone', ''), now()
-from student_forms
-where nullif(answers->>'father_name', '') is not null or nullif(answers->>'father_phone', '') is not null
-on conflict (student_id, relationship) do nothing;
-
-insert into student_family_contacts(student_id, relationship, full_name, phone, updated_at)
-select student_id, 'mother', nullif(answers->>'mother_name', ''), nullif(answers->>'mother_phone', ''), now()
-from student_forms
-where nullif(answers->>'mother_name', '') is not null or nullif(answers->>'mother_phone', '') is not null
-on conflict (student_id, relationship) do nothing;
+-- Keep the legacy JSON for reflective answers only after the structured copy succeeds.
+update student_forms
+set answers = answers - array[
+  'birthday', 'iin', 'doc_number', 'address', 'phone', 'nation',
+  'father_name', 'father_phone', 'mother_name', 'mother_phone'
+]
+where jsonb_typeof(answers) = 'object';
 
 grant execute on function student_dossier_staff to authenticated;
 
