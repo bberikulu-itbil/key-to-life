@@ -1,10 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import StaffList, { KIND_LABEL, type StaffKind } from '../components/StaffList'
-import { classAttendance, classChatId, classStudents, errText, isDemoClass, listActivities, listBreaks, listClasses, listLeaves, listLessons, listStaff, openDirect, removeStudent, setClassTeacher, setTutor, staffClasses, updateStaff, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
+import { classAttendance, classChatId, classStudents, errText, isDemoClass, listActivities, listBreaks, listClasses, listLeaves, listLessons, listStaff, openDirect, removeStudent, setClassTeacher, setTutor, staffClasses, updateStaff, updateStudent, uploadStudentPhoto, type Activity, type Student } from '../lib/api'
 import Avatar from '../components/Avatar'
-import { hm, lessonOn, rate, scheduleLabel, today } from '../lib/time'
+import { fmtDate, hm, lessonOn, rate, scheduleLabel, today } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import ClassPlanSheet from '../components/ClassPlanSheet'
 import { tx } from '../lib/i18n'
 
 export default function MyClass({ classId }: { classId?: string }) {
@@ -50,6 +51,7 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
   const [open, setOpen] = useState<Student | null>(null)
   const [uploading, setUploading] = useState(false)
   const [staffOpen, setStaffOpen] = useState(false)
+  const [editingPlan, setEditingPlan] = useState<Activity | null | 'new'>(null)
   const upload = async (s: Student, f: File) => {
     setUploading(true)
     try { const photo = await uploadStudentPhoto(s.id, f); setOpen({ ...s, photo }); toast(tx('Сурет сақталды')); data.reload() } catch (e) { toast(errText(e)) } finally { setUploading(false) }
@@ -109,7 +111,7 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
           [`#/dorm?class=${cls.id}`, 'home', tx('Жатақхана'), tx('Бөлмелер, түнгі тексеру, тазалық'), true],
           [`#/resources/${cls.id}`, 'book', tx('Сынып ресурстары'), tx('Кітаптар, фильмдер, шаралар, сынып қоры'), mineOrDeputy],
           [`#/hub/${cls.id}`, 'book', tx('Сынып жобалары'), tx('Кітап, фильм, рецепт және сынып жоспары'), mineOrDeputy],
-          [`#/journal/${cls.id}`, 'file', tx('Сынып күнтізбесі'), tx('Тәрбие сағаттары, оқиғалар, фото'), mineOrDeputy],
+          [`#/journal/${cls.id}`, 'calendar', tx('Сынып жоспары және күнтізбесі'), tx('Этюд, тәрбие сағаттары, оқиғалар, фото'), mineOrDeputy],
           ['#/leaves', 'clock', tx('Рұқсаттар'), pending.length ? tx('{0} сұрау шешім күтуде', pending.length) : tx('Сұраулар, кім сыртта, қатысу'), true],
           [`#/mentor?class=${cls.id}`, 'file', tx('Анкета'), tx('Оқушы анкетасы, мақсат-жоспарлары, тесттер'), mineOrDeputy],
           [`#/council/${cls.id}`, 'lock', tx('Сынып кеңесі'), tx('Жазбалар, жиналыс, тапсырмалар, ата-аналар'), mineOrDeputy],
@@ -132,18 +134,79 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
             </Card>
           )}
 
-          {d.plans.length > 0 && (
-            <>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Сынып жоспары')}</h2>
-              <Card className="p-0 divide-y divide-line">
-                {d.plans.map((a) => (
-                  <a key={a.id} href={`#/a/${a.id}`} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="flex-1 min-w-0"><span className="block font-medium truncate">{a.title}</span><span className="block text-xs text-muted truncate">{scheduleLabel(a)}</span></span>
-                    <Icon n="chev" className="text-muted" />
+          <div className="flex items-center justify-between gap-2 mt-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              {tx('Сынып жоспары (Этюд) және күнтізбесі')}
+            </h2>
+            <div className="flex items-center gap-2">
+              <a href={`#/journal/${cls.id}`} className="text-xs text-accent font-semibold hover:underline">
+                {tx('Күнтізбеде көру →')}
+              </a>
+              {mineOrDeputy && (
+                <button
+                  type="button"
+                  onClick={() => setEditingPlan('new')}
+                  className="h-8 px-2.5 rounded-md text-accent text-xs font-semibold hover:bg-surface-2 flex items-center gap-1"
+                >
+                  <Icon n="plus" size={14} />
+                  {tx('Жоспар қосу')}
+                </button>
+              )}
+            </div>
+          </div>
+          {d.plans.length === 0 ? (
+            <Card className="p-3 text-center">
+              <p className="text-xs text-muted">
+                {tx('Сынып жоспары (Этюд-1, Этюд-2, т.б.) әлі қойылмаған.')}
+              </p>
+              {mineOrDeputy && (
+                <div className="mt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPlan('new')}
+                    className="h-9 px-3 rounded-md bg-accent-soft text-accent text-xs font-semibold hover:bg-surface-2 flex items-center gap-1"
+                  >
+                    <Icon n="plus" size={14} />
+                    {tx('Этюд немесе жоспар қосу')}
+                  </button>
+                </div>
+              )}
+            </Card>
+          ) : (
+            <Card className="p-0 divide-y divide-line">
+              {d.plans.map((a) => (
+                <div key={a.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="size-2.5 rounded-full bg-sky-500 shrink-0" />
+                  <a href={`#/a/${a.id}`} className="flex-1 min-w-0">
+                    <span className="block font-medium truncate">{a.title}</span>
+                    <span className="block text-xs text-muted truncate">{scheduleLabel(a)}</span>
+                    {a.date_to && (
+                      <span className="block text-[11px] text-sky-600 dark:text-sky-400 font-medium">
+                        {tx('{0}-ге дейін', fmtDate(a.date_to))}
+                      </span>
+                    )}
                   </a>
-                ))}
-              </Card>
-            </>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <a
+                      href={`#/a/${a.id}`}
+                      className="h-8 px-2.5 rounded-md bg-surface text-xs font-semibold text-primary hover:bg-surface-2 border border-line flex items-center gap-1"
+                    >
+                      <Icon n="check" size={12} />
+                      {tx('Журнал')}
+                    </a>
+                    {mineOrDeputy && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingPlan(a)}
+                        className="h-8 px-2.5 rounded-md bg-surface text-xs font-semibold text-accent hover:bg-surface-2 border border-line"
+                      >
+                        {tx('Өзгерту')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </Card>
           )}
 
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Бүгінгі сабақтар · {0}', todayLessons.length)}</h2>
@@ -222,6 +285,20 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
               className="h-12 rounded-md bg-accent text-on-accent font-semibold inline-flex items-center justify-center gap-2"><Icon n="chat" />{tx('Жеке хат жазу')}</button>
           </div>
         </Sheet>
+      )}
+
+      {editingPlan && cls && (
+        <ClassPlanSheet
+          classId={cls.id}
+          className={cls.name}
+          existing={editingPlan === 'new' ? null : editingPlan}
+          breaks={d?.breaks ?? []}
+          onClose={() => setEditingPlan(null)}
+          onSaved={() => {
+            setEditingPlan(null)
+            data.reload()
+          }}
+        />
       )}
     </div>
   )

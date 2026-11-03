@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  addClassEvent, addClassHour, addClassPhoto, addParentContact, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
-  removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, staffClasses, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student,
+  addClassEvent, addClassHour, addClassPhoto, addParentContact, classEventsForMe, classStudents, errText, listBreaks, listClasses, listClassPlans, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
+  removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, staffClasses, type Activity, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type Media, type MentorMeeting, type Resource, type SchoolBreak, type Staff, type Student,
 } from '../lib/api'
-import { WD_SHORT, addDays, fmtDate, iso, isoDow, today } from '../lib/time'
+import { WD_SHORT, addDays, fmtDate, inBreak, isSession, iso, isoDow, scheduleLabel, sessionTime, today } from '../lib/time'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import ClassEventForm from '../components/ClassEventForm'
 import ClassCalendarView, { type CalItem } from '../components/ClassCalendarView'
+import ClassPlanSheet from '../components/ClassPlanSheet'
 import { tx } from '../lib/i18n'
 
 /* «Сынып күнтізбесі» — the class calendar (week and month), class hours with their plan, and parent involvement.
@@ -40,16 +41,30 @@ export default function Journal({ classId }: { classId?: string }) {
 /** Students: what is coming up for the class. */
 function StudentCalendar() {
   const { me } = useMe()
-  const list = useLoad(async () => (me.class ? classEventsForMe(me.class.id) : []), [me.class?.id])
-  const rows = useMemo(() => list.data ?? [], [list.data])
+  const list = useLoad(async () => {
+    if (!me.class) return { events: [] as ClassEvent[], plans: [] as Activity[], breaks: [] as SchoolBreak[] }
+    const [events, plans, breaks] = await Promise.all([
+      classEventsForMe(me.class.id),
+      listClassPlans(me.class.id),
+      listBreaks(),
+    ])
+    return { events, plans, breaks }
+  }, [me.class?.id])
+  const rows = useMemo(() => list.data?.events ?? [], [list.data])
+  const plans = useMemo(() => list.data?.plans ?? [], [list.data])
+  const breaks = useMemo(() => list.data?.breaks ?? [], [list.data])
   const [mode, setMode] = useState<'calendar' | 'list'>('calendar')
-  const items = useMemo(() => rows.map((e) => eventItem(e)), [rows])
-  const upcoming = useMemo(() => rows.filter((e) => e.on_date >= today()), [rows])
+  const items = useMemo(() => {
+    const evItems = rows.map((e) => eventItem(e))
+    const planItems = classPlanCalendarItems(plans, breaks)
+    return [...evItems, ...planItems]
+  }, [rows, plans, breaks])
+  const upcoming = useMemo(() => items.filter((i) => i.date >= today()).sort((a, b) => a.date.localeCompare(b.date)), [items])
 
   return (
     <div className="grid gap-3 pb-6">
       <PageHead
-        title={tx('Сынып күнтізбесі')}
+        title={tx('Сынып жоспары және күнтізбесі')}
         back
         right={
           <Chips
@@ -70,17 +85,17 @@ function StudentCalendar() {
           photos={[]}
           onAdd={() => {}}
           onEdit={() => {}}
-          classTitle={me.class?.name ?? tx('Сынып күнтізбесі')}
+          classTitle={me.class?.name ? `${me.class.name} · ${tx('Сынып жоспары және күнтізбесі')}` : tx('Сынып жоспары және күнтізбесі')}
           typeLabels={TYPE_LABELS}
         />
       ) : !upcoming.length ? (
         <Empty
           icon="clock"
-          title={tx('Алда оқиға жоқ')}
-          text={tx('Сынып жетекшісі не тәрбиеші оқиға қосса, осында шығады және хабарлама келеді.')}
+          title={tx('Алда оқиға не жоспар жоқ')}
+          text={tx('Сынып жетекшісі не тәрбиеші оқиға немесе этюд жоспарын қосса, осында шығады.')}
         />
       ) : (
-        <ItemList items={upcoming.map((e) => eventItem(e))} />
+        <ItemList items={upcoming} />
       )}
     </div>
   )
@@ -103,6 +118,53 @@ const eventKind = (e: ClassEvent): Kind => {
 const eventColor = (e: ClassEvent) => TYPE_COLORS[(e.type_codes ?? [])[0]] ?? KIND[eventKind(e)][0]
 const eventPersonal = (e: ClassEvent) => (e.type_codes ?? []).some((x) => ['mentor', 'visit'].includes(x))
 const eventStatus = (e: ClassEvent) => e.status === 'postponed' ? tx('Кейінге қалдырылды') : e.status === 'passed' ? tx('Өтті') : e.status === 'archived' ? tx('Мұрағатта') : ''
+
+function classPlanCalendarItems(plans: Activity[], breaks: SchoolBreak[], onEdit?: (a: Activity) => void): Item[] {
+  const out: Item[] = []
+  for (const a of plans) {
+    if (a.schedule === 'once' && a.on_date) {
+      if (!inBreak(a.on_date, breaks)) {
+        const time = a.no_time ? '' : `${a.start_time.slice(0, 5)}–${a.end_time.slice(0, 5)}`
+        out.push({
+          key: `plan-${a.id}-${a.on_date}`,
+          date: a.on_date,
+          kind: 'hour' as Kind,
+          title: (time ? time + ' · ' : '') + a.title + (a.place ? ` · 📍 ${a.place}` : ''),
+          note: a.description || null,
+          color: '#0284c7',
+          types: ['other' as EventTypeCode],
+          time: a.no_time ? undefined : a.start_time.slice(0, 5),
+          place: a.place ?? undefined,
+          rawActivity: a,
+          edit: onEdit ? () => onEdit(a) : undefined,
+        })
+      }
+      continue
+    }
+    const from = a.date_from || today()
+    const to = a.date_to || from
+    for (let cur = from; cur <= to; cur = addDays(cur, 1)) {
+      if (isSession(a, cur) && !inBreak(cur, breaks)) {
+        const st = sessionTime(a, cur)
+        const time = a.no_time ? '' : `${st.start}–${st.end}`
+        out.push({
+          key: `plan-${a.id}-${cur}`,
+          date: cur,
+          kind: 'hour' as Kind,
+          title: (time ? time + ' · ' : '') + a.title + (a.place ? ` · 📍 ${a.place}` : ''),
+          note: a.description || null,
+          color: '#0284c7',
+          types: ['other' as EventTypeCode],
+          time: a.no_time ? undefined : st.start,
+          place: a.place ?? undefined,
+          rawActivity: a,
+          edit: onEdit ? () => onEdit(a) : undefined,
+        })
+      }
+    }
+  }
+  return out
+}
 
 const eventItem = (e: ClassEvent, remove?: () => Promise<unknown>, edit?: () => void): Item => {
   const time = e.at_time ? e.at_time.slice(0, 5) + (e.end_time ? '–' + e.end_time.slice(0, 5) : '') : ''
@@ -178,6 +240,8 @@ function StaffCalendar({ classId }: { classId?: string }) {
   const [mentorDefaultStudent, setMentorDefaultStudent] = useState<string | undefined>(
     queryParams.get('student') ?? undefined
   )
+  const [editingPlan, setEditingPlan] = useState<Activity | null | 'new'>(null)
+  const [addPickerOpen, setAddPickerOpen] = useState(false)
 
   useEffect(() => {
     const student = queryParams.get('student')
@@ -203,19 +267,21 @@ function StaffCalendar({ classId }: { classId?: string }) {
   const d = data.data
   const short = (id: string) => d?.students.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
   const editEvent = (e: ClassEvent) => setEditing(e)
+  const editPlan = (a: Activity) => setEditingPlan(a)
+  const canAdd = isSchool ? deputy : true
   const items = useMemo(() => {
     if (!d) return []
     if (isSchool) {
       return d.events.map((e) => eventItem(e, deputy ? () => removeClassEvent(e.id) : undefined, deputy ? () => editEvent(e) : undefined))
     }
-    const classItems = journalItems(d, short, editEvent)
+    const classItems = journalItems(d, short, editEvent, canAdd ? editPlan : undefined)
     const schoolItems = (d.schoolEvents ?? []).map((e) => ({
       ...eventItem(e, deputy ? () => removeClassEvent(e.id) : undefined, deputy ? () => editEvent(e) : undefined),
       title: '🏛️ ' + e.title,
       isSchoolEvent: true,
     }))
     return [...classItems, ...schoolItems]
-  }, [d, isSchool, deputy]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [d, isSchool, deputy, canAdd]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredItems = useMemo(() => {
     if (!isSchool || audFilter === 'all') return items
@@ -233,12 +299,11 @@ function StaffCalendar({ classId }: { classId?: string }) {
   if (!isSchool && !cls) return <><PageHead title={tx('Сынып күнтізбесі')} back /><Empty icon="file" title={tx('Сынып бекітілмеген')} text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')} /></>
   const staffName = (id: string | null) => d?.staff.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
   const closeForm = () => { setAdd(null); setEditing(null); setParentDefaultType(undefined); setMentorDefaultStudent(undefined) }
-  const canAdd = isSchool ? deputy : true
 
   return (
     <div className="grid gap-3 pb-6">
       <PageHead
-        title={isSchool ? tx('Мектеп күнтізбесі') : tx('Сынып күнтізбесі')}
+        title={isSchool ? tx('Мектеп күнтізбесі') : tx('Сынып жоспары және күнтізбесі')}
         back
         right={
           <div className="flex items-center gap-2">
@@ -263,9 +328,13 @@ function StaffCalendar({ classId }: { classId?: string }) {
               <button
                 type="button"
                 onClick={() => {
-                  setEditing(null)
-                  setParentDefaultType(tab === 'parents' ? 'parent_activity' : tab === 'mentor' ? 'mentor' : undefined)
-                  setAdd({ what: !isSchool && tab === 'hours' ? 'hour' : 'event', date: day })
+                  if (isSchool) {
+                    setEditing(null)
+                    setDay(today())
+                    setAdd({ what: 'event', date: today() })
+                  } else {
+                    setAddPickerOpen(true)
+                  }
                 }}
                 aria-label={tx('Қосу')}
                 className="size-11 rounded-full bg-accent text-on-accent grid place-items-center shadow-card"
@@ -311,14 +380,89 @@ function StaffCalendar({ classId }: { classId?: string }) {
       ) : (
         d && (
           isSchool || tab === 'calendar' || tab === 'week' || tab === 'month' ? (
-            <ClassCalendarView
-              items={filteredItems}
-              photos={d.photos}
-              onAdd={canAdd ? (date) => { setEditing(null); setParentDefaultType(undefined); setDay(date); setAdd({ what: 'event', date }) } : () => {}}
-              onEdit={canAdd ? editEvent : () => {}}
-              classTitle={isSchool ? tx('Мектеп күнтізбесі') : `${cls?.name} ${tx('сыныбы')}`}
-              typeLabels={TYPE_LABELS}
-            />
+            <div className="grid gap-3">
+              {!isSchool && cls && (
+                <Card className="p-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="size-2.5 rounded-full bg-sky-500" />
+                      <h3 className="font-bold text-sm">{tx('Сынып жоспары (Этюд)')}</h3>
+                      {d.classPlans?.length ? (
+                        <span className="text-xs text-muted">({d.classPlans.length})</span>
+                      ) : null}
+                    </div>
+                    {canAdd && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingPlan('new')}
+                        className="h-8 px-2.5 rounded-md text-accent text-xs font-semibold hover:bg-surface-2 flex items-center gap-1"
+                      >
+                        <Icon n="plus" size={14} />
+                        {tx('Жоспар қосу')}
+                      </button>
+                    )}
+                  </div>
+                  {(!d.classPlans || d.classPlans.length === 0) ? (
+                    <p className="text-xs text-muted">
+                      {tx('Сынып жоспары (Этюд-1, Этюд-2, т.б.) қойылмаған. «Жоспар қосу» батырмасы арқылы қосыңыз.')}
+                    </p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {d.classPlans.map((a) => (
+                        <div
+                          key={a.id}
+                          className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-surface-2 border border-line text-sm"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="block font-semibold truncate">{a.title}</span>
+                            <span className="block text-xs text-muted truncate">{scheduleLabel(a)}</span>
+                            {a.date_to && (
+                              <span className="block text-[11px] text-sky-600 dark:text-sky-400 font-medium">
+                                {tx('{0}-ге дейін', fmtDate(a.date_to))}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <a
+                              href={`#/a/${a.id}`}
+                              className="h-7 px-2 rounded-md bg-surface text-xs font-medium text-primary hover:bg-surface-2 border border-line flex items-center gap-1"
+                              title={tx('Журнал / Түгелдеу')}
+                            >
+                              <Icon n="check" size={12} />
+                              <span className="hidden sm:inline">{tx('Журнал')}</span>
+                            </a>
+                            {canAdd && (
+                              <button
+                                type="button"
+                                onClick={() => setEditingPlan(a)}
+                                className="h-7 px-2 rounded-md bg-surface text-xs font-medium text-accent hover:bg-surface-2 border border-line"
+                              >
+                                {tx('Өзгерту')}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              )}
+
+              <ClassCalendarView
+                items={filteredItems}
+                photos={d.photos}
+                onAdd={canAdd ? (date) => {
+                  setEditing(null)
+                  setParentDefaultType(undefined)
+                  setDay(date)
+                  if (isSchool) setAdd({ what: 'event', date })
+                  else setAddPickerOpen(true)
+                } : () => {}}
+                onEdit={canAdd ? editEvent : () => {}}
+                classTitle={isSchool ? tx('Мектеп күнтізбесі') : `${cls?.name} · ${tx('Сынып жоспары және күнтізбесі')}`}
+                typeLabels={TYPE_LABELS}
+              />
+            </div>
           ) : tab === 'hours' && cls ? (
             <Hours classId={cls.id} d={d} staffName={staffName} reload={data.reload} />
           ) : tab === 'parents' && cls ? (
@@ -394,14 +538,132 @@ function StaffCalendar({ classId }: { classId?: string }) {
           }}
         />
       )}
+
+      {addPickerOpen && cls && (
+        <Sheet title={tx('Қосу')} onClose={() => setAddPickerOpen(false)}>
+          <div className="grid gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setAddPickerOpen(false)
+                setEditing(null)
+                setParentDefaultType(undefined)
+                setAdd({ what: 'event', date: day })
+              }}
+              className="flex items-center gap-3 p-3 rounded-lg bg-surface hover:bg-surface-2 border border-line text-left"
+            >
+              <span className="size-10 rounded-lg bg-primary-soft text-primary grid place-items-center shrink-0">
+                <Icon n="calendar" size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="block font-semibold text-sm">{tx('Сынып оқиғасы')}</span>
+                <span className="block text-xs text-muted">{tx('Спорт, ойын, фильм, серуен, емтихан, т.б.')}</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAddPickerOpen(false)
+                setEditingPlan('new')
+              }}
+              className="flex items-center gap-3 p-3 rounded-lg bg-surface hover:bg-surface-2 border border-line text-left"
+            >
+              <span className="size-10 rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 grid place-items-center shrink-0">
+                <Icon n="book" size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="block font-semibold text-sm">{tx('Сынып жоспары (Этюд)')}</span>
+                <span className="block text-xs text-muted">{tx('Этюд-1, Этюд-2, өзіндік дайындық, тоқсан бойынша')}</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAddPickerOpen(false)
+                setAdd({ what: 'hour', date: day })
+              }}
+              className="flex items-center gap-3 p-3 rounded-lg bg-surface hover:bg-surface-2 border border-line text-left"
+            >
+              <span className="size-10 rounded-lg bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 grid place-items-center shrink-0">
+                <Icon n="clock" size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="block font-semibold text-sm">{tx('Тәрбие сағаты')}</span>
+                <span className="block text-xs text-muted">{tx('Жетекші немесе тәрбиеші сағаты')}</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAddPickerOpen(false)
+                setEditing(null)
+                setParentDefaultType('mentor')
+                setAdd({ what: 'event', date: day })
+              }}
+              className="flex items-center gap-3 p-3 rounded-lg bg-surface hover:bg-surface-2 border border-line text-left"
+            >
+              <span className="size-10 rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 grid place-items-center shrink-0">
+                <Icon n="user" size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="block font-semibold text-sm">{tx('Жеке кездесу')}</span>
+                <span className="block text-xs text-muted">{tx('Оқушымен жеке сөйлесу')}</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAddPickerOpen(false)
+                setEditing(null)
+                setParentDefaultType('parent_activity')
+                setAdd({ what: 'event', date: day })
+              }}
+              className="flex items-center gap-3 p-3 rounded-lg bg-surface hover:bg-surface-2 border border-line text-left"
+            >
+              <span className="size-10 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 grid place-items-center shrink-0">
+                <Icon n="users" size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="block font-semibold text-sm">{tx('Ата-ана шарасы')}</span>
+                <span className="block text-xs text-muted">{tx('Қонаққа бару, ата-ана сағаты, белсенділік')}</span>
+              </div>
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {editingPlan && cls && (
+        <ClassPlanSheet
+          classId={cls.id}
+          className={cls.name}
+          existing={editingPlan === 'new' ? null : editingPlan}
+          breaks={d?.breaks ?? []}
+          onClose={() => setEditingPlan(null)}
+          onSaved={() => {
+            setEditingPlan(null)
+            data.reload()
+          }}
+        />
+      )}
     </div>
   )
 }
 type D = Awaited<ReturnType<typeof listJournal>> & { students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; wallets: ClassWallet[] }
 
 /** Everything on the calendar, by date. */
-function journalItems(d: Pick<D, 'hours' | 'events' | 'meetings' | 'contacts'>, studentName: (id: string) => string, edit?: (e: ClassEvent) => void): Item[] {
+function journalItems(
+  d: Pick<D, 'hours' | 'events' | 'meetings' | 'contacts' | 'classPlans' | 'breaks'>,
+  studentName: (id: string) => string,
+  edit?: (e: ClassEvent) => void,
+  editPlan?: (a: Activity) => void,
+): Item[] {
+  const planItems = classPlanCalendarItems(d.classPlans ?? [], d.breaks ?? [], editPlan)
   return [
+    ...planItems,
     ...d.hours.map((h) => ({
       key: 'h' + h.id,
       date: h.on_date,

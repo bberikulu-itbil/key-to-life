@@ -1019,7 +1019,22 @@ export const listJournal = async (classId: string) => {
       listStaff(),
       listResources(),
     ])
-    return { hours: [], events, photos: [], meetings: [], contacts: [], plan: [], schoolEvents: events, staff, places, students: [], media: [], wallets: [] }
+    return {
+      hours: [] as ClassHour[],
+      events,
+      photos: [] as ClassPhoto[],
+      meetings: [] as MentorMeeting[],
+      contacts: [] as ParentContact[],
+      plan: [] as { direction: string; target: number }[],
+      schoolEvents: events,
+      staff,
+      places,
+      students: [] as Student[],
+      media: [] as Media[],
+      wallets: [] as ClassWallet[],
+      classPlans: [] as Activity[],
+      breaks: [] as SchoolBreak[],
+    }
   }
   const fetchClassEvents = async () => {
     try {
@@ -1031,7 +1046,7 @@ export const listJournal = async (classId: string) => {
       throw err
     }
   }
-  const [hours, events, photos, meetings, contacts, plan, schoolEvents] = await Promise.all([
+  const [hours, events, photos, meetings, contacts, plan, schoolEvents, classPlans, breaks] = await Promise.all([
     ok(supabase.from('class_hours').select('id, on_date, direction, topic, led_by, absent, grp, note').eq('class_id', classId).order('on_date', { ascending: false }).limit(500)),
     fetchClassEvents(),
     ok(supabase.from('class_photos').select('id, on_date, path, caption, event_id').eq('class_id', classId).order('created_at').limit(2000)),
@@ -1039,11 +1054,54 @@ export const listJournal = async (classId: string) => {
     ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('class_id', classId).in('channel', ['meeting', 'visit']).limit(500)),
     ok(supabase.from('class_hour_plan').select('direction, target').eq('class_id', classId)),
     listSchoolEvents().catch(() => [] as ClassEvent[]),
+    ok(supabase.from('activities').select(ACT).eq('class_plan', classId).is('removed_at', null)).catch(() => [] as Activity[]),
+    listBreaks().catch(() => [] as SchoolBreak[]),
   ])
-  return { hours, events, photos, meetings, contacts, plan, schoolEvents } as { hours: ClassHour[]; events: ClassEvent[]; photos: ClassPhoto[]; meetings: MentorMeeting[]; contacts: ParentContact[]; plan: { direction: string; target: number }[]; schoolEvents: ClassEvent[] }
+  return {
+    hours,
+    events,
+    photos,
+    meetings,
+    contacts,
+    plan,
+    schoolEvents,
+    classPlans: classPlans as Activity[],
+    breaks: breaks as SchoolBreak[],
+  } as {
+    hours: ClassHour[]
+    events: ClassEvent[]
+    photos: ClassPhoto[]
+    meetings: MentorMeeting[]
+    contacts: ParentContact[]
+    plan: { direction: string; target: number }[]
+    schoolEvents: ClassEvent[]
+    classPlans: Activity[]
+    breaks: SchoolBreak[]
+  }
 }
 export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok(supabase.from('class_hours').insert(row))
 export const removeClassHour = (id: string) => ok(supabase.from('class_hours').delete().eq('id', id))
+
+export type ClassPlanDraft = {
+  title: string
+  start_time: string
+  end_time: string
+  date_from: string
+  date_to: string
+  weekdays?: number[]
+  place?: string | null
+  description?: string | null
+}
+
+export const saveClassPlan = (classId: string, plan: ClassPlanDraft, planId?: string) =>
+  rpc<string>('save_class_plan', { p_class: classId, p_plan: plan, p_id: planId ?? null })
+
+export const removeClassPlan = (planId: string) =>
+  rpc('remove_class_plan', { p_id: planId })
+
+export const listClassPlans = (classId: string) =>
+  ok(supabase.from('activities').select(ACT).eq('class_plan', classId).is('removed_at', null).order('date_from'))
+
 export const addClassEvent = async (row: ClassEventDraft) => {
   try {
     return (await ok(supabase.from('class_events').insert(row).select('id').single())) as unknown as { id: string }

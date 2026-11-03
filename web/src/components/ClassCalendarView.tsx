@@ -5,7 +5,7 @@ import {
 import { getKazakhstanHolidays } from '../lib/holidays'
 import { Icon, Sheet } from './ui'
 import { tx } from '../lib/i18n'
-import type { CalAudience, ClassEvent, ClassEventStatus, ClassPhoto, EventTypeCode } from '../lib/api'
+import type { Activity, CalAudience, ClassEvent, ClassEventStatus, ClassPhoto, EventTypeCode } from '../lib/api'
 
 export type CalItem = {
   key: string
@@ -24,6 +24,7 @@ export type CalItem = {
   time?: string
   place?: string | null
   rawEvent?: ClassEvent
+  rawActivity?: Activity
   audience?: CalAudience
   isSchoolEvent?: boolean
 }
@@ -607,18 +608,41 @@ export default function ClassCalendarView({
                           <p className="text-xs text-muted mt-1 whitespace-pre-line">{item.note}</p>
                         )}
                       </div>
-                      {item.rawEvent && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setInspectDay(null)
-                            onEdit(item.rawEvent!)
-                          }}
-                          className="h-8 px-2.5 rounded-md bg-surface text-xs font-semibold text-accent hover:bg-surface-2 border border-line"
-                        >
-                          {tx('Өзгерту')}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {item.rawActivity && (
+                          <a
+                            href={`#/a/${item.rawActivity.id}`}
+                            onClick={() => setInspectDay(null)}
+                            className="h-8 px-2.5 rounded-md bg-surface text-xs font-semibold text-primary hover:bg-surface-2 border border-line flex items-center gap-1"
+                          >
+                            <Icon n="check" size={12} />
+                            {tx('Журнал')}
+                          </a>
+                        )}
+                        {item.edit ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInspectDay(null)
+                              item.edit!()
+                            }}
+                            className="h-8 px-2.5 rounded-md bg-surface text-xs font-semibold text-accent hover:bg-surface-2 border border-line"
+                          >
+                            {tx('Өзгерту')}
+                          </button>
+                        ) : item.rawEvent && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInspectDay(null)
+                              onEdit(item.rawEvent!)
+                            }}
+                            className="h-8 px-2.5 rounded-md bg-surface text-xs font-semibold text-accent hover:bg-surface-2 border border-line"
+                          >
+                            {tx('Өзгерту')}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
               </div>
@@ -834,6 +858,7 @@ function MonthGrid({
                       onClick={(e) => {
                         e.stopPropagation()
                         if (i.rawEvent) onEditEvent(i.rawEvent)
+                        else if (i.edit) i.edit()
                         else onInspectDay(c)
                       }}
                       className="w-full text-left flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold text-white shadow-2xs transition hover:brightness-95 truncate"
@@ -852,6 +877,7 @@ function MonthGrid({
                     onClick={(e) => {
                       e.stopPropagation()
                       if (i.rawEvent) onEditEvent(i.rawEvent)
+                      else if (i.edit) i.edit()
                       else onInspectDay(c)
                     }}
                     className="w-full text-left flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-surface-2 transition truncate text-[11px]"
@@ -1032,6 +1058,7 @@ function WeekGrid({
                     type="button"
                     onClick={() => {
                       if (i.rawEvent) onEditEvent(i.rawEvent)
+                      else if (i.edit) i.edit()
                     }}
                     className="w-full text-left p-2 rounded-lg bg-surface-2 hover:bg-surface border-l-[3px] border border-line shadow-2xs transition grid gap-0.5"
                     style={{ borderColor: i.color ?? '#2563eb' }}
@@ -1173,7 +1200,15 @@ function DayView({
                   )}
                   {i.note && <p className="text-xs text-muted mt-1 whitespace-pre-line">{i.note}</p>}
                 </div>
-                {i.rawEvent && (
+                {i.edit ? (
+                  <button
+                    type="button"
+                    onClick={i.edit}
+                    className="h-8 px-3 rounded-lg bg-surface-2 hover:bg-surface border border-line text-xs font-semibold text-accent"
+                  >
+                    {tx('Өзгерту')}
+                  </button>
+                ) : i.rawEvent && (
                   <button
                     type="button"
                     onClick={() => onEditEvent(i.rawEvent!)}
@@ -1277,6 +1312,7 @@ function AgendaGrid({
                     key={i.key}
                     onClick={() => {
                       if (i.rawEvent) onEditEvent(i.rawEvent)
+                      else if (i.edit) i.edit()
                       else onInspectDay(d)
                     }}
                     className="flex items-start gap-3 p-2 rounded-lg hover:bg-surface-2 transition cursor-pointer border border-line/60 bg-surface-2/20"
