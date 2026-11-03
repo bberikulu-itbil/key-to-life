@@ -927,16 +927,16 @@ export const saveMyForm = saveStudentForm
 export const patchStudentForm = (student_id: string, patch: Record<string, string>) =>
   rpc('patch_student_form', { p_student_id: student_id, p_patch: patch })
 
-export const saveStudentProfileDetails = (student_id: string, data: Record<string, unknown>) =>
+export const saveStudentProfileDetails = (student_id: string, data: object) =>
   rpc('save_student_profile_details', { p_student_id: student_id, p_data: data })
 
-export const saveStudentHealthProfile = (student_id: string, data: Record<string, unknown>) =>
+export const saveStudentHealthProfile = (student_id: string, data: object) =>
   rpc('save_student_health_profile', { p_student_id: student_id, p_data: data })
 
-export const saveStudentFamilyContact = (student_id: string, relationship: StudentFamilyContact['relationship'], data: Record<string, unknown>) =>
+export const saveStudentFamilyContact = (student_id: string, relationship: StudentFamilyContact['relationship'], data: object) =>
   rpc<string>('save_student_family_contact', { p_student_id: student_id, p_relationship: relationship, p_data: data })
 
-export const saveStudentHealthEvent = (student_id: string, event_id: string | null, data: Record<string, unknown>) =>
+export const saveStudentHealthEvent = (student_id: string, event_id: string | null, data: object) =>
   rpc<string>('save_student_health_event', { p_student_id: student_id, p_event_id: event_id, p_data: data })
 
 export const mentorEvery = async (classId: string) =>
