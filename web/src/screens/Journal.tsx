@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   addClassEvent, addClassHour, addClassPhoto, addParentContact, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
-  removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student,
+  removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, staffClasses, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student,
 } from '../lib/api'
 import { WD_SHORT, addDays, fmtDate, iso, isoDow, today } from '../lib/time'
 import { useMe } from '../App'
@@ -159,9 +159,8 @@ function StaffCalendar({ classId }: { classId?: string }) {
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const isSchool = classId === 'school'
   const classes = useLoad(listClasses, [])
-  const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
-  const options = deputy ? classes.data ?? [] : mine
-  const cls = isSchool ? null : (options.find((c) => c.id === classId) ?? mine[0] ?? options[0])
+  const options = staffClasses(classes.data ?? [], me)
+  const cls = isSchool ? null : (options.find((c) => c.id === classId) ?? options[0])
   const hash = window.location.hash
   const queryParams = useMemo(() => {
     const qIdx = hash.indexOf('?')

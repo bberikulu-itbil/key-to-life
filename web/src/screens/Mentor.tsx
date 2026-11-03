@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
-  addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
-  mentorAssign, mentorEvery, removeMentorMeeting, saveStudentForm,
-  saveStudentRoadmap, seedDemoClass, studentMentor, type MentorMeeting,
+  addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting,
+  listClasses, listStaff, mentorAssign, mentorEvery, removeMentorMeeting, saveStudentForm,
+  saveStudentRoadmap, seedDemoClass, staffClasses, studentMentor, supabase, type MentorMeeting,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
@@ -37,11 +37,21 @@ export default function Mentor({ studentId, classId }: { studentId?: string; cla
 
 function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStudentId?: string; classId?: string }) {
   const { me } = useMe()
-  const deputy = me.role === 'deputy' || me.role === 'admin'
   const classes = useLoad(listClasses, [])
-  const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
-  const options = deputy || mine.length === 0 ? classes.data ?? [] : mine
-  const cls = options.find((c) => c.id === classId) ?? mine[0] ?? options[0]
+  const options = staffClasses(classes.data ?? [], me)
+
+  const [inferredClassId, setInferredClassId] = useState<string | null>(null)
+  useEffect(() => {
+    if (initialStudentId && !classId) {
+      supabase.from('profiles').select('class_id').eq('id', initialStudentId).maybeSingle().then(({ data }) => {
+        if (data?.class_id) setInferredClassId(data.class_id)
+      })
+    }
+  }, [initialStudentId, classId])
+
+  const activeClassId = classId ?? inferredClassId
+  const cls = (activeClassId ? (classes.data ?? []).find((c) => c.id === activeClassId) : null) ?? options.find((c) => c.id === activeClassId) ?? options[0]
+  const visibleOptions = cls && !options.some((c) => c.id === cls.id) ? [cls, ...options] : options
 
   const [seeding, setSeeding] = useState(false)
   const handleSeedDemo = async () => {
@@ -49,7 +59,7 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
     try {
       const res = await seedDemoClass('7-Демо')
       toast(tx('Демо сынып және 5 оқушының анкетасы сәтті жасалды!'))
-      classes.reload()
+      await classes.reload()
       go(`/mentor?class=${res.class_id}`)
     } catch (e) {
       toast(errText(e))
@@ -168,14 +178,14 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
               <Icon n="sparkles" size={16} />
               <span className="hidden md:inline">{tx('Демо сынып')}</span>
             </Button>
-            {options.length > 1 && (
+            {visibleOptions.length > 1 && (
               <select
                 aria-label={tx('Сынып')}
                 value={cls.id}
                 onChange={(e) => go(`/mentor?class=${e.target.value}`)}
                 className={`${inputCls} w-auto font-medium h-10 py-1`}
               >
-                {options.map((c) => (
+                {visibleOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>

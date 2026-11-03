@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { answerSurvey, closeSurvey, createSurvey, errText, getSurvey, listActivities, listClasses, listSurveys, surveyResults, type Question, type Survey } from '../lib/api'
+import { answerSurvey, closeSurvey, createSurvey, errText, getSurvey, listActivities, listClasses, listSurveys, staffClasses, surveyResults, type Question, type Survey } from '../lib/api'
 import { chatTime, fmtDate } from '../lib/time'
 import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
@@ -199,7 +199,7 @@ export function SurveyNew() {
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const opts = useLoad(async () => {
     const [classes, acts] = await Promise.all([listClasses(), listActivities()])
-    return { classes: classes.filter((c) => deputy || c.teacher_id === me.id || c.tutor_id === me.id), acts: acts.filter((a) => a.status === 'approved' && (deputy || a.supervisor_id === me.id || a.curator_id === me.id)) }
+    return { classes: staffClasses(classes, me), acts: acts.filter((a) => a.status === 'approved' && (deputy || a.supervisor_id === me.id || a.curator_id === me.id)) }
   }, [me.id])
   const [f, setF] = useState({ title: '', description: '', audience: me.role === 'student' ? 'students' : 'class', target: '', anonymous: false, closes: '' })
   const [qs, setQs] = useState<Question[]>([{ q: '', type: 'single', options: ['', ''] }])

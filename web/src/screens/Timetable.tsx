@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addLesson, errText, listClasses, listLessons, listStaff, removeLesson } from '../lib/api'
+import { addLesson, errText, listClasses, listLessons, listStaff, removeLesson, staffClasses } from '../lib/api'
 import { hm, isoDow, today } from '../lib/time'
 import { useMe } from '../App'
 import { Button, Card, Empty, Field, Icon, PageHead, Sheet, Skeleton, inputCls, toast, useLoad } from '../components/ui'
@@ -11,7 +11,7 @@ export default function Timetable({ classId: initial }: { classId?: string }) {
   const { me } = useMe()
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const classes = useLoad(listClasses, [])
-  const ownClasses = (classes.data ?? []).filter((c) => deputy || c.teacher_id === me.id || c.tutor_id === me.id)
+  const ownClasses = staffClasses(classes.data ?? [], me)
   // students see their class; class teachers and deputies pick a class they run; other teachers see their own lessons
   const [view, setView] = useState<string>(me.role === 'student' ? me.class?.id ?? '' : initial || 'mine')
   const classId = view === 'mine' ? undefined : view

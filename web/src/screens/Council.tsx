@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   addCouncilMeeting, addCouncilNote, addCouncilTask, addParentContact, classStudents, errText, finishCouncilMeeting, listClasses, listCouncil, listStaff,
-  removeCouncilMeeting, removeCouncilNote, removeCouncilTask, resolveCouncilNotes, setCouncilTask, setNoteUrgent, photoUrl, uploadPhoto, type CouncilNote, type CouncilTask, type ParentContact, type Student,
+  removeCouncilMeeting, removeCouncilNote, removeCouncilTask, resolveCouncilNotes, setCouncilTask, setNoteUrgent, photoUrl, staffClasses, uploadPhoto, type CouncilNote, type CouncilTask, type ParentContact, type Student,
 } from '../lib/api'
 import { chatTime, fmtDate, today } from '../lib/time'
 import { useMe } from '../App'
@@ -45,11 +45,9 @@ const tagOf = (k: string) => TAGS.find((t) => t[0] === k)
 
 export default function Council({ classId }: { classId?: string }) {
   const { me } = useMe()
-  const deputy = me.role === 'deputy' || me.role === 'admin'
   const classes = useLoad(listClasses, [])
-  const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
-  const options = deputy ? classes.data ?? [] : mine
-  const cls = options.find((c) => c.id === classId) ?? mine[0] ?? options[0]
+  const options = staffClasses(classes.data ?? [], me)
+  const cls = options.find((c) => c.id === classId) ?? options[0]
   const [tab, setTab] = useState<Tab>('notes')
   const data = useLoad(async () => {
     if (!cls) return null

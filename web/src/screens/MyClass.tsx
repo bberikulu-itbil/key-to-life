@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import StaffList, { KIND_LABEL, type StaffKind } from '../components/StaffList'
-import { classAttendance, classChatId, classStudents, errText, listActivities, listBreaks, listClasses, listLeaves, listLessons, listStaff, openDirect, setClassTeacher, removeStudent, setTutor, updateStaff, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
+import { classAttendance, classChatId, classStudents, errText, isDemoClass, listActivities, listBreaks, listClasses, listLeaves, listLessons, listStaff, openDirect, removeStudent, setClassTeacher, setTutor, staffClasses, updateStaff, updateStudent, uploadStudentPhoto, type Student } from '../lib/api'
 import Avatar from '../components/Avatar'
 import { hm, lessonOn, rate, scheduleLabel, today } from '../lib/time'
 import { useMe } from '../App'
@@ -35,9 +35,8 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
   const { me } = useMe()
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const classes = useLoad(listClasses, [])
-  const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
-  const options = deputy ? classes.data ?? [] : mine
-  const cls = options.find((c) => c.id === classId) ?? mine[0] ?? options[0]
+  const options = staffClasses(classes.data ?? [], me)
+  const cls = options.find((c) => c.id === classId) ?? options[0]
   const cid = cls?.id
 
   const data = useLoad(async () => {
@@ -61,7 +60,7 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
   const nowMs = Date.now()
   const outNow = (d?.leaves ?? []).filter((l) => ids.has(l.student_id) && l.status === 'approved' && new Date(l.starts_at).getTime() <= nowMs)
   const pending = (d?.leaves ?? []).filter((l) => ids.has(l.student_id) && l.status.startsWith('pending'))
-  const mineOrDeputy = cls?.teacher_id === me.id || cls?.tutor_id === me.id || deputy
+  const mineOrDeputy = deputy || cls?.teacher_id === me.id || cls?.tutor_id === me.id || isDemoClass(cls)
   const todayLessons = (d?.lessons ?? []).filter((l) => lessonOn(l, today(), d?.breaks ?? []))
   const hmNow = new Date().toTimeString().slice(0, 5)
   const olympiads = useMemo(() => {
@@ -203,15 +202,15 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
           <div className="grid gap-3">
             <div className="grid justify-items-center gap-2">
               <Avatar name={open.full_name} photo={open.photo} size={128} />
-              {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && (
+              {mineOrDeputy && (
                 <label className={`h-11 px-4 rounded-md bg-accent-soft text-accent font-semibold inline-flex items-center gap-2 cursor-pointer ${uploading ? 'opacity-50' : ''}`}>
                   <Icon n="user" size={18} />{uploading ? tx('Жүктелуде…') : open.photo ? tx('Суретті ауыстыру') : tx('Сурет қосу')}
                   <input type="file" accept="image/*" className="sr-only" disabled={uploading} onChange={(e) => e.target.files?.[0] && upload(open, e.target.files[0])} />
                 </label>
               )}
             </div>
-            {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && <Button kind="secondary" onClick={() => go(`/mentor/${open.id}`)}><Icon n="file" size={18} />{tx('Анкета')}</Button>}
-            {(deputy || cls.teacher_id === me.id || cls.tutor_id === me.id) && <EditStudent key={open.id} s={open} onSaved={(v) => { setOpen({ ...open, ...v }); data.reload() }} />}
+            {mineOrDeputy && <Button kind="secondary" onClick={() => go(`/mentor/${open.id}`)}><Icon n="file" size={18} />{tx('Анкета')}</Button>}
+            {mineOrDeputy && <EditStudent key={open.id} s={open} onSaved={(v) => { setOpen({ ...open, ...v }); data.reload() }} />}
             {me.role === 'admin' && <RemoveStudent s={open} onDone={() => { setOpen(null); data.reload() }} />}
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
               <dt className="text-muted">{tx('Олимпиада')}</dt><dd>{open.olympiad ?? '—'}</dd>

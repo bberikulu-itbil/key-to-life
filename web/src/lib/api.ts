@@ -118,6 +118,18 @@ export const setStaffInfo = (user: string, kind: Staff['staff_kind'], subject: s
 export const listClasses = () =>
   ok(supabase.from('classes').select('id, name, grade, teacher_id, tutor_id').order('grade').order('name')) as Promise<{ id: string; name: string; grade: number; teacher_id: string | null; tutor_id: string | null }[]>
 
+export const isDemoClass = (c?: { name?: string | null } | null) => /демо|demo/i.test(c?.name ?? '')
+
+export const staffClasses = <T extends { id: string; name: string; teacher_id: string | null; tutor_id: string | null }>(
+  classes: T[],
+  me?: { id: string; role: string } | null
+): T[] => {
+  if (!me) return classes
+  if (me.role === 'deputy' || me.role === 'admin') return classes
+  const mine = classes.filter((c) => c.teacher_id === me.id || c.tutor_id === me.id || isDemoClass(c))
+  return mine.length > 0 ? mine : classes
+}
+
 export type MarkRow = { status: Mark; late_min?: number | null; excuse?: 'sick' | 'other' | null }
 export const getAttendance = (activityId: string, date: string) =>
   ok(supabase.from('attendance').select('student_id, status, late_min, excuse').eq('activity_id', activityId).eq('session_date', date)) as Promise<({ student_id: string } & MarkRow)[]>

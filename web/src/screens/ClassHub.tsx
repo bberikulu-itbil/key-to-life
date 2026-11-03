@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addClassHubResource, addTask, classStudents, errText, listClassHubResources, listClasses, listTasks, setClassHubResourceProgress, setTaskDone, type ClassIngredient, type ClassResource, type ClassResourceKind, type ClassResourceProgress, type Student, type Task } from '../lib/api'
+import { addClassHubResource, addTask, classStudents, errText, isDemoClass, listClassHubResources, listClasses, listTasks, setClassHubResourceProgress, setTaskDone, type ClassIngredient, type ClassResource, type ClassResourceKind, type ClassResourceProgress, type Student, type Task } from '../lib/api'
 import { useMe } from '../App'
 import { Badge, Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, inputCls, toast, useLoad } from '../components/ui'
 import { fmtDate, today } from '../lib/time'
@@ -22,7 +22,7 @@ export default function ClassHub({ classId }: { classId?: string }) {
     return { cls: classes.find((c) => c.id === classId) ?? null, students, resources, tasks: tasks.filter((t) => t.class_id === classId) }
   }, [classId])
   const d = data.data
-  const manager = !!d?.cls && (me.role === 'deputy' || me.role === 'admin' || d.cls.teacher_id === me.id || d.cls.tutor_id === me.id)
+  const manager = !!d?.cls && (me.role === 'deputy' || me.role === 'admin' || d.cls.teacher_id === me.id || d.cls.tutor_id === me.id || isDemoClass(d.cls))
   const resources = (d?.resources ?? []).filter((r) => (kind === 'all' || r.kind === kind) && (!mine || r.progress.some((p) => p.user_id === me.id)))
 
   const progress = async (resourceId: string, volume: number, status: ClassResourceProgress['status'], rating: number | null) => {

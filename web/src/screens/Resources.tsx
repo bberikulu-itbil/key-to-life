@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  addClassList, addFund, addHabit, addListItem, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listStaff, logScreening, photoUrl, uploadPhoto,
+  addClassList, addFund, addHabit, addListItem, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listStaff, logScreening, photoUrl, staffClasses, uploadPhoto,
   removeClassList, removeFund, removeListItem, removeMedia, rateMedia, setMediaProgress, tickListItem, type ClassList, type Media, type Student,
 } from '../lib/api'
 import { fmtDate, today } from '../lib/time'
@@ -18,11 +18,9 @@ type Tab = 'book' | 'film' | 'lists' | 'fund'
 export default function Resources({ classId }: { classId?: string }) {
   const { me } = useMe()
   const student = me.role === 'student'
-  const deputy = me.role === 'deputy' || me.role === 'admin'
   const classes = useLoad(async () => (student ? [] : listClasses()), [])
-  const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
-  const options = deputy ? classes.data ?? [] : mine
-  const cid = student ? me.class?.id : (options.find((c) => c.id === classId) ?? mine[0] ?? options[0])?.id
+  const options = student ? [] : staffClasses(classes.data ?? [], me)
+  const cid = student ? me.class?.id : (options.find((c) => c.id === classId) ?? options[0])?.id
   const staff = !student
   const [tab, setTab] = useState<Tab>('book')
   const data = useLoad(async () => {
