@@ -1,4 +1,4 @@
-import { tx } from './i18n'
+import { lang, tx } from './i18n'
 
 /** The student's own questionnaire: the questions, in the order shown. */
 export const FORM: [string, string, string][] = [
@@ -10,6 +10,44 @@ export const FORM: [string, string, string][] = [
   ['free', tx('Бос уақытыңда не істейсің?'), ''],
   ['help', tx('Мұғалімнен қандай көмек керек?'), ''],
 ]
+
+export const NATIONS = [
+  'қазақ',
+  'орыс',
+  'өзбек',
+  'ұйғыр',
+  'татар',
+  'түрік',
+  'әзірбайжан',
+  'дүнген',
+  'кәріс',
+  'тәжік',
+  'неміс',
+  'басқа',
+]
+
+export const MBTI_TYPES = [
+  'INTJ', 'INTP', 'ENTJ', 'ENTP',
+  'INFJ', 'INFP', 'ENFJ', 'ENFP',
+  'ISTJ', 'ISFJ', 'ESTJ', 'ESFJ',
+  'ISTP', 'ISFP', 'ESTP', 'ESFP',
+]
+
+export function fmtBirthday(val?: string | null): string {
+  if (!val) return '—'
+  const v = val.trim()
+  if (!v) return '—'
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    return d.toLocaleDateString(lang === 'kk' ? 'kk-KZ' : lang === 'ru' ? 'ru-RU' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+  return v
+}
 
 /** Ready-made meetings: a topic, questions to ask, action items to suggest. */
 export const TEMPLATES: { key: string; topic: string; questions: string[]; items: [string, 'task' | 'habit'][] }[] = [
