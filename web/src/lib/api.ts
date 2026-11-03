@@ -819,6 +819,7 @@ export type StudentProfileDetails = {
   nation?: string | null
   city?: string | null
   address?: string | null
+  phone?: string | null
   tribe?: string | null
   dorm_room?: string | null
   dorm_bed?: string | null
