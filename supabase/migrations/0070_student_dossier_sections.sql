@@ -329,7 +329,7 @@ insert into student_profile_details(student_id, birthday, iin, document_number, 
 select
   student_id,
   case when answers->>'birthday' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then (answers->>'birthday')::date end,
-  nullif(answers->>'iin', ''),
+  case when answers->>'iin' ~ '^[0-9]{12}
   nullif(answers->>'doc_number', ''),
   nullif(answers->>'address', ''),
   nullif(answers->>'nation', ''),
@@ -349,6 +349,38 @@ select student_id, 'mother', nullif(answers->>'mother_name', ''), nullif(answers
 from student_forms
 where nullif(answers->>'mother_name', '') is not null or nullif(answers->>'mother_phone', '') is not null
 on conflict (student_id, relationship) do nothing;
+
+grant execute on function student_dossier_staff to authenticated;
+
+revoke execute on function student_dossier_staff, save_student_profile_details, save_student_health_profile,
+  save_student_family_contact, save_student_health_event, patch_student_form, student_dossier
+from public, anon;
+grant execute on function save_student_profile_details, save_student_health_profile,
+  save_student_family_contact, save_student_health_event, patch_student_form, student_dossier
+to authenticated;
+notify pgrst, 'reload schema';
+ then answers->>'iin' end,
+  nullif(answers->>'doc_number', ''),
+  nullif(answers->>'address', ''),
+  nullif(answers->>'nation', ''),
+  now()
+from student_forms
+where jsonb_typeof(answers) = 'object'
+on conflict (student_id) do nothing;
+
+insert into student_family_contacts(student_id, relationship, full_name, phone, updated_at)
+select student_id, 'father', nullif(answers->>'father_name', ''), nullif(answers->>'father_phone', ''), now()
+from student_forms
+where nullif(answers->>'father_name', '') is not null or nullif(answers->>'father_phone', '') is not null
+on conflict (student_id, relationship) do nothing;
+
+insert into student_family_contacts(student_id, relationship, full_name, phone, updated_at)
+select student_id, 'mother', nullif(answers->>'mother_name', ''), nullif(answers->>'mother_phone', ''), now()
+from student_forms
+where nullif(answers->>'mother_name', '') is not null or nullif(answers->>'mother_phone', '') is not null
+on conflict (student_id, relationship) do nothing;
+
+grant execute on function student_dossier_staff to authenticated;
 
 revoke execute on function student_dossier_staff, save_student_profile_details, save_student_health_profile,
   save_student_family_contact, save_student_health_event, patch_student_form, student_dossier
