@@ -594,16 +594,6 @@ function StudentDossierView({
         parentContacts={d.contacts}
       />
 
-      <StudentDossierOverview
-        student={student}
-        classNameStr={classNameStr}
-        meetings={d.meetings}
-        roadmap={roadmap}
-        profile={d.profileDetails}
-        health={d.health}
-        parentContacts={d.contacts}
-      />
-
       {tab === 'info' && (
         <div className="grid gap-6">
           <StudentDossierStructured
