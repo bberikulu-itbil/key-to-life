@@ -165,6 +165,7 @@ export default function StudentDossierStructured({
             {renderText(tx('Құжат нөмірі'), profileState.document_number, v => saveProfile({ document_number: v || null }), isStudent)}
             {renderText(tx('Ұлты'), profileState.nation, v => saveProfile({ nation: v || null }))}
             {renderText(tx('Қала/ауыл'), profileState.city, v => saveProfile({ city: v || null }))}
+            {renderText(tx('Оқушы телефоны'), profileState.phone, v => saveProfile({ phone: v || null }))}
             {renderText(tx('Руы'), profileState.tribe, v => saveProfile({ tribe: v || null }))}
             {renderText(tx('Жатақхана бөлмесі'), profileState.dorm_room, v => saveProfile({ dorm_room: v || null }))}
             {renderText(tx('Төсек орны'), profileState.dorm_bed, v => saveProfile({ dorm_bed: v || null }))}
