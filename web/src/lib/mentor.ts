@@ -33,6 +33,51 @@ export const MBTI_TYPES = [
   'ISTP', 'ISFP', 'ESTP', 'ESFP',
 ]
 
+export type StudentActivityRecord = {
+  id: string
+  kind: 'olympiad' | 'club' | 'section' | 'course' | 'other'
+  title: string
+  mentor?: string
+  start_date: string
+  end_date?: string | null
+  is_current: boolean
+  achievement?: string
+  notes?: string
+}
+
+export const parseActivityHistory = (raw?: string): StudentActivityRecord[] => {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export const ACTIVITY_KINDS: { id: StudentActivityRecord['kind']; label: string; icon: string; tone: string }[] = [
+  { id: 'olympiad', label: tx('Олимпиада'), icon: 'trophy', tone: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20' },
+  { id: 'club', label: tx('Үйірме'), icon: 'star', tone: 'bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/20' },
+  { id: 'section', label: tx('Спорт секциясы'), icon: 'ball', tone: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' },
+  { id: 'course', label: tx('Қосымша курс'), icon: 'book', tone: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20' },
+  { id: 'other', label: tx('Басқа'), icon: 'pin', tone: 'bg-neutral-500/10 text-neutral-700 dark:text-neutral-400 border-neutral-500/20' },
+]
+
+export const COMMON_SUBJECTS = [
+  'Информатика',
+  'Математика',
+  'Физика',
+  'Химия',
+  'Биология',
+  'Ағылшын тілі',
+  'Қазақ тілі мен әдебиеті',
+  'Қазақстан тарихы',
+  'География',
+  'Робототехника',
+  'Сызу',
+  'Дене шынықтыру',
+]
+
 export function fmtBirthday(val?: string | null): string {
   if (!val) return '—'
   const v = val.trim()

@@ -10,9 +10,9 @@ import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
 import { RIASEC, hollandScore } from '../lib/holland'
 import {
-  calcGoalProgress, fmtBirthday, FORM, FREQUENCY_LABELS, getCategoryMeta, MBTI_TYPES, mentorStatus, NATIONS, PLAN_CATEGORIES, PLAN_PRESETS,
+  ACTIVITY_KINDS, calcGoalProgress, COMMON_SUBJECTS, fmtBirthday, FORM, FREQUENCY_LABELS, getCategoryMeta, MBTI_TYPES, mentorStatus, NATIONS, parseActivityHistory, PLAN_CATEGORIES, PLAN_PRESETS,
   PRIORITY_LABELS, TEMPLATES, TIME_OF_DAY_LABELS, type PlanCategory, type PlanPreset, type RoadmapGoal,
-  type RoadmapHabit, type RoadmapTask, type StudentRoadmap,
+  type RoadmapHabit, type RoadmapTask, type StudentActivityRecord, type StudentRoadmap,
 } from '../lib/mentor'
 import { GALLUP_DOMAINS, GALLUP_THEMES, findGallup } from '../lib/gallup'
 import { addDays, fmtDate, streak, today } from '../lib/time'
@@ -405,6 +405,9 @@ function StudentDossierView({
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)
   const [dotsMenuOpen, setDotsMenuOpen] = useState(false)
   const [accountModalOpen, setAccountModalOpen] = useState(false)
+  const [editingActivity, setEditingActivity] = useState<Partial<StudentActivityRecord> | null>(null)
+  const [activityFilter, setActivityFilter] = useState<'all' | 'current' | 'past'>('all')
+  const [newSubjectInput, setNewSubjectInput] = useState('')
   const [gallupPicker, setGallupPicker] = useState<'top' | 'low' | null>(null)
   const [addPlan, setAddPlan] = useState(false)
   const [addMeeting, setAddMeeting] = useState(false)
@@ -450,6 +453,62 @@ function StudentDossierView({
     } finally {
       setSaving(false)
     }
+  }
+
+  const activityList = parseActivityHistory(answers.activity_history)
+  const currentActivitiesCount = activityList.filter((a) => a.is_current).length
+  const pastActivitiesCount = activityList.filter((a) => !a.is_current).length
+  const filteredActivities = activityList.filter((a) => {
+    if (activityFilter === 'current') return a.is_current
+    if (activityFilter === 'past') return !a.is_current
+    return true
+  })
+
+  const handleSaveActivityRecord = async (record: StudentActivityRecord) => {
+    const existing = parseActivityHistory(answers.activity_history)
+    const idx = existing.findIndex((x) => x.id === record.id)
+    let updated: StudentActivityRecord[]
+    if (idx >= 0) {
+      updated = [...existing]
+      updated[idx] = record
+    } else {
+      updated = [record, ...existing]
+    }
+    const serialized = JSON.stringify(updated)
+    await saveField('activity_history', serialized)
+  }
+
+  const handleDeleteActivityRecord = async (id: string) => {
+    const existing = parseActivityHistory(answers.activity_history)
+    const updated = existing.filter((x) => x.id !== id)
+    const serialized = JSON.stringify(updated)
+    await saveField('activity_history', serialized)
+  }
+
+  const currentFavoriteSubjects = (answers.favorite_subjects ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const handleToggleFavoriteSubject = async (sub: string) => {
+    const set = new Set(currentFavoriteSubjects)
+    if (set.has(sub)) {
+      set.delete(sub)
+    } else {
+      set.add(sub)
+    }
+    const updated = Array.from(set).join(', ')
+    await saveField('favorite_subjects', updated)
+  }
+
+  const handleAddCustomSubject = async () => {
+    const clean = newSubjectInput.trim()
+    if (!clean) return
+    const set = new Set(currentFavoriteSubjects)
+    set.add(clean)
+    setNewSubjectInput('')
+    const updated = Array.from(set).join(', ')
+    await saveField('favorite_subjects', updated)
   }
 
   if (data.loading && !data.data) return <Skeleton />
@@ -1291,7 +1350,298 @@ function StudentDossierView({
           ==================================================================== */}
       {tab === 'tests' && (
         <div className="grid gap-5">
-          {/* 1. MBTI Card */}
+          {/* ================================================================
+              1. ОЛИМПИАДАЛАР ЖӘНЕ ҮЙІРМЕЛЕР ТАРИХЫ (КЕСТЕ)
+              ================================================================ */}
+          <Card className="grid gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="font-bold text-base flex items-center gap-2">
+                  <span>🏆 {tx('Олимпиадалар және үйірмелер')}</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-accent-soft text-accent font-bold">
+                    {activityList.length}
+                  </span>
+                </p>
+                <p className="text-xs text-muted">
+                  {tx('Оқушының осыған дейін қатысқан және қазір қатысып жатқан олимпиадалары мен үйірмелері')}
+                </p>
+              </div>
+              <Button
+                kind="primary"
+                type="button"
+                onClick={() =>
+                  setEditingActivity({
+                    id: '',
+                    kind: 'olympiad',
+                    title: '',
+                    start_date: '',
+                    is_current: true,
+                  })
+                }
+              >
+                <Icon n="plus" size={15} />
+                <span>{tx('Үйірме / Олимпиада қосу')}</span>
+              </Button>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-1.5 border-b border-line pb-2 text-xs overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setActivityFilter('all')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                  activityFilter === 'all'
+                    ? 'bg-surface-2 text-fg border border-line shadow-2xs'
+                    : 'text-muted hover:text-fg'
+                }`}
+              >
+                {tx('Барлығы')} ({activityList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivityFilter('current')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                  activityFilter === 'current'
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shadow-2xs'
+                    : 'text-muted hover:text-fg'
+                }`}
+              >
+                <span className="size-2 rounded-full bg-emerald-500" />
+                <span>{tx('Қазір қатысып жатқандар')} ({currentActivitiesCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivityFilter('past')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                  activityFilter === 'past'
+                    ? 'bg-surface-2 text-fg border border-line shadow-2xs'
+                    : 'text-muted hover:text-fg'
+                }`}
+              >
+                <span className="size-2 rounded-full bg-muted/60" />
+                <span>{tx('Бұрын қатысқандар')} ({pastActivitiesCount})</span>
+              </button>
+            </div>
+
+            {/* Table */}
+            {!filteredActivities.length ? (
+              <div className="py-8 text-center text-muted bg-surface-2/40 rounded-xl border border-dashed border-line">
+                <p className="text-sm font-medium">{tx('Бұл санатта тіркелген үйірме немесе олимпиада жоқ')}</p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditingActivity({
+                      id: '',
+                      kind: 'olympiad',
+                      title: '',
+                      start_date: '',
+                      is_current: true,
+                    })
+                  }
+                  className="mt-2 text-xs text-accent font-semibold hover:underline"
+                >
+                  + {tx('Жаңа жазба қосу')}
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-line text-muted uppercase tracking-wider font-semibold">
+                      <th className="py-2.5 px-3">{tx('Түрі')}</th>
+                      <th className="py-2.5 px-3">{tx('Атауы мен жетекшісі')}</th>
+                      <th className="py-2.5 px-3">{tx('Мерзімі (уақыты)')}</th>
+                      <th className="py-2.5 px-3">{tx('Жетістігі / Нәтижесі')}</th>
+                      <th className="py-2.5 px-3 text-right">{tx('Әрекет')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line/60">
+                    {filteredActivities.map((act) => {
+                      const kindMeta = ACTIVITY_KINDS.find((k) => k.id === act.kind) ?? ACTIVITY_KINDS[0]
+                      return (
+                        <tr key={act.id} className="hover:bg-surface-2/60 transition group">
+                          {/* Kind */}
+                          <td className="py-3 px-3 align-top whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold border ${kindMeta.tone}`}>
+                              <Icon n={kindMeta.icon} size={12} />
+                              <span>{kindMeta.label}</span>
+                            </span>
+                          </td>
+
+                          {/* Title & Mentor */}
+                          <td className="py-3 px-3 align-top">
+                            <span className="font-bold text-fg text-sm block">{act.title}</span>
+                            {act.mentor && (
+                              <span className="text-xs text-muted block mt-0.5">
+                                👤 {tx('Жетекшісі')}: <span className="text-fg/80">{act.mentor}</span>
+                              </span>
+                            )}
+                            {act.notes && (
+                              <span className="text-[11px] text-muted italic block mt-0.5">{act.notes}</span>
+                            )}
+                          </td>
+
+                          {/* Dates & Status */}
+                          <td className="py-3 px-3 align-top whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              {act.is_current ? (
+                                <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
+                                  <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                                  <span>{act.start_date} — {tx('қазірге дейін')}</span>
+                                </span>
+                              ) : (
+                                <span className="text-muted font-medium">
+                                  {act.start_date} — {act.end_date || tx('аяқталған')}
+                                </span>
+                              )}
+                              <span className="text-[11px] text-muted">
+                                {act.is_current ? tx('Қатысып жатыр') : tx('Аяқталған')}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Achievement */}
+                          <td className="py-3 px-3 align-top">
+                            {act.achievement ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-accent-soft text-accent font-semibold text-xs border border-accent/20">
+                                🏅 {act.achievement}
+                              </span>
+                            ) : (
+                              <span className="text-muted italic">—</span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-3 align-top text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditingActivity(act)}
+                                className="p-1.5 rounded-md text-muted hover:text-fg hover:bg-surface-2 transition"
+                                title={tx('Өңдеу')}
+                              >
+                                <Icon n="pencil" size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteActivityRecord(act.id)}
+                                className="p-1.5 rounded-md text-muted hover:text-danger hover:bg-danger/10 transition"
+                                title={tx('Өшіру')}
+                              >
+                                <Icon n="x" size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          {/* ================================================================
+              2. ХОББИ ЖӘНЕ ҰНАТАТЫН ПӘНДЕРІ
+              ================================================================ */}
+          <Card className="grid gap-4">
+            <div>
+              <p className="font-bold text-base flex items-center gap-2">
+                <span>🎨 {tx('Хобби және ұнататын пәндері')}</span>
+              </p>
+              <p className="text-xs text-muted">
+                {tx('Оқушының бейімі мен қызығушылықтары, сүйікті сабақтары')}
+              </p>
+            </div>
+
+            {/* Favorite subjects */}
+            <div className="grid gap-2">
+              <span className="text-xs font-bold uppercase text-muted tracking-wider">
+                {tx('Ұнататын пәндері (Сүйікті пәндері)')}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {COMMON_SUBJECTS.map((sub) => {
+                  const active = currentFavoriteSubjects.includes(sub)
+                  return (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => handleToggleFavoriteSubject(sub)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition border ${
+                        active
+                          ? 'bg-accent text-white border-accent shadow-xs'
+                          : 'bg-surface-2 text-muted border-line hover:text-fg hover:bg-surface-2/80'
+                      }`}
+                    >
+                      {active && <span>✓</span>}
+                      <span>{sub}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Add custom subject input */}
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="text"
+                  value={newSubjectInput}
+                  onChange={(e) => setNewSubjectInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddCustomSubject()
+                    }
+                  }}
+                  className={`${inputCls} h-8 text-xs max-w-xs`}
+                  placeholder={tx('Басқа пән қосу...')}
+                />
+                <Button
+                  kind="secondary"
+                  type="button"
+                  onClick={handleAddCustomSubject}
+                  disabled={!newSubjectInput.trim()}
+                >
+                  <Icon n="plus" size={13} />
+                  <span>{tx('Қосу')}</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Hobby and Interests */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-line pt-3">
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Хобби мен бос уақыты')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.hobby ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, hobby: e.target.value })}
+                    onBlur={(e) => saveField('hobby', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Бағдарламалау, шахмат, кітап оқу...')}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Қызығушылықтары мен бағыты')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.interests ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, interests: e.target.value })}
+                    onBlur={(e) => saveField('interests', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Жасанды интеллект, робототехника...')}
+                  />
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* 3. MBTI Card */}
           <Card className="grid gap-3">
             <div className="flex items-center justify-between">
               <div>
@@ -1665,6 +2015,15 @@ function StudentDossierView({
           }}
         />
       )}
+
+      {/* Activity Record Edit Sheet */}
+      {editingActivity && (
+        <ActivityRecordSheet
+          record={editingActivity}
+          onClose={() => setEditingActivity(null)}
+          onSave={handleSaveActivityRecord}
+        />
+      )}
     </div>
   )
 }
@@ -1849,6 +2208,239 @@ function AccountEditSheet({
           <span className="text-[11px] text-muted">
             {tx('Кемінде 6 таңба. Өзгертпей қалдыру үшін бос жіберіңіз.')}
           </span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-2 justify-end border-t border-line mt-2">
+          <Button kind="secondary" type="button" onClick={onClose} disabled={saving}>
+            {tx('Бас тарту')}
+          </Button>
+          <Button kind="primary" type="submit" loading={saving}>
+            {tx('Сақтау')}
+          </Button>
+        </div>
+      </form>
+    </Sheet>
+  )
+}
+
+/* ==========================================================================
+   Олимпиада немесе үйірме жазбасын қосу / өңдеу (ActivityRecordSheet)
+   ========================================================================== */
+
+function ActivityRecordSheet({
+  record,
+  onClose,
+  onSave,
+}: {
+  record: Partial<StudentActivityRecord>
+  onClose: () => void
+  onSave: (rec: StudentActivityRecord) => Promise<void>
+}) {
+  const [kind, setKind] = useState<StudentActivityRecord['kind']>(record.kind ?? 'olympiad')
+  const [title, setTitle] = useState(record.title ?? '')
+  const [mentor, setMentor] = useState(record.mentor ?? '')
+  const [isCurrent, setIsCurrent] = useState(record.is_current ?? true)
+  const [startDate, setStartDate] = useState(record.start_date ?? '')
+  const [endDate, setEndDate] = useState(record.end_date ?? '')
+  const [achievement, setAchievement] = useState(record.achievement ?? '')
+  const [notes, setNotes] = useState(record.notes ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const isEditing = Boolean(record.id)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    const t = title.trim()
+    if (!t) {
+      setError(tx('Атауын жазыңыз'))
+      return
+    }
+    const s = startDate.trim()
+    if (!s) {
+      setError(tx('Басталған уақытын көрсетіңіз (мысалы, 2023 немесе 09.2023)'))
+      return
+    }
+    if (!isCurrent && !endDate.trim()) {
+      setError(tx('Аяқталған уақытын көрсетіңіз немесе «Қазіргі уақытта қатысып жатыр» таңдаңыз'))
+      return
+    }
+
+    setSaving(true)
+    try {
+      const rec: StudentActivityRecord = {
+        id: record.id || `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        kind,
+        title: t,
+        mentor: mentor.trim() || undefined,
+        start_date: s,
+        end_date: isCurrent ? null : (endDate.trim() || null),
+        is_current: isCurrent,
+        achievement: achievement.trim() || undefined,
+        notes: notes.trim() || undefined,
+      }
+      await onSave(rec)
+      toast(isEditing ? tx('Жазба жаңартылды') : tx('Жаңа жазба қосылды'))
+      onClose()
+    } catch (err) {
+      setError(errText(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet
+      onClose={onClose}
+      title={isEditing ? tx('Үйірме / Олимпиаданы өңдеу') : tx('Үйірме немесе олимпиада қосу')}
+    >
+      <form onSubmit={handleSubmit} className="grid gap-4 p-4">
+        {error && (
+          <div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-danger text-sm font-medium">
+            {error}
+          </div>
+        )}
+
+        {/* Kind selector */}
+        <div className="grid gap-1.5">
+          <label className="text-xs font-semibold text-muted">{tx('Санаты (Түрі)')}</label>
+          <div className="flex flex-wrap gap-2">
+            {ACTIVITY_KINDS.map((k) => {
+              const active = kind === k.id
+              return (
+                <button
+                  key={k.id}
+                  type="button"
+                  onClick={() => setKind(k.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                    active
+                      ? `${k.tone} ring-2 ring-accent shadow-xs`
+                      : 'bg-surface-2 text-muted border-line hover:text-fg'
+                  }`}
+                >
+                  <Icon n={k.icon} size={14} />
+                  <span>{k.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="grid gap-1.5">
+          <label className="text-xs font-semibold text-muted">
+            {tx('Үйірме немесе олимпиада атауы')} <span className="text-danger">*</span>
+          </label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className={inputCls}
+            placeholder={
+              kind === 'olympiad'
+                ? tx('Мысалы: Республикалық информатика олимпиадасы')
+                : kind === 'section'
+                ? tx('Мысалы: Баскетбол секциясы')
+                : kind === 'course'
+                ? tx('Мысалы: IELTS дайындық курсы')
+                : tx('Мысалы: Робототехника және Arduino')
+            }
+            required
+          />
+        </div>
+
+        {/* Mentor / Coach */}
+        <div className="grid gap-1.5">
+          <label className="text-xs font-semibold text-muted">
+            {tx('Жетекшісі немесе жаттықтырушысы')}
+          </label>
+          <input
+            type="text"
+            value={mentor}
+            onChange={(e) => setMentor(e.target.value)}
+            className={inputCls}
+            placeholder={tx('Мысалы: Серік А.Б., информатика пәні мұғалімі')}
+          />
+        </div>
+
+        {/* Is Current toggle */}
+        <label className="flex items-start gap-3 p-3 rounded-xl bg-surface-2 cursor-pointer border border-line hover:border-accent/40 transition">
+          <input
+            type="checkbox"
+            checked={isCurrent}
+            onChange={(e) => setIsCurrent(e.target.checked)}
+            className="mt-0.5 rounded text-accent focus:ring-accent"
+          />
+          <div className="grid gap-0.5 text-xs">
+            <span className="font-semibold text-fg flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{tx('Қазіргі уақытта қатысып жатыр (қазірге дейін)')}</span>
+            </span>
+            <span className="text-muted">
+              {tx('Егер белгіленсе, кестеде жасыл индикатормен және «қазірге дейін» деп көрсетіледі')}
+            </span>
+          </div>
+        </label>
+
+        {/* Dates */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid gap-1.5">
+            <label className="text-xs font-semibold text-muted">
+              {tx('Басталған уақыты')} <span className="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className={inputCls}
+              placeholder={tx('Мысалы: 09.2023 немесе 2023 ж.')}
+              required
+            />
+          </div>
+
+          <div className="grid gap-1.5">
+            <label className="text-xs font-semibold text-muted">
+              {tx('Аяқталған уақыты')}
+            </label>
+            <input
+              type="text"
+              value={isCurrent ? '' : endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              disabled={isCurrent}
+              className={`${inputCls} ${isCurrent ? 'opacity-50 cursor-not-allowed bg-surface-2' : ''}`}
+              placeholder={isCurrent ? tx('Қазірге дейін жалғасуда') : tx('Мысалы: 05.2024 немесе 2024 ж.')}
+            />
+          </div>
+        </div>
+
+        {/* Achievement / Result */}
+        <div className="grid gap-1.5">
+          <label className="text-xs font-semibold text-muted">
+            {tx('Жетістігі немесе нәтижесі')}
+          </label>
+          <input
+            type="text"
+            value={achievement}
+            onChange={(e) => setAchievement(e.target.value)}
+            className={inputCls}
+            placeholder={tx('Мысалы: Облыстық кезең — 2-орын, сертификат')}
+          />
+        </div>
+
+        {/* Notes */}
+        <div className="grid gap-1.5">
+          <label className="text-xs font-semibold text-muted">
+            {tx('Қосымша мәліметтер мен сипаттамасы')}
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            className={`${inputCls} py-2 h-auto text-xs`}
+            placeholder={tx('Аптасына 2 рет қатысады, жоба жасап жатыр...')}
+          />
         </div>
 
         {/* Actions */}
