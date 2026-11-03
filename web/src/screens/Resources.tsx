@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   addClassList, addFund, addHabit, addListItem, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listStaff, logScreening, photoUrl, staffClasses, uploadPhoto,
-  removeClassList, removeFund, removeListItem, removeMedia, rateMedia, setMediaProgress, tickListItem, type ClassList, type Media, type Student,
+  removeClassList, removeFund, removeListItem, removeMedia, rateMedia, setMediaProgress, tickListItem, type ClassList, type Media, type MediaProgressState, type Student,
 } from '../lib/api'
 import { fmtDate, today } from '../lib/time'
 import { fundTotals, money } from '../lib/money'
@@ -92,10 +92,29 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
   const [open, setOpen] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [showPending, setShowPending] = useState(false)
+  const [studentFilter, setStudentFilter] = useState<string>(me.role === 'student' ? me.id : '')
   const pending = media.filter((m) => !m.approved), shelf = media.filter((m) => m.approved)
   const doneBy = (m: Media) => m.progress.filter((p) => p.state === 'done' && students.some((s) => s.id === p.user_id)).length
   const [fmt, setFmt] = useState('')
   const shown = shelf.filter((m) => (!fmt || m.format === fmt) && (!genre || m.genre === genre) && (!q || `${m.title} ${m.author ?? ''}`.toLowerCase().includes(q.toLowerCase())))
+
+  // 3-column partitioning for books
+  const colPlanned = shown.filter((m) =>
+    studentFilter
+      ? m.progress.some((p) => p.user_id === studentFilter && p.state === 'planned')
+      : m.progress.some((p) => p.state === 'planned' && students.some((s) => s.id === p.user_id))
+  )
+  const colDoing = shown.filter((m) =>
+    studentFilter
+      ? m.progress.some((p) => p.user_id === studentFilter && p.state === 'doing')
+      : m.progress.some((p) => p.state === 'doing' && students.some((s) => s.id === p.user_id))
+  )
+  const colDone = shown.filter((m) =>
+    studentFilter
+      ? m.progress.some((p) => p.user_id === studentFilter && p.state === 'done')
+      : m.progress.some((p) => p.state === 'done' && students.some((s) => s.id === p.user_id))
+  )
+
   // not started yet, most finished by classmates first
   const forYou = shelf.filter((m) => !m.progress.some((p) => p.user_id === me.id)).sort((a, b) => doneBy(b) - doneBy(a)).slice(0, 6)
   const cur = media.find((m) => m.id === open)
@@ -105,7 +124,31 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
         <input aria-label={tx('Іздеу')} value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} flex-1 min-w-0`} placeholder={book ? tx('Кітап не автор іздеу') : tx('Фильм іздеу')} />
         <Button onClick={() => setAdding(true)}><Icon n="plus" size={18} />{staff ? tx('Қосу') : tx('Ұсыну')}</Button>
       </div>
-      {FORMATS[kind].filter(([k]) => shelf.some((m) => m.format === k)).length > 1 && <Chips label={tx('Түрі')} value={fmt} onChange={setFmt} items={[['', tx('Барлық түрі')], ...FORMATS[kind].filter(([k]) => shelf.some((m) => m.format === k))]} />}
+
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        {FORMATS[kind].filter(([k]) => shelf.some((m) => m.format === k)).length > 1 && (
+          <Chips label={tx('Түрі')} value={fmt} onChange={setFmt} items={[['', tx('Барлық түрі')], ...FORMATS[kind].filter(([k]) => shelf.some((m) => m.format === k))]} />
+        )}
+        {book && staff && students.length > 0 && (
+          <div className="flex items-center gap-1.5 ml-auto text-xs">
+            <span className="text-muted font-medium">{tx('Оқушы:')}</span>
+            <select
+              aria-label={tx('Оқушы')}
+              value={studentFilter}
+              onChange={(e) => setStudentFilter(e.target.value)}
+              className={`${inputCls} w-auto text-xs py-1 h-8`}
+            >
+              <option value="">{tx('Барлық сынып')}</option>
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
       <Chips label={tx('Жанр')} value={genre} onChange={setGenre} items={[['', tx('Барлығы')], ...GENRES[kind].filter(([g]) => shelf.some((m) => m.genre === g))]} />
 
       {pending.length > 0 && (
@@ -117,14 +160,199 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
         <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="grid gap-1 text-left opacity-80"><Cover m={m} /><span className="text-xs font-semibold line-clamp-2">{m.title}</span></button>
       ))}</div>}
 
-      {!q && !genre && forYou.length > 0 && shelf.length > 3 && <>
+      {/* 3 Баған: Оқығым келетін, Оқып жатқан, Аяқтаған (кітаптар үшін) */}
+      {book && (
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              {studentFilter
+                ? tx('«{0}» оқушысының кітаптары', name(studentFilter))
+                : tx('Сыныптың оқу барысы (3 баған)')}
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+            {/* Баған 1: Оқығым келетін */}
+            <div className="rounded-xl border border-line bg-surface p-3 grid gap-2.5">
+              <div className="flex items-center justify-between pb-1 border-b border-line">
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>📖</span>
+                  <span>{tx('Оқығым келетін')}</span>
+                </span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  {colPlanned.length}
+                </span>
+              </div>
+              {!colPlanned.length ? (
+                <p className="text-xs text-muted text-center py-4">{tx('Кітап жоқ')}</p>
+              ) : (
+                <div className="grid gap-2">
+                  {colPlanned.map((m) => {
+                    const readers = m.progress.filter((p) => p.state === 'planned' && students.some((s) => s.id === p.user_id))
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setOpen(m.id)}
+                        className="p-2.5 rounded-lg border border-line bg-surface-2 hover:bg-surface-3 transition text-left flex gap-2.5 items-start"
+                      >
+                        <Cover m={m} className="w-12 shrink-0 shadow-xs" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm leading-tight line-clamp-2 text-fg">{m.title}</p>
+                          {m.author && <p className="text-xs text-muted truncate mt-0.5">{m.author}</p>}
+                          {readers.length > 0 && !studentFilter && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <span className="flex -space-x-1.5">
+                                {readers.slice(0, 3).map((p) => {
+                                  const s = students.find((x) => x.id === p.user_id)
+                                  return s ? (
+                                    <span key={p.user_id} className="rounded-full ring-1 ring-surface">
+                                      <Avatar name={s.full_name} photo={s.photo} size={18} />
+                                    </span>
+                                  ) : null
+                                })}
+                              </span>
+                              <span className="text-[11px] text-muted font-medium">
+                                {tx('{0} оқығысы келеді', readers.length)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Баған 2: Оқып жатқан */}
+            <div className="rounded-xl border border-line bg-surface p-3 grid gap-2.5">
+              <div className="flex items-center justify-between pb-1 border-b border-line">
+                <span className="text-xs font-bold text-accent uppercase tracking-wider flex items-center gap-1.5">
+                  <span>⏳</span>
+                  <span>{tx('Оқып жатқан')}</span>
+                </span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+                  {colDoing.length}
+                </span>
+              </div>
+              {!colDoing.length ? (
+                <p className="text-xs text-muted text-center py-4">{tx('Кітап жоқ')}</p>
+              ) : (
+                <div className="grid gap-2">
+                  {colDoing.map((m) => {
+                    const readers = m.progress.filter((p) => p.state === 'doing' && students.some((s) => s.id === p.user_id))
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setOpen(m.id)}
+                        className="p-2.5 rounded-lg border border-line bg-surface-2 hover:bg-surface-3 transition text-left flex gap-2.5 items-start"
+                      >
+                        <Cover m={m} className="w-12 shrink-0 shadow-xs" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm leading-tight line-clamp-2 text-fg">{m.title}</p>
+                          {m.author && <p className="text-xs text-muted truncate mt-0.5">{m.author}</p>}
+                          {readers.length > 0 && !studentFilter && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <span className="flex -space-x-1.5">
+                                {readers.slice(0, 3).map((p) => {
+                                  const s = students.find((x) => x.id === p.user_id)
+                                  return s ? (
+                                    <span key={p.user_id} className="rounded-full ring-1 ring-surface">
+                                      <Avatar name={s.full_name} photo={s.photo} size={18} />
+                                    </span>
+                                  ) : null
+                                })}
+                              </span>
+                              <span className="text-[11px] text-muted font-medium">
+                                {readers.length === 1
+                                  ? tx('{0} оқып жатыр', name(readers[0].user_id).split(' ')[1] ?? name(readers[0].user_id))
+                                  : tx('{0} оқушы оқуда', readers.length)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Баған 3: Аяқтаған */}
+            <div className="rounded-xl border border-line bg-surface p-3 grid gap-2.5">
+              <div className="flex items-center justify-between pb-1 border-b border-line">
+                <span className="text-xs font-bold text-success uppercase tracking-wider flex items-center gap-1.5">
+                  <span>✅</span>
+                  <span>{tx('Аяқтаған')}</span>
+                </span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-success/15 text-success">
+                  {colDone.length}
+                </span>
+              </div>
+              {!colDone.length ? (
+                <p className="text-xs text-muted text-center py-4">{tx('Кітап жоқ')}</p>
+              ) : (
+                <div className="grid gap-2">
+                  {colDone.map((m) => {
+                    const readers = m.progress.filter((p) => p.state === 'done' && students.some((s) => s.id === p.user_id))
+                    const avg = avgStars(m.progress.map((p) => p.rating))
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setOpen(m.id)}
+                        className="p-2.5 rounded-lg border border-line bg-surface-2 hover:bg-surface-3 transition text-left flex gap-2.5 items-start"
+                      >
+                        <Cover m={m} className="w-12 shrink-0 shadow-xs" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm leading-tight line-clamp-2 text-fg">{m.title}</p>
+                          {m.author && <p className="text-xs text-muted truncate mt-0.5">{m.author}</p>}
+                          {avg && (
+                            <div className="flex items-center gap-1 mt-1 text-xs font-semibold text-amber-500">
+                              <span>★ {avg.avg}</span>
+                              <span className="text-muted text-[10px]">({avg.n})</span>
+                            </div>
+                          )}
+                          {readers.length > 0 && !studentFilter && (
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <span className="flex -space-x-1.5">
+                                {readers.slice(0, 3).map((p) => {
+                                  const s = students.find((x) => x.id === p.user_id)
+                                  return s ? (
+                                    <span key={p.user_id} className="rounded-full ring-1 ring-surface">
+                                      <Avatar name={s.full_name} photo={s.photo} size={18} />
+                                    </span>
+                                  ) : null
+                                })}
+                              </span>
+                              <span className="text-[11px] text-muted font-medium">
+                                {tx('{0} оқып бітірді', readers.length)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!q && !genre && forYou.length > 0 && shelf.length > 3 && !book && <>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Саған ұсынамыз')}</h2>
         <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none]">{forYou.map((m) => (
           <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="w-24 shrink-0 grid gap-1 text-left"><Cover m={m} /><span className="text-xs font-semibold line-clamp-2">{m.title}</span>
             {doneBy(m) > 0 && <span className="text-[11px] text-muted">{book ? tx('{0} оқыды', doneBy(m)) : tx('{0} көрді', doneBy(m))}</span>}</button>
         ))}</div>
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Барлығы · {0}', shelf.length)}</h2>
       </>}
+
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">
+        {book ? tx('Сөредегі барлық кітаптар · {0}', shown.length) : tx('Барлығы · {0}', shown.length)}
+      </h2>
 
       {!shown.length ? <Empty icon={book ? 'book' : 'heart'} title={shelf.length ? tx('Ештеңе табылмады') : book ? tx('Кітап әлі жоқ') : tx('Фильм әлі жоқ')} text={shelf.length ? undefined : tx('Бірінші болып ұсыныңыз!')} />
         : <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">{shown.map((m) => {
@@ -194,12 +422,13 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
   const mineP = m.progress.find((p) => p.user_id === me.id)
   const done = m.progress.filter((p) => p.state === 'done' && students.some((s) => s.id === p.user_id))
   const reading = m.progress.filter((p) => p.state === 'doing' && students.some((s) => s.id === p.user_id))
+  const planned = m.progress.filter((p) => p.state === 'planned' && students.some((s) => s.id === p.user_id))
   const reviews = m.progress.filter((p) => p.review)
   const avg = avgStars(m.progress.map((p) => p.rating))
   const seasonAvg = m.seasons ? seasonAvgs(m.progress.map((p) => p.season_stars ?? {}), m.seasons) : []
   // rating counts as having read or watched it, unless the person is still on it
   const rate = (patch: { rating?: number | null; season_stars?: Record<string, number> }) => run(() => rateMedia(m.id, mineP?.state ?? 'done', patch))
-  const mark = (state: 'doing' | 'done' | null) => run(async () => {
+  const mark = (state: MediaProgressState | null) => run(async () => {
     await setMediaProgress(m.id, state)
     // "reading" puts a daily reading habit into the student's own tracker
     if (book && state === 'doing') {
@@ -226,12 +455,40 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
             <Button kind="ghost" onClick={() => run(async () => { await removeMedia(m.id); onClose() })}>{staff ? tx('Қабылдамау') : tx('Қайтару')}</Button>
           </div>
         ) : <>
-          <div className="grid grid-cols-2 gap-2">
-            {(['doing', 'done'] as const).map((st) => {
-              const on = mineP?.state === st
-              return <button key={st} type="button" aria-pressed={on} disabled={busy} onClick={() => mark(on ? null : st)}
-                className={`h-11 rounded-md text-sm font-semibold ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{st === 'doing' ? (book ? tx('Оқып жатырмын') : tx('Көремін')) : (book ? tx('Оқыдым') : tx('Көрдім'))}</button>
-            })}
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              aria-pressed={mineP?.state === 'planned'}
+              disabled={busy}
+              onClick={() => mark(mineP?.state === 'planned' ? null : 'planned')}
+              className={`h-11 rounded-md text-xs sm:text-sm font-semibold transition ${
+                mineP?.state === 'planned' ? 'bg-amber-600 text-white shadow-xs' : 'bg-surface-2 hover:bg-surface-3'
+              }`}
+            >
+              📖 {book ? tx('Оқығым келеді') : tx('Көргім келеді')}
+            </button>
+            <button
+              type="button"
+              aria-pressed={mineP?.state === 'doing'}
+              disabled={busy}
+              onClick={() => mark(mineP?.state === 'doing' ? null : 'doing')}
+              className={`h-11 rounded-md text-xs sm:text-sm font-semibold transition ${
+                mineP?.state === 'doing' ? 'bg-accent text-on-accent shadow-xs' : 'bg-surface-2 hover:bg-surface-3'
+              }`}
+            >
+              ⏳ {book ? tx('Оқып жатырмын') : tx('Көріп жатырмын')}
+            </button>
+            <button
+              type="button"
+              aria-pressed={mineP?.state === 'done'}
+              disabled={busy}
+              onClick={() => mark(mineP?.state === 'done' ? null : 'done')}
+              className={`h-11 rounded-md text-xs sm:text-sm font-semibold transition ${
+                mineP?.state === 'done' ? 'bg-success text-white shadow-xs' : 'bg-surface-2 hover:bg-surface-3'
+              }`}
+            >
+              ✅ {book ? tx('Оқыдым') : tx('Көрдім')}
+            </button>
           </div>
           <div className="grid gap-2 rounded-md bg-surface-2 p-3">
             <div className="flex items-center gap-2"><span className="flex-1 text-sm font-semibold">{tx('Сенің бағаң')}</span><Stars value={mineP?.rating ?? null} onPick={(v) => rate({ rating: v })} size={26} label={tx('Сенің бағаң')} /></div>
@@ -243,13 +500,14 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
             ))}
           </div>
           {mineP && <Review key={mineP.updated_at} m={m} state={mineP.state} review={mineP.review ?? ''} reload={reload} />}
-          {(done.length > 0 || reading.length > 0) && (
+          {(done.length > 0 || reading.length > 0 || planned.length > 0) && (
             <div className="grid gap-2">
               {done.length > 0 && <div className="flex items-center gap-2">
                 <span className="flex -space-x-2">{done.slice(0, 6).map((p) => { const s = students.find((x) => x.id === p.user_id)!; return <span key={p.user_id} className="rounded-full ring-2 ring-surface"><Avatar name={s.full_name} photo={s.photo} size={28} /></span> })}</span>
                 <span className="text-sm text-muted">{book ? tx('Сыныптастарыңның {0}-і оқыды', done.length) : tx('Сыныптастарыңның {0}-і көрді', done.length)}</span>
               </div>}
-              {reading.length > 0 && <p className="text-sm text-muted">{book ? tx('Қазір оқып жатыр: {0}', reading.map((p) => name(p.user_id).split(' ').slice(0, 2).join(' ')).join(', ')) : tx('Көргісі келеді: {0}', reading.length)}</p>}
+              {reading.length > 0 && <p className="text-sm text-muted">{book ? tx('Қазір оқып жатыр: {0}', reading.map((p) => name(p.user_id).split(' ').slice(0, 2).join(' ')).join(', ')) : tx('Көріп жатыр: {0}', reading.length)}</p>}
+              {planned.length > 0 && <p className="text-sm text-muted">{book ? tx('Оқығысы келеді ({0}): {1}', planned.length, planned.map((p) => name(p.user_id).split(' ').slice(0, 2).join(' ')).join(', ')) : tx('Көргісі келеді ({0}): {1}', planned.length, planned.map((p) => name(p.user_id).split(' ').slice(0, 2).join(' ')).join(', '))}</p>}
             </div>
           )}
           {reviews.length > 0 && (
@@ -269,7 +527,7 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
   )
 }
 
-function Review({ m, state, review, reload }: { m: Media; state: 'doing' | 'done'; review: string; reload: () => void }) {
+function Review({ m, state, review, reload }: { m: Media; state: MediaProgressState; review: string; reload: () => void }) {
   const [v, setV] = useState(review)
   const [busy, setBusy] = useState(false)
   return (

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
-  addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting,
-  listClasses, listStaff, mentorAssign, mentorEvery, removeMentorMeeting, saveStudentForm,
-  saveStudentRoadmap, seedDemoClass, staffClasses, studentMentor, supabase, type MentorMeeting,
+  addMedia, addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting,
+  listClasses, listClassResources, listStaff, mentorAssign, mentorEvery, photoUrl, rateMedia, removeMentorMeeting, saveStudentForm,
+  saveStudentRoadmap, seedDemoClass, setMediaProgress, staffClasses, studentMentor, supabase, uploadPhoto,
+  type Media, type MediaProgressState, type MentorMeeting,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
@@ -57,7 +58,7 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
   const handleSeedDemo = async () => {
     setSeeding(true)
     try {
-      const res = await seedDemoClass('7-Демо')
+      const res = await seedDemoClass(tx('7-Демо'))
       toast(tx('Демо сынып және 5 оқушының анкетасы сәтті жасалды!'))
       await classes.reload()
       go(`/mentor?class=${res.class_id}`)
@@ -262,7 +263,7 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
                   const bdayDisplay = form.birthday
                     ? fmtBirthday(form.birthday)
                     : form.iin
-                    ? `ЖСН: ${form.iin}`
+                    ? tx('ЖСН: {0}', form.iin)
                     : form.hobby
                     ? form.hobby
                     : [s.olympiad, s.club].filter(Boolean).join(' · ') || '—'
@@ -730,7 +731,7 @@ function StudentDossierView({
               <label className="text-xs font-semibold text-muted">{tx('Ұлты')}</label>
               <div className="relative">
                 <select
-                  value={answers.nation ?? 'қазақ'}
+                  value={answers.nation ?? tx('қазақ')}
                   onChange={(e) => {
                     setAnswers({ ...answers, nation: e.target.value })
                     saveField('nation', e.target.value)
@@ -1171,7 +1172,7 @@ function StudentDossierView({
                   .map(([k, score]) => (
                     <div key={k} className="flex items-center justify-between gap-3 bg-surface-2 px-3 py-2 rounded-lg">
                       <span className="font-medium">{MI_KINDS[k][lang === 'ru' ? 1 : 0]}</span>
-                      <span className="text-xs font-bold text-accent tabular-nums">{score} балл</span>
+                      <span className="text-xs font-bold text-accent tabular-nums">{tx('{0} балл', score)}</span>
                     </div>
                   ))}
               </div>
@@ -1279,25 +1280,24 @@ function StudentDossierView({
           ==================================================================== */}
       {tab === 'resources' && (
         <div className="grid gap-4">
-          <Card className="grid gap-3">
-            <p className="font-bold text-base">{tx('Оқушыға ұсынылған ресурстар')}</p>
-            <p className="text-sm text-muted">
-              {tx('Оқушының мақсаттарына, олимпиада бағытына және қызығушылығына сай кітаптар, материалдар мен құжаттар.')}
-            </p>
-            {d.notes.length > 0 && (
-              <div className="grid gap-2 border-t border-line pt-3">
-                <p className="text-xs font-bold uppercase text-muted">{tx('Сынып кеңесінің жазбалары')}</p>
-                {d.notes.map((n) => (
-                  <div key={n.id} className="p-3 rounded-lg bg-surface-2 text-sm">
-                    <span className="text-xs text-muted block mb-1">
-                      {staffName(n.author_id)} · {fmtDate(n.created_at.slice(0, 10))}
-                    </span>
-                    <p className="whitespace-pre-line">{n.body}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+          <StudentResourcesShelf
+            studentId={student.id}
+            studentName={student.full_name}
+            classId={classId ?? student.class_id}
+          />
+          {d.notes.length > 0 && (
+            <Card className="grid gap-2 border-t border-line pt-3">
+              <p className="text-xs font-bold uppercase text-muted">{tx('Сынып кеңесінің жазбалары')}</p>
+              {d.notes.map((n) => (
+                <div key={n.id} className="p-3 rounded-lg bg-surface-2 text-sm">
+                  <span className="text-xs text-muted block mb-1">
+                    {staffName(n.author_id)} · {fmtDate(n.created_at.slice(0, 10))}
+                  </span>
+                  <p className="whitespace-pre-line">{n.body}</p>
+                </div>
+              ))}
+            </Card>
+          )}
         </div>
       )}
 
@@ -1357,6 +1357,660 @@ function StudentDossierView({
         />
       )}
     </div>
+  )
+}
+
+/* ==========================================================================
+   Оқушының Кітап Сөресі (3 баған: Оқығым келеді, Оқып жатыр, Аяқтады)
+   ========================================================================== */
+
+const coverTint = (t: string) => `hsl(${[...t].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)} 45% 42%)`
+
+function BookCover({ title, cover, className = '' }: { title: string; cover?: string | null; className?: string }) {
+  return cover ? (
+    <img src={photoUrl(cover)} alt="" className={`aspect-[2/3] rounded-md object-cover ${className}`} loading="lazy" />
+  ) : (
+    <span
+      aria-hidden
+      className={`aspect-[2/3] rounded-md grid place-items-center text-white/90 font-bold ${className}`}
+      style={{ background: coverTint(title) }}
+    >
+      {title.trim()[0]?.toUpperCase() ?? '📖'}
+    </span>
+  )
+}
+
+function StudentResourcesShelf({
+  studentId,
+  studentName,
+  classId,
+}: {
+  studentId: string
+  studentName: string
+  classId?: string
+}) {
+  const { me } = useMe()
+  const isStaff = me.role !== 'student'
+  const isOwn = me.id === studentId
+  const canEdit = isStaff || isOwn
+
+  const data = useLoad(async () => {
+    if (!classId) return null
+    return listClassResources(classId)
+  }, [classId])
+
+  const [picking, setPicking] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [ratingBook, setRatingBook] = useState<{ book: Media; currentRating: number | null; currentReview: string } | null>(null)
+  const [pickSearch, setPickSearch] = useState('')
+
+  const books = (data.data?.media ?? []).filter((m) => m.kind === 'book' && m.approved)
+  const planned = books.filter((m) => m.progress.some((p) => p.user_id === studentId && p.state === 'planned'))
+  const doing = books.filter((m) => m.progress.some((p) => p.user_id === studentId && p.state === 'doing'))
+  const done = books.filter((m) => m.progress.some((p) => p.user_id === studentId && p.state === 'done'))
+  const unselected = books.filter((m) => !m.progress.some((p) => p.user_id === studentId))
+
+  const setProgress = async (mediaId: string, state: MediaProgressState | null, review?: string | null) => {
+    try {
+      await setMediaProgress(mediaId, state, review, studentId)
+      toast(state === 'doing' ? tx('«Оқып жатқан» кітаптарға қосылды') : state === 'done' ? tx('Кітап аяқталды деп белгіленді') : state === 'planned' ? tx('«Оқығым келетін» кітаптарға қосылды') : tx('Өшірілді'))
+      data.reload()
+    } catch (e) {
+      toast(errText(e))
+    }
+  }
+
+  const handleRate = async (mediaId: string, rating: number | null, review: string) => {
+    try {
+      await rateMedia(mediaId, 'done', { rating }, studentId)
+      await setMediaProgress(mediaId, 'done', review || null, studentId)
+      toast(tx('Баға мен пікір сақталды'))
+      setRatingBook(null)
+      data.reload()
+    } catch (e) {
+      toast(errText(e))
+    }
+  }
+
+  const filteredUnselected = unselected.filter((m) => {
+    const q = pickSearch.trim().toLowerCase()
+    if (!q) return true
+    return m.title.toLowerCase().includes(q) || (m.author ?? '').toLowerCase().includes(q)
+  })
+
+  return (
+    <div className="grid gap-4">
+      {/* Shelf Header */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <h3 className="font-bold text-base flex items-center gap-2">
+            <span>📚</span>
+            <span>{tx('Оқушының кітап сөресі')}</span>
+          </h3>
+          <p className="text-xs text-muted">
+            {tx('«{0}» оқушысының оқу барысы мен сөресі', studentName)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <>
+              <Button kind="secondary" onClick={() => setPicking(true)}>
+                <Icon n="plus" size={16} />
+                <span>{tx('Сыныптан таңдау')}</span>
+              </Button>
+              <Button kind="secondary" onClick={() => setAdding(true)}>
+                <Icon n="plus" size={16} />
+                <span>{tx('Жаңа кітап')}</span>
+              </Button>
+            </>
+          )}
+          {classId && (
+            <button
+              type="button"
+              onClick={() => go(`/resources/${classId}`)}
+              className="text-xs text-accent hover:underline flex items-center gap-1 font-medium py-1 px-2"
+            >
+              <span>{tx('Сынып қорына өту')}</span>
+              <Icon n="chev" size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* KPI Counters */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-lg bg-surface-2 p-2.5 text-center border-l-4 border-amber-500">
+          <span className="block text-xs text-muted mb-0.5">📖 {tx('Оқығым келеді')}</span>
+          <span className="text-lg font-bold tabular-nums text-amber-600 dark:text-amber-400">
+            {planned.length}
+          </span>
+        </div>
+        <div className="rounded-lg bg-surface-2 p-2.5 text-center border-l-4 border-accent">
+          <span className="block text-xs text-muted mb-0.5">⏳ {tx('Оқып жатыр')}</span>
+          <span className="text-lg font-bold tabular-nums text-accent">
+            {doing.length}
+          </span>
+        </div>
+        <div className="rounded-lg bg-surface-2 p-2.5 text-center border-l-4 border-success">
+          <span className="block text-xs text-muted mb-0.5">✅ {tx('Аяқтады')}</span>
+          <span className="text-lg font-bold tabular-nums text-success">
+            {done.length}
+          </span>
+        </div>
+      </div>
+
+      {/* 3 Columns Layout */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+        {/* Column 1: Оқығым келетін кітаптар */}
+        <div className="rounded-xl border border-line bg-surface p-3 grid gap-2.5">
+          <div className="flex items-center justify-between pb-1 border-b border-line">
+            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>📖</span>
+              <span>{tx('Оқығым келеді')}</span>
+            </span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              {planned.length}
+            </span>
+          </div>
+
+          {!planned.length ? (
+            <div className="py-6 text-center text-xs text-muted grid gap-2">
+              <p>{tx('Әзірге таңдалған кітап жоқ')}</p>
+              {canEdit && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setPicking(true)}
+                    className="text-accent text-xs font-semibold hover:underline"
+                  >
+                    {tx('+ Кітап таңдау')}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {planned.map((b) => (
+                <div key={b.id} className="p-2.5 rounded-lg border border-line bg-surface-2 hover:bg-surface-3 transition grid gap-2 text-xs">
+                  <div className="flex gap-2.5 items-start">
+                    <BookCover title={b.title} cover={b.cover} className="w-12 shrink-0 shadow-xs" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm leading-tight break-words text-fg line-clamp-2">{b.title}</p>
+                      {b.author && <p className="text-muted mt-0.5 truncate">{b.author}</p>}
+                      {b.genre && (
+                        <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] bg-surface font-medium text-muted">
+                          {b.genre}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {canEdit && (
+                    <div className="flex items-center justify-between gap-1 pt-1 border-t border-line/50">
+                      <button
+                        type="button"
+                        onClick={() => setProgress(b.id, 'doing')}
+                        className="flex-1 py-1 px-2 rounded-md bg-accent text-on-accent font-semibold text-[11px] text-center transition hover:opacity-90 flex items-center justify-center gap-1"
+                      >
+                        <Icon n="clock" size={12} />
+                        <span>{tx('Оқуды бастау')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProgress(b.id, null)}
+                        className="size-6 grid place-items-center rounded text-muted hover:text-danger hover:bg-surface transition"
+                        title={tx('Тізімнен шығару')}
+                      >
+                        <Icon n="x" size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Column 2: Оқып жатқан кітаптар */}
+        <div className="rounded-xl border border-line bg-surface p-3 grid gap-2.5">
+          <div className="flex items-center justify-between pb-1 border-b border-line">
+            <span className="text-xs font-bold text-accent uppercase tracking-wider flex items-center gap-1.5">
+              <span>⏳</span>
+              <span>{tx('Оқып жатыр')}</span>
+            </span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+              {doing.length}
+            </span>
+          </div>
+
+          {!doing.length ? (
+            <div className="py-6 text-center text-xs text-muted grid gap-2">
+              <p>{tx('Қазір оқып жатқан кітап жоқ')}</p>
+              {canEdit && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setPicking(true)}
+                    className="text-accent text-xs font-semibold hover:underline"
+                  >
+                    {tx('+ Кітап бастау')}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {doing.map((b) => (
+                <div key={b.id} className="p-2.5 rounded-lg border border-line bg-surface-2 hover:bg-surface-3 transition grid gap-2 text-xs">
+                  <div className="flex gap-2.5 items-start">
+                    <BookCover title={b.title} cover={b.cover} className="w-12 shrink-0 shadow-xs" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm leading-tight break-words text-fg line-clamp-2">{b.title}</p>
+                      {b.author && <p className="text-muted mt-0.5 truncate">{b.author}</p>}
+                      <span className="inline-flex items-center gap-1 mt-1 text-[11px] text-accent font-semibold">
+                        <Icon n="flame" size={12} />
+                        <span>{tx('Оқылып жатыр')}</span>
+                      </span>
+                    </div>
+                  </div>
+                  {canEdit && (
+                    <div className="flex items-center justify-between gap-1 pt-1 border-t border-line/50">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const p = b.progress.find((x) => x.user_id === studentId)
+                          setRatingBook({ book: b, currentRating: p?.rating ?? 5, currentReview: p?.review ?? '' })
+                        }}
+                        className="flex-1 py-1 px-2 rounded-md bg-success text-white font-semibold text-[11px] text-center transition hover:opacity-90 flex items-center justify-center gap-1"
+                      >
+                        <Icon n="check" size={12} />
+                        <span>{tx('Аяқтадым')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProgress(b.id, 'planned')}
+                        className="py-1 px-2 rounded-md text-muted hover:text-fg hover:bg-surface text-[11px] transition"
+                        title={tx('«Оқығым келеді» күйіне қайтару')}
+                      >
+                        {tx('Кейінге')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Column 3: Аяқтаған кітаптар */}
+        <div className="rounded-xl border border-line bg-surface p-3 grid gap-2.5">
+          <div className="flex items-center justify-between pb-1 border-b border-line">
+            <span className="text-xs font-bold text-success uppercase tracking-wider flex items-center gap-1.5">
+              <span>✅</span>
+              <span>{tx('Аяқтады')}</span>
+            </span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-success/15 text-success">
+              {done.length}
+            </span>
+          </div>
+
+          {!done.length ? (
+            <div className="py-6 text-center text-xs text-muted">
+              {tx('Әлі аяқталған кітап жоқ')}
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {done.map((b) => {
+                const prog = b.progress.find((p) => p.user_id === studentId)
+                return (
+                  <div key={b.id} className="p-2.5 rounded-lg border border-line bg-surface-2 hover:bg-surface-3 transition grid gap-2 text-xs">
+                    <div className="flex gap-2.5 items-start">
+                      <BookCover title={b.title} cover={b.cover} className="w-12 shrink-0 shadow-xs" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm leading-tight break-words text-fg line-clamp-2">{b.title}</p>
+                        {b.author && <p className="text-muted mt-0.5 truncate">{b.author}</p>}
+                        {prog?.rating && (
+                          <div className="flex items-center gap-1 mt-1 text-amber-500 font-bold text-xs">
+                            <span>{'★'.repeat(prog.rating)}</span>
+                            <span className="text-muted text-[10px]">({prog.rating}/5)</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {prog?.review && (
+                      <p className="text-[11px] text-muted italic bg-surface p-2 rounded border border-line/50">
+                        «{prog.review}»
+                      </p>
+                    )}
+                    {canEdit && (
+                      <div className="flex items-center justify-between gap-1 pt-1 border-t border-line/50">
+                        <button
+                          type="button"
+                          onClick={() => setRatingBook({ book: b, currentRating: prog?.rating ?? 5, currentReview: prog?.review ?? '' })}
+                          className="text-[11px] text-accent font-semibold hover:underline flex items-center gap-1"
+                        >
+                          <Icon n="pencil" size={11} />
+                          <span>{tx('Баға / пікір өңдеу')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProgress(b.id, 'doing')}
+                          className="text-[11px] text-muted hover:text-fg"
+                          title={tx('«Оқып жатыр» күйіне қайтару')}
+                        >
+                          {tx('Қайта оқу')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sheet 1: Pick from class library */}
+      {picking && (
+        <Sheet title={tx('Сынып кітапханасынан таңдау')} onClose={() => setPicking(false)}>
+          <div className="grid gap-3">
+            <div className="relative">
+              <Icon n="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                type="text"
+                value={pickSearch}
+                onChange={(e) => setPickSearch(e.target.value)}
+                placeholder={tx('Кітап не автор іздеу...')}
+                className={`${inputCls} pl-9 h-10 text-sm`}
+              />
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto grid gap-2 pr-1">
+              {!filteredUnselected.length ? (
+                <div className="py-8 text-center text-xs text-muted grid gap-2">
+                  <p>{tx('Қолжетімді кітаптар табылмады')}</p>
+                  <div>
+                    <Button kind="secondary" onClick={() => { setPicking(false); setAdding(true) }}>
+                      <Icon n="plus" size={16} />
+                      <span>{tx('Жаңа кітап қосу')}</span>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                filteredUnselected.map((b) => (
+                  <div key={b.id} className="p-3 rounded-lg border border-line bg-surface-2 flex items-center justify-between gap-3">
+                    <div className="flex gap-2.5 items-center min-w-0">
+                      <BookCover title={b.title} cover={b.cover} className="w-10 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{b.title}</p>
+                        <p className="text-xs text-muted truncate">{b.author ?? '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        kind="secondary"
+                        onClick={async () => {
+                          await setProgress(b.id, 'planned')
+                          setPicking(false)
+                        }}
+                      >
+                        {tx('Оқығым келеді')}
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          await setProgress(b.id, 'doing')
+                          setPicking(false)
+                        }}
+                      >
+                        {tx('Оқуды бастау')}
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </Sheet>
+      )}
+
+      {/* Sheet 2: Add brand new book */}
+      {adding && classId && (
+        <AddBookSheet
+          classId={classId}
+          studentId={studentId}
+          onClose={() => setAdding(false)}
+          onDone={() => {
+            setAdding(false)
+            data.reload()
+          }}
+        />
+      )}
+
+      {/* Sheet 3: Rate and Review book */}
+      {ratingBook && (
+        <RateBookSheet
+          book={ratingBook.book}
+          initialRating={ratingBook.currentRating}
+          initialReview={ratingBook.currentReview}
+          onClose={() => setRatingBook(null)}
+          onSave={(stars, rev) => handleRate(ratingBook.book.id, stars, rev)}
+        />
+      )}
+    </div>
+  )
+}
+
+function AddBookSheet({
+  classId,
+  studentId,
+  onClose,
+  onDone,
+}: {
+  classId: string
+  studentId: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const { me } = useMe()
+  const isStaff = me.role !== 'student'
+  const [title, setTitle] = useState('')
+  const [author, setAuthor] = useState('')
+  const [genre, setGenre] = useState('novel')
+  const [note, setNote] = useState('')
+  const [targetState, setTargetState] = useState<MediaProgressState>('planned')
+  const [file, setFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const handleSave = async () => {
+    if (title.trim().length < 2) {
+      toast(tx('Кітап атауын енгізіңіз'))
+      return
+    }
+    setBusy(true)
+    try {
+      const cover = file ? await uploadPhoto(me.id, file) : null
+      const created = await addMedia({
+        class_id: classId,
+        kind: 'book',
+        title: title.trim(),
+        author: author.trim() || null,
+        note: note.trim() || null,
+        genre: genre || null,
+        format: 'book',
+        seasons: null,
+        cover,
+        approved: isStaff,
+        proposed_by: me.id,
+      })
+      if (created?.id) {
+        await setMediaProgress(created.id, targetState, undefined, studentId)
+      }
+      toast(tx('Кітап сәтті қосылды'))
+      onDone()
+    } catch (e) {
+      toast(errText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Sheet title={tx('Жаңа кітап қосу')} onClose={onClose}>
+      <div className="grid gap-3">
+        <div className="grid grid-cols-[5.5rem_1fr] gap-3">
+          <label className="aspect-[2/3] rounded-md border-2 border-dashed border-line grid place-items-center text-center text-xs text-muted cursor-pointer overflow-hidden">
+            {file ? <img src={URL.createObjectURL(file)} alt="" className="size-full object-cover" /> : <span className="grid justify-items-center gap-1 p-1"><Icon n="plus" size={16} />{tx('Мұқаба')}</span>}
+            <input type="file" accept="image/*" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </label>
+          <div className="grid gap-2 content-start">
+            <Field label={tx('Кітап атауы')}>
+              {(id) => (
+                <input
+                  id={id}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className={inputCls}
+                  placeholder={tx('Мысалы: Абай жолы')}
+                />
+              )}
+            </Field>
+            <Field label={tx('Авторы')}>
+              {(id) => (
+                <input
+                  id={id}
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  className={inputCls}
+                  placeholder={tx('Мысалы: Мұхтар Әуезов')}
+                />
+              )}
+            </Field>
+          </div>
+        </div>
+        <Field label={tx('Жанры')}>
+          {(id) => (
+            <select
+              id={id}
+              value={genre}
+              onChange={(e) => setGenre(e.target.value)}
+              className={inputCls}
+            >
+              <option value="novel">{tx('Көркем әдебиет')}</option>
+              <option value="science">{tx('Ғылыми-танымдық')}</option>
+              <option value="history">{tx('Тарих')}</option>
+              <option value="self">{tx('Өзін-өзі дамыту')}</option>
+              <option value="fantasy">{tx('Фантастика')}</option>
+              <option value="adventure">{tx('Шытырман')}</option>
+              <option value="bio">{tx('Өмірбаян')}</option>
+              <option value="poetry">{tx('Поэзия')}</option>
+            </select>
+          )}
+        </Field>
+        <Field label={tx('Оқу күйі')}>
+          {(id) => (
+            <select
+              id={id}
+              value={targetState}
+              onChange={(e) => setTargetState(e.target.value as MediaProgressState)}
+              className={inputCls}
+            >
+              <option value="planned">📖 {tx('Оқығым келеді')}</option>
+              <option value="doing">⏳ {tx('Оқып жатырмын')}</option>
+              <option value="done">✅ {tx('Аяқтадым')}</option>
+            </select>
+          )}
+        </Field>
+        <Field label={tx('Ескертпе (не үшін таңдалды)')}>
+          {(id) => (
+            <input
+              id={id}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className={inputCls}
+              placeholder={tx('Мысалы: Мектеп бағдарламасы бойынша')}
+            />
+          )}
+        </Field>
+        <div className="flex gap-2 pt-2">
+          <Button block onClick={handleSave} loading={busy}>
+            {tx('Қосу')}
+          </Button>
+          <Button block kind="secondary" onClick={onClose}>
+            {tx('Бас тарту')}
+          </Button>
+        </div>
+      </div>
+    </Sheet>
+  )
+}
+
+function RateBookSheet({
+  book,
+  initialRating,
+  initialReview,
+  onClose,
+  onSave,
+}: {
+  book: Media
+  initialRating: number | null
+  initialReview: string
+  onClose: () => void
+  onSave: (rating: number | null, review: string) => void
+}) {
+  const [rating, setRating] = useState<number | null>(initialRating ?? 5)
+  const [review, setReview] = useState(initialReview)
+
+  return (
+    <Sheet title={tx('Кітапты бағалау')} onClose={onClose}>
+      <div className="grid gap-4">
+        <div>
+          <p className="font-bold text-base">{book.title}</p>
+          {book.author && <p className="text-xs text-muted">{book.author}</p>}
+        </div>
+
+        <Field label={tx('Бағаңыз (1-5 жұлдыз)')}>
+          {() => (
+            <div className="flex items-center gap-2 py-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(star)}
+                  className="text-2xl transition hover:scale-125 focus:outline-none"
+                  aria-label={tx('{0} жұлдыз', star)}
+                >
+                  <span className={(rating ?? 0) >= star ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600'}>
+                    ★
+                  </span>
+                </button>
+              ))}
+              <span className="text-sm font-bold ml-2 tabular-nums">{rating ?? 0} / 5</span>
+            </div>
+          )}
+        </Field>
+
+        <Field label={tx('Пікір / Қысқаша әсер')}>
+          {(id) => (
+            <textarea
+              id={id}
+              value={review}
+              onChange={(e) => setReview(e.target.value)}
+              rows={3}
+              className={inputCls}
+              placeholder={tx('Кітаптан не түйдіңіз? Ұнаған тұстары...')}
+            />
+          )}
+        </Field>
+
+        <div className="flex gap-2 pt-2">
+          <Button block onClick={() => onSave(rating, review.trim())}>
+            {tx('Сақтау')}
+          </Button>
+          <Button block kind="secondary" onClick={onClose}>
+            {tx('Бас тарту')}
+          </Button>
+        </div>
+      </div>
+    </Sheet>
   )
 }
 
@@ -1551,6 +2205,7 @@ export function RoadmapSection({
   const [newStepInputs, setNewStepInputs] = useState<Record<string, string>>({})
   const [editingGoal, setEditingGoal] = useState<RoadmapGoal | null>(null)
   const [editingHabit, setEditingHabit] = useState<RoadmapHabit | null>(null)
+  const [editingTask, setEditingTask] = useState<RoadmapTask | null>(null)
   const t = today()
 
   const goals = roadmap.goals ?? []
@@ -2080,14 +2735,26 @@ export function RoadmapSection({
                       </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeTask(tk.id, tk.title)}
-                    className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger"
-                    aria-label={tx('Өшіру')}
-                  >
-                    <Icon n="x" size={14} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingTask(tk)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg transition"
+                      aria-label={tx('Өңдеу')}
+                      title={tx('Өңдеу')}
+                    >
+                      <Icon n="pencil" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeTask(tk.id, tk.title)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger"
+                      aria-label={tx('Өшіру')}
+                      title={tx('Өшіру')}
+                    >
+                      <Icon n="x" size={14} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-start gap-2.5">
@@ -2137,6 +2804,7 @@ export function RoadmapSection({
       {editingHabit && (
         <HabitEditSheet
           habit={editingHabit}
+          goals={goals}
           onClose={() => setEditingHabit(null)}
           onSave={(updated) => {
             update((prev) => ({
@@ -2145,6 +2813,22 @@ export function RoadmapSection({
             }))
             setEditingHabit(null)
             toast(tx('Әдет сәтті сақталды'))
+          }}
+        />
+      )}
+
+      {editingTask && (
+        <TaskEditSheet
+          task={editingTask}
+          goals={goals}
+          onClose={() => setEditingTask(null)}
+          onSave={(updated) => {
+            update((prev) => ({
+              ...prev,
+              tasks: prev.tasks.map((tk) => (tk.id === updated.id ? updated : tk)),
+            }))
+            setEditingTask(null)
+            toast(tx('Тапсырма сәтті сақталды'))
           }}
         />
       )}
@@ -2351,10 +3035,12 @@ export function GoalEditSheet({
 
 export function HabitEditSheet({
   habit,
+  goals,
   onClose,
   onSave,
 }: {
   habit: RoadmapHabit
+  goals?: RoadmapGoal[]
   onClose: () => void
   onSave: (habit: RoadmapHabit) => void
 }) {
@@ -2364,6 +3050,7 @@ export function HabitEditSheet({
   const [timeOfDay, setTimeOfDay] = useState(habit.time_of_day ?? 'any')
   const [frequency, setFrequency] = useState(habit.frequency ?? 'daily')
   const [motivation, setMotivation] = useState(habit.motivation ?? '')
+  const [goalId, setGoalId] = useState(habit.goal_id ?? '')
 
   const handleSave = () => {
     if (title.trim().length < 2) {
@@ -2378,6 +3065,7 @@ export function HabitEditSheet({
       time_of_day: timeOfDay,
       frequency,
       motivation: motivation.trim() || undefined,
+      goal_id: goalId || null,
     })
   }
 
@@ -2412,6 +3100,26 @@ export function HabitEditSheet({
             </select>
           )}
         </Field>
+
+        {goals && goals.length > 0 && (
+          <Field label={tx('Байланысты мақсат')}>
+            {(id) => (
+              <select
+                id={id}
+                value={goalId}
+                onChange={(e) => setGoalId(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">{tx('Байланыссыз (жеке әдет)')}</option>
+                {goals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    🎯 {g.title}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
 
         <Field label={tx('Мақсатты мөлшер (норма)')} hint={tx('Мысалы: 20 бет, 30 мин, 5 есеп')}>
           {(id, desc) => (
@@ -2468,6 +3176,161 @@ export function HabitEditSheet({
             />
           )}
         </Field>
+
+        <div className="flex gap-2 pt-2">
+          <Button block onClick={handleSave}>
+            {tx('Сақтау')}
+          </Button>
+          <Button block kind="secondary" onClick={onClose}>
+            {tx('Бас тарту')}
+          </Button>
+        </div>
+      </div>
+    </Sheet>
+  )
+}
+
+/* ==========================================================================
+   Тапсырманы өңдеу парағы (TaskEditSheet)
+   ========================================================================== */
+
+export function TaskEditSheet({
+  task,
+  goals,
+  onClose,
+  onSave,
+}: {
+  task: RoadmapTask
+  goals?: RoadmapGoal[]
+  onClose: () => void
+  onSave: (task: RoadmapTask) => void
+}) {
+  const [title, setTitle] = useState(task.title)
+  const [category, setCategory] = useState<PlanCategory>(task.category)
+  const [priority, setPriority] = useState<'high' | 'normal'>(task.priority === 'high' ? 'high' : 'normal')
+  const [dueOn, setDueOn] = useState(task.due_on ?? '')
+  const [goalId, setGoalId] = useState(task.goal_id ?? '')
+  const [notes, setNotes] = useState(task.notes ?? '')
+  const [done, setDone] = useState(task.done)
+
+  const handleSave = () => {
+    if (title.trim().length < 2) {
+      toast(tx('Тапсырма атауын енгізіңіз'))
+      return
+    }
+    onSave({
+      ...task,
+      title: title.trim(),
+      category,
+      priority,
+      due_on: dueOn || null,
+      goal_id: goalId || null,
+      notes: notes.trim() || null,
+      done,
+    })
+  }
+
+  return (
+    <Sheet title={tx('Тапсырманы өңдеу')} onClose={onClose}>
+      <div className="grid gap-4">
+        <Field label={tx('Тапсырма атауы')}>
+          {(id) => (
+            <input
+              id={id}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className={inputCls}
+              placeholder={tx('Мысалы: Кітапты кітапханадан алу')}
+            />
+          )}
+        </Field>
+
+        <Field label={tx('Санаты')}>
+          {(id) => (
+            <select
+              id={id}
+              value={category}
+              onChange={(e) => setCategory(e.target.value as PlanCategory)}
+              className={inputCls}
+            >
+              {PLAN_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+
+        {goals && goals.length > 0 && (
+          <Field label={tx('Байланысты мақсат')}>
+            {(id) => (
+              <select
+                id={id}
+                value={goalId}
+                onChange={(e) => setGoalId(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">{tx('Байланыссыз (жеке тапсырма)')}</option>
+                {goals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    🎯 {g.title}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={tx('Маңыздылығы')}>
+            {(id) => (
+              <select
+                id={id}
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as 'high' | 'normal')}
+                className={inputCls}
+              >
+                <option value="normal">{tx('Қалыпты')}</option>
+                <option value="high">⚡ {tx('Жоғары басымдық')}</option>
+              </select>
+            )}
+          </Field>
+          <Field label={tx('Мерзімі')}>
+            {(id) => (
+              <input
+                id={id}
+                type="date"
+                value={dueOn}
+                onChange={(e) => setDueOn(e.target.value)}
+                className={inputCls}
+              />
+            )}
+          </Field>
+        </div>
+
+        <Field label={tx('Жазба / Ескертпе')}>
+          {(id) => (
+            <textarea
+              id={id}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className={inputCls}
+              placeholder={tx('Қосымша мәліметтер, сілтемелер немесе нұсқаулық...')}
+            />
+          )}
+        </Field>
+
+        <label className="flex items-center gap-2 cursor-pointer bg-surface-2 p-3 rounded-lg">
+          <input
+            type="checkbox"
+            checked={done}
+            onChange={(e) => setDone(e.target.checked)}
+            className="size-5 shrink-0 accent-[var(--accent)]"
+          />
+          <span className="text-sm font-semibold">{tx('Тапсырма орындалды деп белгілеу')}</span>
+        </label>
 
         <div className="flex gap-2 pt-2">
           <Button block onClick={handleSave}>
