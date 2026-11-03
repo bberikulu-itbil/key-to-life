@@ -80,6 +80,11 @@ as $$
   )
 $$;
 
+drop policy if exists student_profile_details_read on student_profile_details;
+drop policy if exists student_health_profiles_read on student_health_profiles;
+drop policy if exists student_health_events_read on student_health_events;
+drop policy if exists student_family_contacts_read on student_family_contacts;
+
 create policy student_profile_details_read on student_profile_details
   for select to authenticated
   using (student_id = auth.uid() or student_dossier_staff(student_id));
