@@ -842,9 +842,19 @@ export const classStudentForms = async (studentIds: string[]) => {
   }
   return map
 }
-export const saveMyForm = (student_id: string, answers: Record<string, string>) =>
-  ok(supabase.from('student_forms').upsert({ student_id, answers, updated_at: new Date().toISOString() }))
-export const saveStudentForm = saveMyForm
+export const saveStudentForm = async (student_id: string, answers: Record<string, string>) => {
+  try {
+    await rpc('save_student_form', { p_student_id: student_id, p_answers: answers })
+  } catch (e) {
+    const err = e as { message?: string } | null
+    if (err?.message?.includes('function save_student_form') || err?.message?.includes('42883')) {
+      await ok(supabase.from('student_forms').upsert({ student_id, answers, updated_at: new Date().toISOString() }))
+      return
+    }
+    throw e
+  }
+}
+export const saveMyForm = saveStudentForm
 export const mentorEvery = async (classId: string) =>
   ((await ok(supabase.from('mentor_settings').select('every_days').eq('class_id', classId).maybeSingle())) as { every_days: number } | null)?.every_days ?? 30
 export const setMentorEvery = (class_id: string, every_days: number) => ok(supabase.from('mentor_settings').upsert({ class_id, every_days }))
