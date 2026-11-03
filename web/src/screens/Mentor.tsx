@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
-  mentorAssign, mentorEvery, removeMentorMeeting, saveStudentForm,
+  mentorAssign, mentorEvery, patchStudentForm, removeMentorMeeting,
   saveStudentRoadmap, studentMentor, type MentorMeeting,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
@@ -19,6 +19,7 @@ import Avatar from '../components/Avatar'
 import LocationPicker from '../components/LocationPicker'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { lang, tx } from '../lib/i18n'
+import StudentDossierStructured, { StudentDossierOverview } from '../components/StudentDossierSections'
 
 /* «Анкета және жеке даму жоспары» — 1-on-1 mentor meetings, student questionnaire, and rich roadmap (Goals, Habits, Tasks). */
 
@@ -313,6 +314,7 @@ function StudentDossierView({
   onToggleSidebar?: () => void
   onFormUpdated?: (answers: Record<string, string>) => void
 }) {
+  const { me } = useMe()
   const data = useLoad(async () => Promise.all([studentMentor(student.id), listStaff()]), [student.id])
   const [d, staff] = data.data ?? [null, []]
 
@@ -342,7 +344,7 @@ function StudentDossierView({
     setAnswers(updated)
     setSaving(true)
     try {
-      await saveStudentForm(student.id, updated)
+      await patchStudentForm(student.id, { [key]: val })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
       onFormUpdated?.(updated)
@@ -358,7 +360,7 @@ function StudentDossierView({
     setAnswers(updated)
     setSaving(true)
     try {
-      await saveStudentForm(student.id, updated)
+      await patchStudentForm(student.id, patch)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
       onFormUpdated?.(updated)
@@ -396,11 +398,11 @@ function StudentDossierView({
     .filter(Boolean)
 
   const tabs: { id: DossierTab; label: string; icon: string }[] = [
-    { id: 'info', label: 'Info', icon: 'file' },
-    { id: 'tests', label: 'Personalities test', icon: 'list' },
-    { id: 'plan', label: 'Plan', icon: 'grid' },
-    { id: 'meetings', label: 'Meetings', icon: 'calendar' },
-    { id: 'resources', label: 'Resources', icon: 'book' },
+    { id: 'info', label: tx('Жеке мәліметтер'), icon: 'file' },
+    { id: 'tests', label: tx('Бағыт-бағдар'), icon: 'list' },
+    { id: 'plan', label: tx('Даму жоспары'), icon: 'grid' },
+    { id: 'meetings', label: tx('Кездесулер'), icon: 'calendar' },
+    { id: 'resources', label: tx('Медиатека'), icon: 'book' },
   ]
 
   return (
@@ -582,212 +584,61 @@ function StudentDossierView({
       {/* ====================================================================
           TAB 1: INFO (2-Column Property Grid matching screenshot)
           ==================================================================== */}
+      <StudentDossierOverview
+        student={student}
+        classNameStr={classNameStr}
+        meetings={d.meetings}
+        roadmap={roadmap}
+        profile={d.profileDetails}
+        health={d.health}
+        parentContacts={d.contacts}
+      />
+
+      <StudentDossierOverview
+        student={student}
+        classNameStr={classNameStr}
+        meetings={d.meetings}
+        roadmap={roadmap}
+        profile={d.profileDetails}
+        health={d.health}
+        parentContacts={d.contacts}
+      />
+
       {tab === 'info' && (
         <div className="grid gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Father Name */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Father Name')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
-                <input
-                  type="text"
-                  value={answers.father_name ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, father_name: e.target.value })}
-                  onBlur={(e) => saveField('father_name', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Әкесінің аты-жөні')}
-                />
-              </div>
-            </div>
+          <StudentDossierStructured
+            studentId={student.id}
+            profile={d.profileDetails}
+            health={d.health}
+            healthEvents={d.healthEvents}
+            familyContacts={d.familyContacts}
+            parentContacts={d.contacts}
+            isStudent={me.role === 'student'}
+          />
 
-            {/* Birthday */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Birthday')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="calendar" size={16} className="text-muted" />
-                <input
-                  type="date"
-                  value={answers.birthday ?? ''}
-                  onChange={(e) => {
-                    setAnswers({ ...answers, birthday: e.target.value })
-                    saveField('birthday', e.target.value)
-                  }}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                />
-              </div>
-            </div>
-
-            {/* Adress */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Adress')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="pin" size={16} className="text-muted" />
-                <input
-                  type="text"
-                  value={answers.address ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, address: e.target.value })}
-                  onBlur={(e) => saveField('address', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Қала, көше, үй нөмірі')}
-                />
-              </div>
-            </div>
-
-            {/* Nation */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Nation')}</label>
-              <div className="relative">
-                <select
-                  value={answers.nation ?? 'қазақ'}
-                  onChange={(e) => {
-                    setAnswers({ ...answers, nation: e.target.value })
-                    saveField('nation', e.target.value)
-                  }}
-                  className="w-full appearance-none rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 pr-8 min-h-12 text-sm font-medium border border-transparent focus:border-accent focus:ring-2 focus:ring-accent-soft focus:outline-none text-fg"
-                >
-                  {NATIONS.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <Icon
-                  n="chev"
-                  size={16}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none rotate-90"
-                />
-              </div>
-            </div>
-
-            {/* Document N */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Document N')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="file" size={16} className="text-muted" />
-                <input
-                  type="text"
-                  value={answers.doc_number ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, doc_number: e.target.value })}
-                  onBlur={(e) => saveField('doc_number', e.target.value)}
-                  className="w-full bg-transparent text-sm font-mono focus:outline-none text-fg"
-                  placeholder="N°3805794"
-                />
-              </div>
-            </div>
-
-            {/* JSN */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('JSN')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">#</span>
-                <input
-                  type="text"
-                  maxLength={12}
-                  value={answers.iin ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, iin: e.target.value })}
-                  onBlur={(e) => saveField('iin', e.target.value)}
-                  className="w-full bg-transparent text-sm font-mono focus:outline-none text-fg"
-                  placeholder="140707504592"
-                />
-              </div>
-            </div>
-
-            {/* Hobby */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Hobby')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
-                <input
-                  type="text"
-                  value={answers.hobby ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, hobby: e.target.value })}
-                  onBlur={(e) => saveField('hobby', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Робототехника, кітап, сурет...')}
-                />
-              </div>
-            </div>
-
-            {/* Sport */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Sport')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
-                <input
-                  type="text"
-                  value={answers.sport ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, sport: e.target.value })}
-                  onBlur={(e) => saveField('sport', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Футбол, үстел теннисі, шахмат...')}
-                />
-              </div>
-            </div>
-
-            {/* Mother Name */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Анасының аты-жөні')} (Mother Name)</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
-                <input
-                  type="text"
-                  value={answers.mother_name ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, mother_name: e.target.value })}
-                  onBlur={(e) => saveField('mother_name', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Анасының аты-жөні')}
-                />
-              </div>
-            </div>
-
-            {/* Student Phone */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Телефон (оқушы)')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="phone" size={16} className="text-muted" />
-                <input
-                  type="tel"
-                  value={answers.phone ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, phone: e.target.value })}
-                  onBlur={(e) => saveField('phone', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder="+7 700 000 0000"
-                />
-              </div>
-            </div>
-
-            {/* Father Phone */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Әкесінің тел.')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="phone" size={16} className="text-muted" />
-                <input
-                  type="tel"
-                  value={answers.father_phone ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, father_phone: e.target.value })}
-                  onBlur={(e) => saveField('father_phone', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder="+7 700 000 0000"
-                />
-              </div>
-            </div>
-
-            {/* Mother Phone */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Анасының тел.')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="phone" size={16} className="text-muted" />
-                <input
-                  type="tel"
-                  value={answers.mother_phone ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, mother_phone: e.target.value })}
-                  onBlur={(e) => saveField('mother_phone', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder="+7 700 000 0000"
-                />
-              </div>
-            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className="grid gap-1">
+              <span className="text-xs font-semibold text-muted">{tx('Хобби')}</span>
+              <input
+                type="text"
+                value={answers.hobby ?? ''}
+                onChange={(e) => setAnswers({ ...answers, hobby: e.target.value })}
+                onBlur={(e) => saveField('hobby', e.target.value)}
+                className={inputCls}
+                placeholder={tx('Робототехника, кітап, сурет...')}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs font-semibold text-muted">{tx('Спорт')}</span>
+              <input
+                type="text"
+                value={answers.sport ?? ''}
+                onChange={(e) => setAnswers({ ...answers, sport: e.target.value })}
+                onBlur={(e) => saveField('sport', e.target.value)}
+                className={inputCls}
+                placeholder={tx('Футбол, үстел теннисі, шахмат...')}
+              />
+            </label>
           </div>
 
           {/* Quick Previews of Low Gallup & MBTI (from bottom of screenshot) */}
