@@ -196,6 +196,17 @@ export async function addUser(body: { full_name: string; iin: string; role: Role
   return data as { full_name: string; iin: string; password: string }
 }
 
+export const updateStudentAccount = (body: {
+  student_id: string
+  iin?: string
+  password?: string
+  full_name?: string
+  latin_name?: string | null
+}) => adminUsers<{ ok: boolean; iin?: string; full_name?: string; latin_name?: string | null }>({
+  action: 'update_account',
+  ...body,
+})
+
 /* ---------- booking ---------- */
 export type RoomMode = 'open' | 'request' | 'closed'
 export type RoomAudience = 'all' | 'staff' | 'listed'
@@ -455,9 +466,9 @@ export const tgUnlinkGroup = (activity: string) => rpc('unlink_telegram_group', 
 export const tgSendRollcall = (activity: string, date: string) => tgCall<{ ok: boolean }>({ action: 'rollcall', activity, date })
 
 /* ---------- my class ---------- */
-export type Student = { id: string; full_name: string; olympiad: string | null; club: string | null; parliament: boolean; photo: string | null }
+export type Student = { id: string; full_name: string; latin_name?: string | null; olympiad: string | null; club: string | null; parliament: boolean; photo: string | null }
 export const classStudents = (classId: string) =>
-  ok(supabase.from('profiles').select('id, full_name, olympiad, club, parliament, photo').eq('class_id', classId).eq('role', 'student').is('removed_at', null).order('full_name')) as Promise<Student[]>
+  ok(supabase.from('profiles').select('id, full_name, latin_name, olympiad, club, parliament, photo').eq('class_id', classId).eq('role', 'student').is('removed_at', null).order('full_name')) as Promise<Student[]>
 
 /* ---------- class hub: recipes and class plans ---------- */
 export type ClassResourceKind = 'book' | 'movie' | 'recipe'
@@ -518,8 +529,8 @@ export async function uploadStudentPhoto(studentId: string, file: File) {
 
 export const setClassTeacher = (classId: string, teacher: string | null) => rpc('set_class_teacher', { p_class: classId, p_teacher: teacher })
 export const updateStaff = (id: string, fullName: string, title: string) => rpc('update_staff', { p_user: id, p_full_name: fullName, p_title: title })
-export const updateStudent = (id: string, v: { full_name: string; olympiad: string; club: string }) =>
-  rpc('update_student', { p_student: id, p_full_name: v.full_name, p_olympiad: v.olympiad, p_club: v.club })
+export const updateStudent = (id: string, v: { full_name: string; olympiad?: string | null; club?: string | null; latin_name?: string | null }) =>
+  rpc('update_student', { p_student: id, p_full_name: v.full_name, p_olympiad: v.olympiad ?? null, p_club: v.club ?? null, p_latin_name: v.latin_name ?? null })
 
 type SessionRow = { activity_id: string; on_date: string; start_time: string; end_time: string; note: string | null; type_id: string | null; series_id?: string | null }
 // a date already holding a session at that start time is skipped, not an error
@@ -920,7 +931,7 @@ export const studentMentor = async (id: string) => {
     })
 
   const [student, meetings, tests, notes, contacts, form, items, roadmap] = await Promise.all([
-    ok(supabase.from('profiles').select('id, full_name, photo, class_id, olympiad, club').eq('id', id).single()) as Promise<{ id: string; full_name: string; photo: string | null; class_id: string; olympiad: string | null; club: string | null }>,
+    ok(supabase.from('profiles').select('id, full_name, latin_name, photo, class_id, olympiad, club').eq('id', id).single()) as Promise<{ id: string; full_name: string; latin_name: string | null; photo: string | null; class_id: string; olympiad: string | null; club: string | null }>,
     meetingsPromise as Promise<MentorMeeting[]>,
     rpc<{ type: 'mbti' | 'mi' | 'holland'; answers: number[]; answered_at: string }[]>('student_tests', { p_student: id }).catch(() => []),
     (ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at, tags, urgent, photo').contains('student_ids', [id]).order('created_at', { ascending: false })) as Promise<CouncilNote[]>).catch(() => []),

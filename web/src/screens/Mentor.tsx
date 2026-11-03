@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   addMedia, addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting,
   listClasses, listClassResources, listStaff, mentorAssign, mentorEvery, photoUrl, rateMedia, removeMentorMeeting, saveStudentForm,
-  saveStudentRoadmap, seedDemoClass, setMediaProgress, staffClasses, studentMentor, supabase, uploadPhoto,
+  saveStudentRoadmap, seedDemoClass, setMediaProgress, staffClasses, studentMentor, supabase, updateStudentAccount, uploadPhoto,
   type Media, type MediaProgressState, type MentorMeeting,
 } from '../lib/api'
+import { toLatin, makeEasyPassword } from '../lib/translit'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
 import { RIASEC, hollandScore } from '../lib/holland'
@@ -20,6 +21,18 @@ import Avatar from '../components/Avatar'
 import LocationPicker from '../components/LocationPicker'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { lang, tx } from '../lib/i18n'
+
+const BLOOD_TYPES = [
+  'I (0) Rh+',
+  'I (0) Rh-',
+  'II (A) Rh+',
+  'II (A) Rh-',
+  'III (B) Rh+',
+  'III (B) Rh-',
+  'IV (AB) Rh+',
+  'IV (AB) Rh-',
+  'Белгісіз',
+]
 
 /* «Анкета және жеке даму жоспары» — 1-on-1 mentor meetings, student questionnaire, and rich roadmap (Goals, Habits, Tasks). */
 
@@ -363,7 +376,7 @@ function StudentDossierView({
   onToggleSidebar,
   onFormUpdated,
 }: {
-  student: { id: string; full_name: string; photo: string | null; class_id?: string; olympiad?: string | null; club?: string | null }
+  student: { id: string; full_name: string; latin_name?: string | null; photo: string | null; class_id?: string; olympiad?: string | null; club?: string | null }
   allStudents?: { id: string; full_name: string }[]
   onSelectStudent?: (id: string) => void
   classId?: string
@@ -382,12 +395,16 @@ function StudentDossierView({
   const prevStudent = allStudents && currentIndex > 0 ? allStudents[currentIndex - 1] : null
   const nextStudent = allStudents && currentIndex >= 0 && currentIndex < allStudents.length - 1 ? allStudents[currentIndex + 1] : null
 
+  const currentFullName = d?.student?.full_name || student.full_name
+  const currentLatinName = d?.student?.latin_name ?? student.latin_name ?? null
+
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [roadmap, setRoadmap] = useState<StudentRoadmap>({ goals: [], habits: [], tasks: [] })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)
   const [dotsMenuOpen, setDotsMenuOpen] = useState(false)
+  const [accountModalOpen, setAccountModalOpen] = useState(false)
   const [gallupPicker, setGallupPicker] = useState<'top' | 'low' | null>(null)
   const [addPlan, setAddPlan] = useState(false)
   const [addMeeting, setAddMeeting] = useState(false)
@@ -613,6 +630,17 @@ function StudentDossierView({
                   <Icon n="plus" size={15} />
                   {tx('Жоспар құру')}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDotsMenuOpen(false)
+                    setAccountModalOpen(true)
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
+                >
+                  <Icon n="key" size={15} />
+                  {tx('Аккаунт мәліметтері')}
+                </button>
                 {classId && (
                   <button
                     type="button"
@@ -647,15 +675,26 @@ function StudentDossierView({
       {/* Student Name Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <Avatar name={student.full_name} photo={student.photo} size={48} />
+          <Avatar name={currentFullName} photo={student.photo} size={48} />
           <div>
-            <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight text-fg">
-              {student.full_name}
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight text-fg">
+                {currentFullName}
+              </h1>
+              {currentLatinName && (
+                <span
+                  className="text-xs font-semibold px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-3 text-muted border border-line"
+                  title={tx('Латын түріндегі аты-жөні')}
+                >
+                  {currentLatinName}
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted">
               {classNameStr && <span className="font-semibold text-accent">{classNameStr}</span>}
               {student.olympiad && <span>· 🏆 {student.olympiad}</span>}
               {student.club && <span>· 🎭 {student.club}</span>}
+              {answers.iin && <span className="font-mono text-muted">· #{answers.iin}</span>}
               {saving && (
                 <span className="text-muted italic animate-pulse">
                   {tx('Сақталуда...')}
@@ -669,6 +708,19 @@ function StudentDossierView({
             </div>
           </div>
         </div>
+
+        {/* Right buttons in header */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setAccountModalOpen(true)}
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold bg-surface-2 hover:bg-surface-3 text-fg border border-line transition shadow-xs"
+            title={tx('Аккаунт мәліметтерін өзгерту (ЖСН, құпия сөз, аты-жөні)')}
+          >
+            <Icon n="key" size={14} className="text-accent" />
+            <span>{tx('Аккаунт')}</span>
+          </button>
+        </div>
       </div>
 
       {/* ====================================================================
@@ -676,208 +728,446 @@ function StudentDossierView({
           ==================================================================== */}
       {tab === 'info' && (
         <div className="grid gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Father Name */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Әкесінің аты-жөні')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
-                <input
-                  type="text"
-                  value={answers.father_name ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, father_name: e.target.value })}
-                  onBlur={(e) => saveField('father_name', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Әкесінің аты-жөні')}
-                />
+          {/* ================================================================
+              БӨЛІМ 1: ЖЕКЕ МӘЛІМЕТТЕР
+              ================================================================ */}
+          <div className="rounded-xl border border-line bg-surface p-4 lg:p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-line">
+              <span className="text-base font-bold text-fg">👤 {tx('Жеке мәліметтер')}</span>
+              <button
+                type="button"
+                onClick={() => setAccountModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold text-accent hover:bg-accent-soft transition"
+              >
+                <Icon n="key" size={13} />
+                <span>{tx('Аккаунтты өңдеу')}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Birthday */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Туған күні')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <Icon n="calendar" size={16} className="text-muted" />
+                  <input
+                    type="date"
+                    value={answers.birthday ?? ''}
+                    onChange={(e) => {
+                      setAnswers({ ...answers, birthday: e.target.value })
+                      saveField('birthday', e.target.value)
+                    }}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                  />
+                </div>
+              </div>
+
+              {/* Birthplace */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Туған жері')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <Icon n="pin" size={16} className="text-muted" />
+                  <input
+                    type="text"
+                    value={answers.birthplace ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, birthplace: e.target.value })}
+                    onBlur={(e) => saveField('birthplace', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Қостанай қ., Арқалық қ. ...')}
+                  />
+                </div>
+              </div>
+
+              {/* Nation */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Ұлты')}</label>
+                <div className="relative">
+                  <select
+                    value={answers.nation ?? tx('қазақ')}
+                    onChange={(e) => {
+                      setAnswers({ ...answers, nation: e.target.value })
+                      saveField('nation', e.target.value)
+                    }}
+                    className="w-full appearance-none rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 pr-8 min-h-12 text-sm font-medium border border-transparent focus:border-accent focus:ring-2 focus:ring-accent-soft focus:outline-none text-fg"
+                  >
+                    {NATIONS.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  <Icon
+                    n="chev"
+                    size={16}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none rotate-90"
+                  />
+                </div>
+              </div>
+
+              {/* Ru */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Руы (Жеті атасы)')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.ru ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, ru: e.target.value })}
+                    onBlur={(e) => saveField('ru', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Арғын, Қыпшақ, Найман...')}
+                  />
+                </div>
+              </div>
+
+              {/* Document N */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Құжат нөмірі')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <Icon n="file" size={16} className="text-muted" />
+                  <input
+                    type="text"
+                    value={answers.doc_number ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, doc_number: e.target.value })}
+                    onBlur={(e) => saveField('doc_number', e.target.value)}
+                    className="w-full bg-transparent text-sm font-mono focus:outline-none text-fg"
+                    placeholder="N°3805794"
+                  />
+                </div>
+              </div>
+
+              {/* JSN */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('ЖСН')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">#</span>
+                  <input
+                    type="text"
+                    maxLength={12}
+                    value={answers.iin ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, iin: e.target.value })}
+                    onBlur={(e) => saveField('iin', e.target.value)}
+                    className="w-full bg-transparent text-sm font-mono focus:outline-none text-fg"
+                    placeholder="140707504592"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAccountModalOpen(true)}
+                    className="shrink-0 p-1 text-muted hover:text-accent transition"
+                    title={tx('Аккаунтты өңдеу')}
+                  >
+                    <Icon n="key" size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Address */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Мекенжайы')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <Icon n="pin" size={16} className="text-muted" />
+                  <input
+                    type="text"
+                    value={answers.address ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, address: e.target.value })}
+                    onBlur={(e) => saveField('address', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Қала, көше, үй нөмірі')}
+                  />
+                </div>
+              </div>
+
+              {/* Student Phone */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Оқушының телефоны')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <Icon n="phone" size={16} className="text-muted" />
+                  <input
+                    type="tel"
+                    value={answers.phone ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, phone: e.target.value })}
+                    onBlur={(e) => saveField('phone', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder="+7 700 000 0000"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ================================================================
+              БӨЛІМ 2: ОТБАСЫ МӘЛІМЕТТЕРІ (ОРТАДА БӨЛІП ТҰРАТЫН ЕРЕКШЕ БЛОК)
+              ================================================================ */}
+          <div className="rounded-xl border border-line bg-surface-2/60 dark:bg-surface-2/30 p-4 lg:p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-line">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-base font-bold text-fg">👨‍👩‍👧‍👦 {tx('Отбасы мәліметтері')}</span>
+                <span className="text-xs text-muted font-normal">
+                  ({tx('Ата-анасының байланыс ақпараты мен жұмыс орны')})
+                </span>
               </div>
             </div>
 
-            {/* Birthday */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Туған күні')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="calendar" size={16} className="text-muted" />
-                <input
-                  type="date"
-                  value={answers.birthday ?? ''}
-                  onChange={(e) => {
-                    setAnswers({ ...answers, birthday: e.target.value })
-                    saveField('birthday', e.target.value)
-                  }}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Father Name */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Әкесінің аты-жөні')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface dark:bg-surface-3 px-3.5 min-h-12 border border-line/50 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.father_name ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, father_name: e.target.value })}
+                    onBlur={(e) => saveField('father_name', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Әкесінің аты-жөні')}
+                  />
+                </div>
+              </div>
+
+              {/* Father Phone */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Әкесінің телефоны')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface dark:bg-surface-3 px-3.5 min-h-12 border border-line/50 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <Icon n="phone" size={16} className="text-muted" />
+                  <input
+                    type="tel"
+                    value={answers.father_phone ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, father_phone: e.target.value })}
+                    onBlur={(e) => saveField('father_phone', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder="+7 700 000 0000"
+                  />
+                </div>
+              </div>
+
+              {/* Father Job */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Әкесінің жұмыс орны / қызметі')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface dark:bg-surface-3 px-3.5 min-h-12 border border-line/50 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.father_job ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, father_job: e.target.value })}
+                    onBlur={(e) => saveField('father_job', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Мекеме, мамандығы, лауазымы')}
+                  />
+                </div>
+              </div>
+
+              {/* Mother Name */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Анасының аты-жөні')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface dark:bg-surface-3 px-3.5 min-h-12 border border-line/50 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.mother_name ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, mother_name: e.target.value })}
+                    onBlur={(e) => saveField('mother_name', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Анасының аты-жөні')}
+                  />
+                </div>
+              </div>
+
+              {/* Mother Phone */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Анасының телефоны')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface dark:bg-surface-3 px-3.5 min-h-12 border border-line/50 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <Icon n="phone" size={16} className="text-muted" />
+                  <input
+                    type="tel"
+                    value={answers.mother_phone ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, mother_phone: e.target.value })}
+                    onBlur={(e) => saveField('mother_phone', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder="+7 700 000 0000"
+                  />
+                </div>
+              </div>
+
+              {/* Mother Job */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Анасының жұмыс орны / қызметі')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface dark:bg-surface-3 px-3.5 min-h-12 border border-line/50 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.mother_job ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, mother_job: e.target.value })}
+                    onBlur={(e) => saveField('mother_job', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Мекеме, мамандығы, лауазымы')}
+                  />
+                </div>
+              </div>
+
+              {/* Family Notes / Children */}
+              <div className="grid gap-1 md:col-span-2">
+                <label className="text-xs font-semibold text-muted">{tx('Отбасы туралы қосымша мәлімет')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface dark:bg-surface-3 px-3.5 min-h-12 border border-line/50 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.family_notes ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, family_notes: e.target.value })}
+                    onBlur={(e) => saveField('family_notes', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Отбасындағы бала саны (үлкені/ортаншысы/кенжесі), ерекше жағдайлар...')}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ================================================================
+              БӨЛІМ 3: ДЕНСАУЛЫҚ ЖӘНЕ МЕДИЦИНАЛЫҚ АҚПАРАТ
+              ================================================================ */}
+          <div className="rounded-xl border border-line bg-surface p-4 lg:p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-line">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-base font-bold text-fg">🩺 {tx('Денсаулық жағдайы')}</span>
+                <span className="text-xs text-muted font-normal">
+                  ({tx('Аллергиялар, фобиялар, созылмалы аурулар мен дәрігерлік есеп')})
+                </span>
               </div>
             </div>
 
-            {/* Adress */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Мекенжайы')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="pin" size={16} className="text-muted" />
-                <input
-                  type="text"
-                  value={answers.address ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, address: e.target.value })}
-                  onBlur={(e) => saveField('address', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Қала, көше, үй нөмірі')}
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Blood Type */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Қан тобы және резус-фактор')}</label>
+                <div className="relative">
+                  <select
+                    value={answers.blood_type ?? 'Белгісіз'}
+                    onChange={(e) => {
+                      setAnswers({ ...answers, blood_type: e.target.value })
+                      saveField('blood_type', e.target.value)
+                    }}
+                    className="w-full appearance-none rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 pr-8 min-h-12 text-sm font-medium border border-transparent focus:border-accent focus:ring-2 focus:ring-accent-soft focus:outline-none text-fg"
+                  >
+                    {BLOOD_TYPES.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                  <Icon
+                    n="chev"
+                    size={16}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none rotate-90"
+                  />
+                </div>
+              </div>
+
+              {/* Allergies */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Аллергиясы')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.allergies ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, allergies: e.target.value })}
+                    onBlur={(e) => saveField('allergies', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Тағам, дәрі-дәрмек, маусымдық поллиноз (немесе «Жоқ»)')}
+                  />
+                </div>
+              </div>
+
+              {/* Phobias */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Фобиясы мен қорқыныштары')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.phobias ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, phobias: e.target.value })}
+                    onBlur={(e) => saveField('phobias', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Биіктік, қараңғылық, жабық кеңістік (немесе «Жоқ»)')}
+                  />
+                </div>
+              </div>
+
+              {/* Chronic Diseases */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Созылмалы аурулары')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.chronic_diseases ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, chronic_diseases: e.target.value })}
+                    onBlur={(e) => saveField('chronic_diseases', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Созылмалы ауруы, диагнозы (немесе «Жоқ»)')}
+                  />
+                </div>
+              </div>
+
+              {/* Medical Dispensary */}
+              <div className="grid gap-1 md:col-span-2">
+                <label className="text-xs font-semibold text-muted">{tx('Диспансерлік есеп / Медициналық бақылау')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.medical_dispensary ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, medical_dispensary: e.target.value })}
+                    onBlur={(e) => saveField('medical_dispensary', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Дәрігерлік есеп, арнайы топ, қадағалау (немесе «Жоқ»)')}
+                  />
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* Nation */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Ұлты')}</label>
-              <div className="relative">
-                <select
-                  value={answers.nation ?? tx('қазақ')}
-                  onChange={(e) => {
-                    setAnswers({ ...answers, nation: e.target.value })
-                    saveField('nation', e.target.value)
-                  }}
-                  className="w-full appearance-none rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 pr-8 min-h-12 text-sm font-medium border border-transparent focus:border-accent focus:ring-2 focus:ring-accent-soft focus:outline-none text-fg"
-                >
-                  {NATIONS.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <Icon
-                  n="chev"
-                  size={16}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none rotate-90"
-                />
-              </div>
+          {/* ================================================================
+              БӨЛІМ 4: ҚЫЗЫҒУШЫЛЫҚТАР МЕН ДАҒДЫЛАР
+              ================================================================ */}
+          <div className="rounded-xl border border-line bg-surface p-4 lg:p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-line">
+              <span className="text-base font-bold text-fg">🎯 {tx('Қызығушылықтары мен қабілеттері')}</span>
             </div>
 
-            {/* Document N */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Құжат нөмірі')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="file" size={16} className="text-muted" />
-                <input
-                  type="text"
-                  value={answers.doc_number ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, doc_number: e.target.value })}
-                  onBlur={(e) => saveField('doc_number', e.target.value)}
-                  className="w-full bg-transparent text-sm font-mono focus:outline-none text-fg"
-                  placeholder="N°3805794"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Hobby */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Хобби')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.hobby ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, hobby: e.target.value })}
+                    onBlur={(e) => saveField('hobby', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Робототехника, кітап, сурет...')}
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* JSN */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('ЖСН')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">#</span>
-                <input
-                  type="text"
-                  maxLength={12}
-                  value={answers.iin ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, iin: e.target.value })}
-                  onBlur={(e) => saveField('iin', e.target.value)}
-                  className="w-full bg-transparent text-sm font-mono focus:outline-none text-fg"
-                  placeholder="140707504592"
-                />
-              </div>
-            </div>
-
-            {/* Hobby */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Хобби')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
-                <input
-                  type="text"
-                  value={answers.hobby ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, hobby: e.target.value })}
-                  onBlur={(e) => saveField('hobby', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Робототехника, кітап, сурет...')}
-                />
-              </div>
-            </div>
-
-            {/* Sport */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Спорт')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
-                <input
-                  type="text"
-                  value={answers.sport ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, sport: e.target.value })}
-                  onBlur={(e) => saveField('sport', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Футбол, үстел теннисі, шахмат...')}
-                />
-              </div>
-            </div>
-
-            {/* Mother Name */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Анасының аты-жөні')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <span className="text-xs font-mono font-bold text-muted select-none">T</span>
-                <input
-                  type="text"
-                  value={answers.mother_name ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, mother_name: e.target.value })}
-                  onBlur={(e) => saveField('mother_name', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder={tx('Анасының аты-жөні')}
-                />
-              </div>
-            </div>
-
-            {/* Student Phone */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Оқушының телефоны')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="phone" size={16} className="text-muted" />
-                <input
-                  type="tel"
-                  value={answers.phone ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, phone: e.target.value })}
-                  onBlur={(e) => saveField('phone', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder="+7 700 000 0000"
-                />
-              </div>
-            </div>
-
-            {/* Father Phone */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Әкесінің телефоны')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="phone" size={16} className="text-muted" />
-                <input
-                  type="tel"
-                  value={answers.father_phone ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, father_phone: e.target.value })}
-                  onBlur={(e) => saveField('father_phone', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder="+7 700 000 0000"
-                />
-              </div>
-            </div>
-
-            {/* Mother Phone */}
-            <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Анасының телефоны')}</label>
-              <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
-                <Icon n="phone" size={16} className="text-muted" />
-                <input
-                  type="tel"
-                  value={answers.mother_phone ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, mother_phone: e.target.value })}
-                  onBlur={(e) => saveField('mother_phone', e.target.value)}
-                  className="w-full bg-transparent text-sm focus:outline-none text-fg"
-                  placeholder="+7 700 000 0000"
-                />
+              {/* Sport */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-muted">{tx('Спорт')}</label>
+                <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+                  <span className="text-xs font-mono font-bold text-muted select-none">T</span>
+                  <input
+                    type="text"
+                    value={answers.sport ?? ''}
+                    onChange={(e) => setAnswers({ ...answers, sport: e.target.value })}
+                    onBlur={(e) => saveField('sport', e.target.value)}
+                    className="w-full bg-transparent text-sm focus:outline-none text-fg"
+                    placeholder={tx('Футбол, үстел теннисі, шахмат...')}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1356,7 +1646,222 @@ function StudentDossierView({
           }}
         />
       )}
+
+      {/* Account Edit Sheet */}
+      {accountModalOpen && (
+        <AccountEditSheet
+          onClose={() => setAccountModalOpen(false)}
+          student={{
+            id: student.id,
+            full_name: currentFullName,
+            latin_name: currentLatinName,
+          }}
+          currentIin={answers.iin}
+          onSaved={(res) => {
+            if (res.iin) {
+              setAnswers((prev) => ({ ...prev, iin: res.iin! }))
+            }
+            data.reload()
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+/* ==========================================================================
+   Аккаунт мәліметтерін өзгерту (ЖСН, құпия сөз, аты, латынша аты)
+   ========================================================================== */
+
+function AccountEditSheet({
+  onClose,
+  student,
+  currentIin,
+  onSaved,
+}: {
+  onClose: () => void
+  student: { id: string; full_name: string; latin_name?: string | null }
+  currentIin?: string
+  onSaved: (res: { full_name?: string; latin_name?: string | null; iin?: string }) => void
+}) {
+  const [fullName, setFullName] = useState(student.full_name)
+  const [latinName, setLatinName] = useState(student.latin_name ?? '')
+  const [iin, setIin] = useState(currentIin ?? '')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleTranslit = () => {
+    if (fullName) {
+      setLatinName(toLatin(fullName))
+    }
+  }
+
+  const handleGeneratePassword = () => {
+    const p = makeEasyPassword()
+    setPassword(p)
+    setShowPassword(true)
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    const fn = fullName.trim()
+    if (fn.length < 2) {
+      setError(tx('Аты-жөнін толық жазыңыз'))
+      return
+    }
+    const cleanIin = iin.trim()
+    if (cleanIin && !/^\d{12}$/.test(cleanIin)) {
+      setError(tx('ЖСН 12 саннан тұруы керек'))
+      return
+    }
+    const cleanPass = password.trim()
+    if (cleanPass && cleanPass.length < 6) {
+      setError(tx('Құпия сөз кемінде 6 таңбадан тұруы керек'))
+      return
+    }
+
+    setSaving(true)
+    try {
+      await updateStudentAccount({
+        student_id: student.id,
+        full_name: fn,
+        latin_name: latinName.trim() || null,
+        iin: cleanIin || undefined,
+        password: cleanPass || undefined,
+      })
+      toast(tx('Аккаунт мәліметтері сәтті сақталды'))
+      onSaved({
+        full_name: fn,
+        latin_name: latinName.trim() || null,
+        iin: cleanIin || undefined,
+      })
+      onClose()
+    } catch (err) {
+      setError(errText(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet onClose={onClose} title={tx('Аккаунт мәліметтерін өзгерту')}>
+      <form onSubmit={handleSave} className="grid gap-4 p-4">
+        {error && (
+          <div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-danger text-sm font-medium">
+            {error}
+          </div>
+        )}
+
+        {/* Full Name in Cyrillic */}
+        <div className="grid gap-1.5">
+          <label className="text-xs font-semibold text-muted">
+            {tx('Аты-жөні (ресми/кириллше)')} <span className="text-danger">*</span>
+          </label>
+          <input
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            className={inputCls}
+            placeholder={tx('Амангелді Санжар')}
+            required
+          />
+        </div>
+
+        {/* Latin Name */}
+        <div className="grid gap-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-muted">
+              {tx('Латын түріндегі аты-жөні')}
+            </label>
+            <button
+              type="button"
+              onClick={handleTranslit}
+              className="text-xs text-accent hover:underline font-semibold"
+            >
+              ⚡ {tx('Авто-транслитерация')}
+            </button>
+          </div>
+          <input
+            type="text"
+            value={latinName}
+            onChange={(e) => setLatinName(e.target.value)}
+            className={inputCls}
+            placeholder="Amangeldi Sanzhar"
+          />
+          <span className="text-[11px] text-muted">
+            {tx('Олимпиадалар, сертификаттар мен халықаралық емтихандар үшін')}
+          </span>
+        </div>
+
+        {/* IIN */}
+        <div className="grid gap-1.5">
+          <label className="text-xs font-semibold text-muted">
+            {tx('ЖСН (жүйеге кіру логині)')}
+          </label>
+          <input
+            type="text"
+            maxLength={12}
+            value={iin}
+            onChange={(e) => setIin(e.target.value.replace(/\D/g, ''))}
+            className={`${inputCls} font-mono`}
+            placeholder="110412501234"
+          />
+          <span className="text-[11px] text-muted font-mono">
+            {tx('12 сан. Пошта: {0}@users.lyceum-life.app', iin || '123456789012')}
+          </span>
+        </div>
+
+        {/* Password */}
+        <div className="grid gap-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-muted">
+              {tx('Жаңа құпия сөз')}
+            </label>
+            <button
+              type="button"
+              onClick={handleGeneratePassword}
+              className="text-xs text-accent hover:underline font-semibold"
+            >
+              🎲 {tx('Оңай сөз құру')}
+            </button>
+          </div>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={`${inputCls} pr-16`}
+              placeholder={tx('Өзгертпеу үшін бос қалдырыңыз')}
+            />
+            {password && (
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted hover:text-fg font-medium"
+              >
+                {showPassword ? tx('Жасыру') : tx('Көрсету')}
+              </button>
+            )}
+          </div>
+          <span className="text-[11px] text-muted">
+            {tx('Кемінде 6 таңба. Өзгертпей қалдыру үшін бос жіберіңіз.')}
+          </span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-2 justify-end border-t border-line mt-2">
+          <Button kind="secondary" type="button" onClick={onClose} disabled={saving}>
+            {tx('Бас тарту')}
+          </Button>
+          <Button kind="primary" type="submit" loading={saving}>
+            {tx('Сақтау')}
+          </Button>
+        </div>
+      </form>
+    </Sheet>
   )
 }
 

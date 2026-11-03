@@ -154,6 +154,82 @@ async function register(b: Record<string, string>) {
   return json({ ok: true });
 }
 
+async function updateAccount(req: Request, body: Record<string, string>) {
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+  const { data: who } = await admin.auth.getUser(token);
+  if (!who.user) return json({ error: "Кіру қажет" }, 401);
+  const { data: me } = await admin.from("profiles").select("*").eq("id", who.user.id).single();
+  if (!me) return json({ error: "Пайдаланушы табылмады" }, 404);
+
+  const studentId = String(body.student_id ?? "").trim();
+  if (!studentId) return json({ error: "Оқушы ID көрсетілмеген" }, 400);
+
+  const { data: student, error: se } = await admin
+    .from("profiles")
+    .select("id, school_id, role, full_name, class_id, classes(id, name, teacher_id, tutor_id)")
+    .eq("id", studentId)
+    .single();
+  if (se || !student) return json({ error: "Оқушы табылмады" }, 404);
+
+  const isDeputy = me.role === "deputy" || me.role === "admin";
+  const cls = (student as unknown as { classes?: { id: string; name: string; teacher_id: string | null; tutor_id: string | null } }).classes;
+  const isDemoClass = Boolean(cls?.name && (cls.name.toLowerCase().includes("демо") || cls.name.toLowerCase().includes("demo")));
+  const isClassCouncil = isDeputy || Boolean(cls && (cls.teacher_id === me.id || cls.tutor_id === me.id)) || (isDemoClass && me.role !== "student");
+
+  if (!isClassCouncil && me.id !== studentId) {
+    return json({ error: "Оқушы аккаунтын өзгертуге құқығыңыз жоқ" }, 403);
+  }
+
+  let newIin: string | undefined = undefined;
+  if (body.iin !== undefined && body.iin !== null && String(body.iin).trim() !== "") {
+    const iin = String(body.iin).trim();
+    if (!/^\d{12}$/.test(iin)) return json({ error: "ЖСН 12 саннан тұруы керек" }, 400);
+    newIin = iin;
+    const newEmail = emailFor(iin);
+    const { error: ue } = await admin.auth.admin.updateUserById(studentId, {
+      email: newEmail,
+      email_confirm: true,
+    });
+    if (ue) {
+      return json({ error: ue.message.includes("already") ? "Бұл ЖСН-мен пайдаланушы бар" : ue.message }, 400);
+    }
+    const { data: sf } = await admin.from("student_forms").select("answers").eq("student_id", studentId).maybeSingle();
+    if (sf && sf.answers) {
+      await admin.from("student_forms").update({
+        answers: { ...sf.answers, iin }
+      }).eq("student_id", studentId);
+    }
+  }
+
+  if (body.password !== undefined && body.password !== null && String(body.password).trim() !== "") {
+    const password = String(body.password).trim();
+    if (password.length < 6 || password.length > 72) {
+      return json({ error: "Құпия сөз кемінде 6 таңба" }, 400);
+    }
+    const { error: pe } = await admin.auth.admin.updateUserById(studentId, { password });
+    if (pe) return json({ error: pe.message }, 400);
+  }
+
+  const profileUpdates: Record<string, string | null> = {};
+  if (body.full_name !== undefined && body.full_name !== null) {
+    const name = String(body.full_name).trim();
+    if (name.length < 2 || name.length > 120) {
+      return json({ error: "Аты-жөнін толық жазыңыз" }, 400);
+    }
+    profileUpdates.full_name = name;
+  }
+  if (body.latin_name !== undefined) {
+    profileUpdates.latin_name = String(body.latin_name ?? "").trim() || null;
+  }
+
+  if (Object.keys(profileUpdates).length > 0) {
+    const { error: proferr } = await admin.from("profiles").update(profileUpdates).eq("id", studentId);
+    if (proferr) return json({ error: proferr.message }, 400);
+  }
+
+  return json({ ok: true, iin: newIin, ...profileUpdates });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -163,5 +239,6 @@ Deno.serve(async (req) => {
   if (body.action === "create") return createByStaff(req, body);
   if (body.action === "schools") return schoolList();
   if (body.action === "register") return register(body);
+  if (body.action === "update_account") return updateAccount(req, body);
   return json({ error: "Белгісіз әрекет" }, 400);
 });
