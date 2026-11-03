@@ -39,12 +39,14 @@ begin
     end if;
   end if;
 
-  -- 4. Student 1: Амангелді Санжар
-  select id into v_s1 from auth.users where email = 'demo_sanzhar@users.lyceum-life.app';
+  -- 4. Student 1: Амангелді Санжар (ЖСН: 110412501234)
+  select id into v_s1 from auth.users where email in ('110412501234@users.lyceum-life.app', 'demo_sanzhar@users.lyceum-life.app') limit 1;
   if v_s1 is null then
     v_s1 := gen_random_uuid();
     insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    values (v_s1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo_sanzhar@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+    values (v_s1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '110412501234@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+  else
+    update auth.users set email = '110412501234@users.lyceum-life.app', encrypted_password = crypt('demo1234', gen_salt('bf')) where id = v_s1;
   end if;
 
   insert into profiles(id, school_id, full_name, role, class_id, title, olympiad, club)
@@ -91,12 +93,14 @@ begin
   on conflict (student_id) do update set goals = excluded.goals, habits = excluded.habits, tasks = excluded.tasks, updated_at = now();
 
 
-  -- 5. Student 2: Серікұлы Нұрислам
-  select id into v_s2 from auth.users where email = 'demo_nurislam@users.lyceum-life.app';
+  -- 5. Student 2: Серікұлы Нұрислам (ЖСН: 110918503456)
+  select id into v_s2 from auth.users where email in ('110918503456@users.lyceum-life.app', 'demo_nurislam@users.lyceum-life.app') limit 1;
   if v_s2 is null then
     v_s2 := gen_random_uuid();
     insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    values (v_s2, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo_nurislam@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+    values (v_s2, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '110918503456@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+  else
+    update auth.users set email = '110918503456@users.lyceum-life.app', encrypted_password = crypt('demo1234', gen_salt('bf')) where id = v_s2;
   end if;
 
   insert into profiles(id, school_id, full_name, role, class_id, title, olympiad, club)
@@ -140,12 +144,14 @@ begin
   on conflict (student_id) do update set goals = excluded.goals, habits = excluded.habits, tasks = excluded.tasks, updated_at = now();
 
 
-  -- 6. Student 3: Болат Аружан
-  select id into v_s3 from auth.users where email = 'demo_aruzhan@users.lyceum-life.app';
+  -- 6. Student 3: Болат Аружан (ЖСН: 111125602341)
+  select id into v_s3 from auth.users where email in ('111125602341@users.lyceum-life.app', 'demo_aruzhan@users.lyceum-life.app') limit 1;
   if v_s3 is null then
     v_s3 := gen_random_uuid();
     insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    values (v_s3, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo_aruzhan@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+    values (v_s3, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '111125602341@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+  else
+    update auth.users set email = '111125602341@users.lyceum-life.app', encrypted_password = crypt('demo1234', gen_salt('bf')) where id = v_s3;
   end if;
 
   insert into profiles(id, school_id, full_name, role, class_id, title, olympiad, club)
@@ -189,12 +195,14 @@ begin
   on conflict (student_id) do update set goals = excluded.goals, habits = excluded.habits, tasks = excluded.tasks, updated_at = now();
 
 
-  -- 7. Student 4: Қасымова Мәдина
-  select id into v_s4 from auth.users where email = 'demo_madina@users.lyceum-life.app';
+  -- 7. Student 4: Қасымова Мәдина (ЖСН: 120214609871)
+  select id into v_s4 from auth.users where email in ('120214609871@users.lyceum-life.app', 'demo_madina@users.lyceum-life.app') limit 1;
   if v_s4 is null then
     v_s4 := gen_random_uuid();
     insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    values (v_s4, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo_madina@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+    values (v_s4, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '120214609871@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+  else
+    update auth.users set email = '120214609871@users.lyceum-life.app', encrypted_password = crypt('demo1234', gen_salt('bf')) where id = v_s4;
   end if;
 
   insert into profiles(id, school_id, full_name, role, class_id, title, olympiad, club)
@@ -231,12 +239,14 @@ begin
   on conflict (student_id) do update set goals = excluded.goals, habits = excluded.habits, tasks = excluded.tasks, updated_at = now();
 
 
-  -- 8. Student 5: Дәулет Әлихан
-  select id into v_s5 from auth.users where email = 'demo_alikhan@users.lyceum-life.app';
+  -- 8. Student 5: Дәулет Әлихан (ЖСН: 110630504123)
+  select id into v_s5 from auth.users where email in ('110630504123@users.lyceum-life.app', 'demo_alikhan@users.lyceum-life.app') limit 1;
   if v_s5 is null then
     v_s5 := gen_random_uuid();
     insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    values (v_s5, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo_alikhan@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+    values (v_s5, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '110630504123@users.lyceum-life.app', crypt('demo1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now());
+  else
+    update auth.users set email = '110630504123@users.lyceum-life.app', encrypted_password = crypt('demo1234', gen_salt('bf')) where id = v_s5;
   end if;
 
   insert into profiles(id, school_id, full_name, role, class_id, title, olympiad, club)
