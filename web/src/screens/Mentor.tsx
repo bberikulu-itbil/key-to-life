@@ -13,7 +13,7 @@ import {
   type RoadmapHabit, type RoadmapTask, type StudentRoadmap,
 } from '../lib/mentor'
 import { GALLUP_DOMAINS, GALLUP_THEMES, findGallup } from '../lib/gallup'
-import { addDays, fmtDate, today } from '../lib/time'
+import { addDays, fmtDate, streak, today } from '../lib/time'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import LocationPicker from '../components/LocationPicker'
@@ -1525,7 +1525,7 @@ function GallupPickerSheet({
    Күрделендірілген Даму Жоспары бөлімі (RoadmapSection)
    ========================================================================== */
 
-function RoadmapSection({
+export function RoadmapSection({
   studentId,
   roadmap,
   onUpdate,
@@ -1539,6 +1539,8 @@ function RoadmapSection({
   const [tab, setTab] = useState<'all' | 'goals' | 'habits' | 'tasks'>('all')
   const [catFilter, setCatFilter] = useState<string>('all')
   const [newStepInputs, setNewStepInputs] = useState<Record<string, string>>({})
+  const [editingGoal, setEditingGoal] = useState<RoadmapGoal | null>(null)
+  const [editingHabit, setEditingHabit] = useState<RoadmapHabit | null>(null)
   const t = today()
 
   const goals = roadmap.goals ?? []
@@ -1596,14 +1598,19 @@ function RoadmapSection({
     }))
   }
 
-  const toggleHabit = (id: string) => {
+  const toggleHabitDate = (id: string, d: string) => {
     update((prev) => ({
       ...prev,
       habits: prev.habits.map((h) => {
         if (h.id !== id) return h
         const checks = new Set(h.checks ?? [])
-        if (checks.has(t)) checks.delete(t)
-        else checks.add(t)
+        const wasDone = checks.has(d)
+        if (wasDone) checks.delete(d)
+        else checks.add(d)
+        if (!wasDone && d === t) {
+          const nextStreak = streak(checks, t)
+          toast(`🔥 ${tx('Тамаша! Стрик: {0} күн!', nextStreak)}`)
+        }
         return { ...h, checks: Array.from(checks) }
       }),
     }))
@@ -1792,14 +1799,26 @@ function RoadmapSection({
                       </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeGoal(g.id, g.title)}
-                    className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger"
-                    aria-label={tx('Өшіру')}
-                  >
-                    <Icon n="x" size={14} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingGoal(g)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg transition"
+                      aria-label={tx('Өңдеу')}
+                      title={tx('Өңдеу')}
+                    >
+                      <Icon n="pencil" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeGoal(g.id, g.title)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger transition"
+                      aria-label={tx('Өшіру')}
+                      title={tx('Өшіру')}
+                    >
+                      <Icon n="x" size={14} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-start gap-2.5">
@@ -1904,6 +1923,7 @@ function RoadmapSection({
             const cat = getCategoryMeta(h.category)
             const checks = new Set(h.checks ?? [])
             const isToday = checks.has(t)
+            const s = streak(checks, t)
             const timeLabel = TIME_OF_DAY_LABELS[h.time_of_day ?? 'any']
             const freqLabel = FREQUENCY_LABELS[h.frequency ?? 'daily']
 
@@ -1918,6 +1938,14 @@ function RoadmapSection({
                       <Icon n={cat.icon} size={12} />
                       {cat.label}
                     </span>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-xs transition ${
+                      s > 0
+                        ? 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30'
+                        : 'bg-surface-2 text-muted'
+                    }`}>
+                      <Icon n="flame" size={12} className={s > 0 ? 'text-orange-500' : 'text-muted'} />
+                      <span>{s > 0 ? tx('{0} күн стрик', s) : tx('Стрик: 0')}</span>
+                    </span>
                     <span className="px-2 py-0.5 rounded-full bg-surface-2 text-muted font-medium text-[11px]">
                       {timeLabel.icon} {timeLabel.label}
                     </span>
@@ -1925,14 +1953,26 @@ function RoadmapSection({
                       {freqLabel}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeHabit(h.id, h.title)}
-                    className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger"
-                    aria-label={tx('Өшіру')}
-                  >
-                    <Icon n="x" size={14} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingHabit(h)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg transition"
+                      aria-label={tx('Өңдеу')}
+                      title={tx('Өңдеу')}
+                    >
+                      <Icon n="pencil" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeHabit(h.id, h.title)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger transition"
+                      aria-label={tx('Өшіру')}
+                      title={tx('Өшіру')}
+                    >
+                      <Icon n="x" size={14} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-baseline justify-between gap-2">
@@ -1952,40 +1992,42 @@ function RoadmapSection({
                   </p>
                 )}
 
-                {/* 7 күндік визуалды трекер */}
+                {/* 7 күндік интерактивті визуалды трекер */}
                 <div className="flex items-center justify-between gap-2 pt-1 border-t border-line/40">
                   <div className="flex items-center gap-1">
                     {last7Days.map((d) => {
                       const done = checks.has(d)
                       const isT = d === t
                       return (
-                        <span
+                        <button
                           key={d}
-                          title={fmtDate(d)}
-                          className={`size-5 rounded-full grid place-items-center text-[10px] font-bold ${
+                          type="button"
+                          onClick={() => toggleHabitDate(h.id, d)}
+                          title={`${fmtDate(d)} — ${done ? tx('Орындалды (басып алып тастау)') : tx('Орындалмаған (белгілеу үшін басыңыз)')}`}
+                          className={`size-6 rounded-full grid place-items-center text-[10px] font-bold transition hover:scale-110 active:scale-95 ${
                             done
-                              ? 'bg-success text-white'
+                              ? 'bg-success text-white shadow-xs'
                               : isT
-                              ? 'border-2 border-accent text-accent'
-                              : 'bg-surface-2 text-muted'
+                              ? 'border-2 border-accent text-accent hover:bg-accent-soft'
+                              : 'bg-surface-2 text-muted hover:bg-surface-3'
                           }`}
                         >
-                          {done ? '✓' : ''}
-                        </span>
+                          {done ? '✓' : isT ? '•' : ''}
+                        </button>
                       )
                     })}
                   </div>
                   <button
                     type="button"
-                    onClick={() => toggleHabit(h.id)}
-                    className={`h-8 px-3 rounded-md text-xs font-semibold flex items-center gap-1 transition ${
+                    onClick={() => toggleHabitDate(h.id, t)}
+                    className={`h-8 px-3 rounded-md text-xs font-semibold flex items-center gap-1.5 transition ${
                       isToday
-                        ? 'bg-success text-white'
+                        ? 'bg-success text-white shadow-xs'
                         : 'bg-accent-soft text-accent hover:bg-accent hover:text-on-accent'
                     }`}
                   >
-                    <Icon n="check" size={14} />
-                    {isToday ? tx('Бүгін жасалды') : tx('Бүгін белгілеу')}
+                    <Icon n={isToday ? 'check' : 'flame'} size={14} />
+                    <span>{isToday ? tx('Бүгін жасалды ✓') : tx('Бүгін белгілеу (+1 🔥)')}</span>
                   </button>
                 </div>
               </div>
@@ -2067,7 +2109,366 @@ function RoadmapSection({
           })}
         </div>
       )}
+      {editingGoal && (
+        <GoalEditSheet
+          goal={editingGoal}
+          onClose={() => setEditingGoal(null)}
+          onSave={(updated) => {
+            update((prev) => ({
+              ...prev,
+              goals: prev.goals.map((g) => (g.id === updated.id ? updated : g)),
+            }))
+            setEditingGoal(null)
+            toast(tx('Мақсат сәтті сақталды'))
+          }}
+        />
+      )}
+
+      {editingHabit && (
+        <HabitEditSheet
+          habit={editingHabit}
+          onClose={() => setEditingHabit(null)}
+          onSave={(updated) => {
+            update((prev) => ({
+              ...prev,
+              habits: prev.habits.map((h) => (h.id === updated.id ? updated : h)),
+            }))
+            setEditingHabit(null)
+            toast(tx('Әдет сәтті сақталды'))
+          }}
+        />
+      )}
     </Card>
+  )
+}
+
+/* ==========================================================================
+   Мақсатты өңдеу парағы (GoalEditSheet)
+   ========================================================================== */
+
+export function GoalEditSheet({
+  goal,
+  onClose,
+  onSave,
+}: {
+  goal: RoadmapGoal
+  onClose: () => void
+  onSave: (goal: RoadmapGoal) => void
+}) {
+  const [title, setTitle] = useState(goal.title)
+  const [category, setCategory] = useState<PlanCategory>(goal.category)
+  const [priority, setPriority] = useState<'high' | 'normal'>(goal.priority === 'high' ? 'high' : 'normal')
+  const [metric, setMetric] = useState(goal.metric ?? '')
+  const [dueOn, setDueOn] = useState(goal.due_on ?? '')
+  const [done, setDone] = useState(goal.done)
+  const [steps, setSteps] = useState<{ id: string; title: string; done: boolean }[]>(goal.steps ?? [])
+  const [newStep, setNewStep] = useState('')
+
+  const handleAddStep = () => {
+    const text = newStep.trim()
+    if (!text) return
+    setSteps([...steps, { id: 's_' + Date.now(), title: text, done: false }])
+    setNewStep('')
+  }
+
+  const handleToggleStep = (stepId: string) => {
+    setSteps(steps.map((s) => (s.id === stepId ? { ...s, done: !s.done } : s)))
+  }
+
+  const handleRemoveStep = (stepId: string) => {
+    setSteps(steps.filter((s) => s.id !== stepId))
+  }
+
+  const handleSave = () => {
+    if (title.trim().length < 2) {
+      toast(tx('Мақсат атауын енгізіңіз'))
+      return
+    }
+    onSave({
+      ...goal,
+      title: title.trim(),
+      category,
+      priority,
+      metric: metric.trim() || undefined,
+      due_on: dueOn || null,
+      done,
+      steps,
+    })
+  }
+
+  return (
+    <Sheet title={tx('Мақсатты өңдеу')} onClose={onClose}>
+      <div className="grid gap-4">
+        <Field label={tx('Мақсат атауы')}>
+          {(id) => (
+            <input
+              id={id}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className={inputCls}
+              placeholder={tx('Мысалы: Олимпиададан 1-орын алу')}
+            />
+          )}
+        </Field>
+
+        <Field label={tx('Санаты')}>
+          {(id) => (
+            <select
+              id={id}
+              value={category}
+              onChange={(e) => setCategory(e.target.value as PlanCategory)}
+              className={inputCls}
+            >
+              {PLAN_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={tx('Маңыздылығы')}>
+            {(id) => (
+              <select
+                id={id}
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as 'high' | 'normal')}
+                className={inputCls}
+              >
+                <option value="normal">{tx('Қалыпты')}</option>
+                <option value="high">⚡ {tx('Жоғары басымдық')}</option>
+              </select>
+            )}
+          </Field>
+          <Field label={tx('Мерзімі')}>
+            {(id) => (
+              <input
+                id={id}
+                type="date"
+                value={dueOn}
+                onChange={(e) => setDueOn(e.target.value)}
+                className={inputCls}
+              />
+            )}
+          </Field>
+        </div>
+
+        <Field label={tx('Нәтиже / Көрсеткіш')} hint={tx('Қалай бағалайсыз?')}>
+          {(id, desc) => (
+            <input
+              id={id}
+              aria-describedby={desc}
+              value={metric}
+              onChange={(e) => setMetric(e.target.value)}
+              className={inputCls}
+              placeholder={tx('Мысалы: 90+ ұпай, B2 деңгейі, 10 кітап')}
+            />
+          )}
+        </Field>
+
+        {/* Қадамдарды басқару */}
+        <div className="grid gap-2">
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted">
+            {tx('Қадамдары / Кезеңдері')} ({steps.length})
+          </label>
+          {steps.map((st) => (
+            <div key={st.id} className="flex items-center gap-2 bg-surface-2 p-2 rounded-lg text-sm">
+              <input
+                type="checkbox"
+                checked={st.done}
+                onChange={() => handleToggleStep(st.id)}
+                className="size-4 shrink-0 accent-[var(--accent)]"
+              />
+              <span className={`flex-1 break-words text-xs ${st.done ? 'line-through text-muted' : ''}`}>
+                {st.title}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleRemoveStep(st.id)}
+                className="size-6 grid place-items-center rounded text-muted hover:text-danger hover:bg-surface-3 transition"
+              >
+                <Icon n="x" size={14} />
+              </button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <input
+              value={newStep}
+              onChange={(e) => setNewStep(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleAddStep()
+                }
+              }}
+              placeholder={tx('+ Жаңа қадам атауы...')}
+              className={`${inputCls} text-xs py-1.5 flex-1 min-w-0`}
+            />
+            <Button kind="secondary" onClick={handleAddStep}>
+              {tx('Қосу')}
+            </Button>
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 cursor-pointer bg-surface-2 p-3 rounded-lg">
+          <input
+            type="checkbox"
+            checked={done}
+            onChange={(e) => setDone(e.target.checked)}
+            className="size-5 shrink-0 accent-[var(--accent)]"
+          />
+          <span className="text-sm font-semibold">{tx('Мақсат толық орындалды деп белгілеу')}</span>
+        </label>
+
+        <div className="flex gap-2 pt-2">
+          <Button block onClick={handleSave}>
+            {tx('Сақтау')}
+          </Button>
+          <Button block kind="secondary" onClick={onClose}>
+            {tx('Бас тарту')}
+          </Button>
+        </div>
+      </div>
+    </Sheet>
+  )
+}
+
+/* ==========================================================================
+   Әдетті өңдеу парағы (HabitEditSheet)
+   ========================================================================== */
+
+export function HabitEditSheet({
+  habit,
+  onClose,
+  onSave,
+}: {
+  habit: RoadmapHabit
+  onClose: () => void
+  onSave: (habit: RoadmapHabit) => void
+}) {
+  const [title, setTitle] = useState(habit.title)
+  const [category, setCategory] = useState<PlanCategory>(habit.category)
+  const [targetVal, setTargetVal] = useState(habit.target_val ?? '')
+  const [timeOfDay, setTimeOfDay] = useState(habit.time_of_day ?? 'any')
+  const [frequency, setFrequency] = useState(habit.frequency ?? 'daily')
+  const [motivation, setMotivation] = useState(habit.motivation ?? '')
+
+  const handleSave = () => {
+    if (title.trim().length < 2) {
+      toast(tx('Әдет атауын енгізіңіз'))
+      return
+    }
+    onSave({
+      ...habit,
+      title: title.trim(),
+      category,
+      target_val: targetVal.trim() || undefined,
+      time_of_day: timeOfDay,
+      frequency,
+      motivation: motivation.trim() || undefined,
+    })
+  }
+
+  return (
+    <Sheet title={tx('Әдетті өңдеу')} onClose={onClose}>
+      <div className="grid gap-4">
+        <Field label={tx('Әдет атауы')}>
+          {(id) => (
+            <input
+              id={id}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className={inputCls}
+              placeholder={tx('Мысалы: Күн сайын 20 бет кітап оқу')}
+            />
+          )}
+        </Field>
+
+        <Field label={tx('Санаты')}>
+          {(id) => (
+            <select
+              id={id}
+              value={category}
+              onChange={(e) => setCategory(e.target.value as PlanCategory)}
+              className={inputCls}
+            >
+              {PLAN_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+
+        <Field label={tx('Мақсатты мөлшер (норма)')} hint={tx('Мысалы: 20 бет, 30 мин, 5 есеп')}>
+          {(id, desc) => (
+            <input
+              id={id}
+              aria-describedby={desc}
+              value={targetVal}
+              onChange={(e) => setTargetVal(e.target.value)}
+              className={inputCls}
+            />
+          )}
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={tx('Күн уақыты')}>
+            {(id) => (
+              <select
+                id={id}
+                value={timeOfDay}
+                onChange={(e) => setTimeOfDay(e.target.value as 'morning' | 'afternoon' | 'evening' | 'any')}
+                className={inputCls}
+              >
+                <option value="any">{tx('Кез келген уақытта')}</option>
+                <option value="morning">{tx('Таңертең')}</option>
+                <option value="afternoon">{tx('Түстен кейін')}</option>
+                <option value="evening">{tx('Кешке')}</option>
+              </select>
+            )}
+          </Field>
+          <Field label={tx('Жиілігі')}>
+            {(id) => (
+              <select
+                id={id}
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value as 'daily' | 'weekdays' | '3x_week')}
+                className={inputCls}
+              >
+                <option value="daily">{tx('Күн сайын')}</option>
+                <option value="weekdays">{tx('Жұмыс күндері')}</option>
+                <option value="3x_week">{tx('Аптасына 3 рет')}</option>
+              </select>
+            )}
+          </Field>
+        </div>
+
+        <Field label={tx('Мотивация («Не үшін керек?»)')}>
+          {(id) => (
+            <input
+              id={id}
+              value={motivation}
+              onChange={(e) => setMotivation(e.target.value)}
+              className={inputCls}
+              placeholder={tx('Мысалы: Ой-өрісті дамытып, сөздік қорды көбейтеді')}
+            />
+          )}
+        </Field>
+
+        <div className="flex gap-2 pt-2">
+          <Button block onClick={handleSave}>
+            {tx('Сақтау')}
+          </Button>
+          <Button block kind="secondary" onClick={onClose}>
+            {tx('Бас тарту')}
+          </Button>
+        </div>
+      </div>
+    </Sheet>
   )
 }
 

@@ -356,6 +356,7 @@ function SideNav({
       {link('/plan', 'clock', tx('Жоспар'), active('/plan'))}
       {link('/chats', 'chat', tx('Чаттар'), active('/chats'), chatBadge)}
       {link('/profile', 'user', tx('Профиль'), active('/profile') && seg !== 'dorm')}
+      {me.role === 'student' && link('/mentor', 'file', tx('Менің анкетам'), seg === 'mentor')}
       {me.role === 'student' && me.class && link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
       {me.role === 'student' && me.class && link('/journal', 'file', tx('Сынып күнтізбесі'), seg === 'journal')}
       {me.role !== 'student' && (

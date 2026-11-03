@@ -445,14 +445,15 @@ export const PLAN_PRESETS: PlanPreset[] = [
 ]
 
 export const calcGoalProgress = (goal: RoadmapGoal, tasks: RoadmapTask[] = []) => {
-  const stepsTotal = goal.steps.length
-  const stepsDone = goal.steps.filter((s) => s.done).length
-  const linkedTasks = tasks.filter((t) => t.goal_id === goal.id)
+  const steps = Array.isArray(goal?.steps) ? goal.steps : []
+  const stepsTotal = steps.length
+  const stepsDone = steps.filter((s) => s.done).length
+  const linkedTasks = (tasks ?? []).filter((t) => t.goal_id === goal?.id)
   const tasksTotal = linkedTasks.length
   const tasksDone = linkedTasks.filter((t) => t.done).length
 
   const allTotal = stepsTotal + tasksTotal
-  if (allTotal === 0) return goal.done ? 100 : 0
+  if (allTotal === 0) return goal?.done ? 100 : 0
   const allDone = stepsDone + tasksDone
   return Math.round((100 * allDone) / allTotal)
 }

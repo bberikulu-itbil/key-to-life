@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Extra, TimeSlot } from './time'
-import { iso } from './time'
+import { addDays, iso, today } from './time'
 import { tx, type Lang } from './i18n'
-import type { RoadmapGoal, RoadmapHabit, RoadmapTask, StudentRoadmap } from './mentor'
+import type { PlanCategory as RoadmapCategory, RoadmapGoal, RoadmapHabit, RoadmapTask, StudentRoadmap } from './mentor'
 
 export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY)
 
@@ -753,16 +753,78 @@ export type MentorMeeting = { id: string; student_id: string; staff_id: string |
 const MM = 'id, student_id, staff_id, starts_at, topic, visible, actions, notes, done_at, place'
 export const classMentorMeetings = (classId: string) =>
   ok(supabase.from('mentor_meetings').select(MM).eq('class_id', classId).order('starts_at', { ascending: false }).limit(500)) as Promise<MentorMeeting[]>
+export const normalizeRoadmapGoal = (g: unknown): RoadmapGoal => {
+  const rec = (typeof g === 'object' && g !== null ? g : {}) as Record<string, unknown>
+  const cat = rec.category === 'education' ? 'study' : ((rec.category as RoadmapCategory) || 'other')
+  return {
+    id: (rec.id as string) || 'g_' + Math.random().toString(36).slice(2, 8),
+    title: (rec.title as string) || '',
+    category: cat,
+    metric: (rec.metric as string) || (rec.target ? `${rec.target}${rec.unit || ''}` : undefined),
+    priority: rec.priority === 'medium' ? 'normal' : ((rec.priority as 'high' | 'normal') || 'normal'),
+    due_on: (rec.due_on as string) || (rec.deadline as string) || null,
+    done: !!rec.done,
+    steps: Array.isArray(rec.steps) ? rec.steps.map((s: unknown) => {
+      const srec = (typeof s === 'object' && s !== null ? s : {}) as Record<string, unknown>
+      return {
+        id: (srec.id as string) || 's_' + Math.random().toString(36).slice(2, 8),
+        title: (srec.title as string) || '',
+        done: !!srec.done,
+      }
+    }) : [],
+    created_at: (rec.created_at as string) || new Date().toISOString(),
+  }
+}
+
+export const normalizeRoadmapHabit = (h: unknown, todayStr = today()): RoadmapHabit => {
+  const rec = (typeof h === 'object' && h !== null ? h : {}) as Record<string, unknown>
+  let checks: string[] = Array.isArray(rec.checks) ? (rec.checks as string[]) : []
+  if (checks.length === 0 && (Number(rec.streak) > 0 || Number(rec.currentCount) > 0)) {
+    const count = Math.min(30, Number(rec.streak || rec.currentCount || 0))
+    checks = Array.from({ length: count }, (_, i) => addDays(todayStr, -i))
+  }
+  const cat = rec.category === 'reading' ? 'book' : rec.category === 'health' ? 'sport' : ((rec.category as RoadmapCategory) || 'other')
+  return {
+    id: (rec.id as string) || 'h_' + Math.random().toString(36).slice(2, 8),
+    title: (rec.title as string) || '',
+    category: cat,
+    target_val: (rec.target_val as string) || (rec.targetCount ? `${rec.targetCount} ${rec.unit || ''}`.trim() : undefined),
+    time_of_day: (rec.time_of_day as 'morning' | 'afternoon' | 'evening' | 'any') || 'any',
+    frequency: (rec.frequency as 'daily' | 'weekdays' | '3x_week') || 'daily',
+    motivation: (rec.motivation as string) || '',
+    goal_id: (rec.goal_id as string) || null,
+    archived: !!rec.archived,
+    checks,
+    created_at: (rec.created_at as string) || new Date().toISOString(),
+  }
+}
+
+export const normalizeRoadmapTask = (t: unknown): RoadmapTask => {
+  const rec = (typeof t === 'object' && t !== null ? t : {}) as Record<string, unknown>
+  return {
+    id: (rec.id as string) || 't_' + Math.random().toString(36).slice(2, 8),
+    title: (rec.title as string) || '',
+    category: (rec.category as RoadmapCategory) || 'other',
+    due_on: (rec.due_on as string) || (rec.deadline as string) || null,
+    priority: rec.priority === 'high' ? 'high' : 'normal',
+    notes: (rec.notes as string) || null,
+    goal_id: (rec.goal_id as string) || null,
+    done: !!rec.done,
+    created_at: (rec.created_at as string) || new Date().toISOString(),
+  }
+}
+
 export const loadStudentRoadmap = async (studentId: string): Promise<StudentRoadmap> => {
+  const t = today()
   try {
     const res = (await ok(
       supabase.from('student_roadmaps').select('goals, habits, tasks').eq('student_id', studentId).maybeSingle()
-    )) as { goals?: RoadmapGoal[]; habits?: RoadmapHabit[]; tasks?: RoadmapTask[] } | null
+    )) as { goals?: unknown[]; habits?: unknown[]; tasks?: unknown[] } | null
     if (res && (res.goals || res.habits || res.tasks)) {
       return {
-        goals: Array.isArray(res.goals) ? res.goals : [],
-        habits: Array.isArray(res.habits) ? res.habits : [],
-        tasks: Array.isArray(res.tasks) ? res.tasks : [],
+        goals: (Array.isArray(res.goals) ? res.goals : []).map(normalizeRoadmapGoal),
+        habits: (Array.isArray(res.habits) ? res.habits : []).map((h) => normalizeRoadmapHabit(h, t)),
+        tasks: (Array.isArray(res.tasks) ? res.tasks : []).map(normalizeRoadmapTask),
       }
     }
   } catch {
@@ -773,9 +835,9 @@ export const loadStudentRoadmap = async (studentId: string): Promise<StudentRoad
     if (form?.answers?.['__roadmap']) {
       const parsed = JSON.parse(form.answers['__roadmap'])
       return {
-        goals: Array.isArray(parsed.goals) ? parsed.goals : [],
-        habits: Array.isArray(parsed.habits) ? parsed.habits : [],
-        tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+        goals: (Array.isArray(parsed.goals) ? parsed.goals : []).map(normalizeRoadmapGoal),
+        habits: (Array.isArray(parsed.habits) ? parsed.habits : []).map((h: unknown) => normalizeRoadmapHabit(h, t)),
+        tasks: (Array.isArray(parsed.tasks) ? parsed.tasks : []).map(normalizeRoadmapTask),
       }
     }
   } catch {
@@ -785,6 +847,21 @@ export const loadStudentRoadmap = async (studentId: string): Promise<StudentRoad
 }
 
 export const saveStudentRoadmap = async (studentId: string, roadmap: StudentRoadmap): Promise<void> => {
+  try {
+    await rpc('save_student_roadmap', {
+      p_student_id: studentId,
+      p_goals: roadmap.goals,
+      p_habits: roadmap.habits,
+      p_tasks: roadmap.tasks,
+    })
+    return
+  } catch (e) {
+    const err = e as { message?: string } | null
+    if (!err?.message?.includes('function save_student_roadmap') && !err?.message?.includes('42883')) {
+      // ignore
+    }
+  }
+
   let savedToTable = false
   try {
     await ok(
@@ -804,21 +881,40 @@ export const saveStudentRoadmap = async (studentId: string, roadmap: StudentRoad
     const existing = await studentForm(studentId)
     const answers = { ...(existing?.answers ?? {}) }
     answers['__roadmap'] = JSON.stringify(roadmap)
-    await saveMyForm(studentId, answers)
+    await saveStudentForm(studentId, answers)
   } catch (err) {
     if (!savedToTable) throw err
   }
 }
 
 export const studentMentor = async (id: string) => {
+  const meetingsPromise = ok(supabase.from('mentor_meetings').select(MM).eq('student_id', id).order('starts_at', { ascending: false }))
+    .catch(async () => {
+      const my = await myMentorMeetings().catch(() => [])
+      return my.map((m) => ({
+        id: m.id,
+        class_id: '',
+        student_id: id,
+        staff_id: null,
+        starts_at: m.starts_at,
+        topic: m.topic,
+        visible: true,
+        actions: m.actions,
+        notes: null,
+        done_at: m.done_at,
+        created_at: m.starts_at,
+        place: m.place ?? null,
+      })) as MentorMeeting[]
+    })
+
   const [student, meetings, tests, notes, contacts, form, items, roadmap] = await Promise.all([
     ok(supabase.from('profiles').select('id, full_name, photo, class_id, olympiad, club').eq('id', id).single()) as Promise<{ id: string; full_name: string; photo: string | null; class_id: string; olympiad: string | null; club: string | null }>,
-    ok(supabase.from('mentor_meetings').select(MM).eq('student_id', id).order('starts_at', { ascending: false })) as Promise<MentorMeeting[]>,
-    rpc<{ type: 'mbti' | 'mi' | 'holland'; answers: number[]; answered_at: string }[]>('student_tests', { p_student: id }),
-    ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at, tags, urgent, photo').contains('student_ids', [id]).order('created_at', { ascending: false })) as Promise<CouncilNote[]>,
-    ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('student_id', id).order('on_date', { ascending: false })) as Promise<ParentContact[]>,
+    meetingsPromise as Promise<MentorMeeting[]>,
+    rpc<{ type: 'mbti' | 'mi' | 'holland'; answers: number[]; answered_at: string }[]>('student_tests', { p_student: id }).catch(() => []),
+    (ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at, tags, urgent, photo').contains('student_ids', [id]).order('created_at', { ascending: false })) as Promise<CouncilNote[]>).catch(() => []),
+    (ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('student_id', id).order('on_date', { ascending: false })) as Promise<ParentContact[]>).catch(() => []),
     studentForm(id),
-    mentorItems(id),
+    mentorItems(id).catch(() => []),
     loadStudentRoadmap(id),
   ])
   return { student, meetings, tests, notes, contacts, form, items, roadmap }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ensureCalendars, listBookings, listLeaves, listResources } from '../lib/api'
+import { ensureCalendars, listBookings, listLeaves, listResources, loadStudentRoadmap } from '../lib/api'
+import type { StudentRoadmap } from '../lib/mentor'
 import { loadAgenda, onDay } from '../lib/agenda'
 import { WD_SHORT, addDays, fmtDate, parse, today, weekOf } from '../lib/time'
 import { useMe, isApprover } from '../App'
@@ -7,7 +8,7 @@ import { needsMyDecision } from './Activities'
 import { waitsForMe } from './Leaves'
 import { Button, Card, Empty, ErrorBox, Icon, Skeleton, TypeBadge, go, useLoad } from '../components/ui'
 import Tasks from '../components/Tasks'
-import { Goals, Habits } from '../components/Goals'
+import { RoadmapSection } from './Mentor'
 import { tx } from '../lib/i18n'
 
 const hhmm = (d: Date) => d.toTimeString().slice(0, 5)
@@ -22,6 +23,15 @@ export default function Plan() {
   const ag = useLoad(() => loadAgenda(me, week[0], week[6]), [me.id, week[0]])
   const staff = me.role !== 'student'
   const leaves = useLoad(() => (staff ? listLeaves({ pending: true }) : Promise.resolve([])), [staff])
+  const srm = useLoad(() => loadStudentRoadmap(me.id), [me.id])
+  const [roadmap, setRoadmap] = useState<StudentRoadmap>({ goals: [], habits: [], tasks: [] })
+
+  useEffect(() => {
+    if (srm.data) {
+      setRoadmap(srm.data)
+    }
+  }, [srm.data])
+
   const books = useLoad(async () => {
     if (!staff) return 0
     const [res, bs] = await Promise.all([listResources(), listBookings({ from: t })])
@@ -103,9 +113,17 @@ export default function Plan() {
           </Card>
         )}
 
-      <Habits />
+      {srm.loading && !srm.data ? (
+        <Skeleton rows={2} />
+      ) : (
+        <RoadmapSection
+          studentId={me.id}
+          roadmap={roadmap}
+          onUpdate={setRoadmap}
+          onOpenAdd={() => go('/mentor')}
+        />
+      )}
       <Tasks me={me} />
-      <Goals me={me} />
 
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-2">{tx('Менің бастамаларым')}</h2>
       <div className="grid grid-cols-3 gap-2">

@@ -80,12 +80,12 @@ begin
 
   insert into student_roadmaps(student_id, goals, habits, tasks, updated_at)
   values (v_s1,
-    '[{"id":"g1","title":"Информатикадан республикалық олимпиадаға өту","category":"olympiad","target":100,"current":70,"unit":"%","priority":"high","deadline":"2027-03-20"},
-      {"id":"g2","title":"Ағылшын тілін B2 деңгейіне дейін көтеру","category":"education","target":100,"current":45,"unit":"%","priority":"medium","deadline":"2027-05-15"}]'::jsonb,
-    '[{"id":"h1","title":"Күн сайын 2 алгоритм есебін шығару","category":"study","frequency":"daily","streak":9,"targetCount":30,"currentCount":18,"unit":"күн"},
-      {"id":"h2","title":"Күн сайын 20 бет кітап оқу","category":"reading","frequency":"daily","streak":14,"targetCount":30,"currentCount":22,"unit":"күн"}]'::jsonb,
-    '[{"id":"t1","title":"Codeforces кезекті раундына қатысу","priority":"high","deadline":"2026-11-08","done":true},
-      {"id":"t2","title":"Динамикалық бағдарламалау тақырыбы бойынша конспект жазу","priority":"medium","deadline":"2026-11-12","done":false}]'::jsonb,
+    '[{"id":"g1","title":"Информатикадан республикалық олимпиадаға өту","category":"olympiad","metric":"1-орын алу","priority":"high","due_on":"2027-03-20","done":false,"steps":[{"id":"s1","title":"Динамикалық бағдарламалау тақырыбын меңгеру","done":true},{"id":"s2","title":"Графтар бойынша 50 есеп шығару","done":true},{"id":"s3","title":"Облыстық кезеңде жеңімпаз болу","done":false}],"created_at":"2026-11-01T10:00:00Z"},
+      {"id":"g2","title":"Ағылшын тілін B2 деңгейіне дейін көтеру","category":"study","metric":"IELTS 6.5+","priority":"normal","due_on":"2027-05-15","done":false,"steps":[{"id":"s4","title":"Күнделікті 10 сөз жаттау","done":true},{"id":"s5","title":"Аптасына 1 эссе жазу","done":false}],"created_at":"2026-11-01T10:00:00Z"}]'::jsonb,
+    '[{"id":"h1","title":"Күн сайын 2 алгоритм есебін шығару","category":"olympiad","target_val":"2 есеп","time_of_day":"evening","frequency":"daily","motivation":"Жүйелілік олимпиадада жеңіске жетелейді","goal_id":"g1","archived":false,"checks":["2026-11-03","2026-11-02","2026-11-01","2026-10-31","2026-10-30","2026-10-29","2026-10-28"],"created_at":"2026-10-20T10:00:00Z"},
+      {"id":"h2","title":"Күн сайын 20 бет кітап оқу","category":"book","target_val":"20 бет","time_of_day":"evening","frequency":"daily","motivation":"Ой-өрісті дамыту және сөздік қор","goal_id":"g2","archived":false,"checks":["2026-11-03","2026-11-02","2026-11-01","2026-10-31","2026-10-30"],"created_at":"2026-10-20T10:00:00Z"}]'::jsonb,
+    '[{"id":"t1","title":"Codeforces кезекті раундына қатысу","category":"olympiad","priority":"high","due_on":"2026-11-08","goal_id":"g1","done":true,"created_at":"2026-11-01T10:00:00Z"},
+      {"id":"t2","title":"Динамикалық бағдарламалау бойынша конспект жазу","category":"study","priority":"normal","due_on":"2026-11-12","goal_id":"g1","done":false,"created_at":"2026-11-01T10:00:00Z"}]'::jsonb,
     now()
   )
   on conflict (student_id) do update set goals = excluded.goals, habits = excluded.habits, tasks = excluded.tasks, updated_at = now();
@@ -132,9 +132,9 @@ begin
 
   insert into student_roadmaps(student_id, goals, habits, tasks, updated_at)
   values (v_s2,
-    '[{"id":"g1","title":"Мектеп метеостанциясын жасап шығу","category":"project","target":100,"current":50,"unit":"%","priority":"high","deadline":"2027-02-15"}]'::jsonb,
-    '[{"id":"h1","title":"Таңертеңгілік сергу жаттығуы (15 мин)","category":"health","frequency":"daily","streak":12,"targetCount":30,"currentCount":15,"unit":"күн"}]'::jsonb,
-    '[{"id":"t1","title":"Сенсорлар тапсырысын тексеру","priority":"medium","deadline":"2026-11-10","done":true}]'::jsonb,
+    '[{"id":"g1","title":"Мектеп метеостанциясын жасап шығу","category":"other","metric":"Деректерді онлайн серверге жіберу","priority":"high","due_on":"2027-02-15","done":false,"steps":[{"id":"s1","title":"Сенсорларды Arduino-ға жалғау","done":true},{"id":"s2","title":"Wi-Fi модулін баптау","done":false}],"created_at":"2026-11-01T10:00:00Z"}]'::jsonb,
+    '[{"id":"h1","title":"Таңертеңгілік сергу жаттығуы (15 мин)","category":"sport","target_val":"15 мин","time_of_day":"morning","frequency":"daily","motivation":"Күні бойы сергек жүру","goal_id":null,"archived":false,"checks":["2026-11-03","2026-11-02","2026-11-01","2026-10-31","2026-10-30","2026-10-29"],"created_at":"2026-10-20T10:00:00Z"}]'::jsonb,
+    '[{"id":"t1","title":"Сенсорлар тапсырысын тексеру","category":"other","priority":"normal","due_on":"2026-11-10","goal_id":"g1","done":true,"created_at":"2026-11-01T10:00:00Z"}]'::jsonb,
     now()
   )
   on conflict (student_id) do update set goals = excluded.goals, habits = excluded.habits, tasks = excluded.tasks, updated_at = now();
@@ -181,9 +181,9 @@ begin
 
   insert into student_roadmaps(student_id, goals, habits, tasks, updated_at)
   values (v_s3,
-    '[{"id":"g1","title":"Айына 3 көркем әдебиет кітабын оқу","category":"reading","target":100,"current":67,"unit":"%","priority":"medium","deadline":"2027-05-30"}]'::jsonb,
-    '[{"id":"h1","title":"Күнделік жазу (рефлексия)","category":"mindset","frequency":"daily","streak":21,"targetCount":30,"currentCount":25,"unit":"күн"}]'::jsonb,
-    '[{"id":"t1","title":"Дебат қарарын талдау","priority":"high","deadline":"2026-11-09","done":false}]'::jsonb,
+    '[{"id":"g1","title":"Айына 3 көркем әдебиет кітабын оқу","category":"book","metric":"3 кітап / ай","priority":"normal","due_on":"2027-05-30","done":false,"steps":[{"id":"s1","title":"«Абай жолы» 1-томын бітіру","done":true},{"id":"s2","title":"«Шұғаның белгісі» талдау","done":true},{"id":"s3","title":"Шетел классикасын таңдау","done":false}],"created_at":"2026-11-01T10:00:00Z"}]'::jsonb,
+    '[{"id":"h1","title":"Күнделік жазу (рефлексия)","category":"discipline","target_val":"10 мин","time_of_day":"evening","frequency":"daily","motivation":"Ойды жинақтау және өзін-өзі дамыту","goal_id":"g1","archived":false,"checks":["2026-11-03","2026-11-02","2026-11-01","2026-10-31","2026-10-30","2026-10-29","2026-10-28","2026-10-27"],"created_at":"2026-10-20T10:00:00Z"}]'::jsonb,
+    '[{"id":"t1","title":"Дебат қарарын талдау","category":"social","priority":"high","due_on":"2026-11-09","goal_id":"g1","done":false,"created_at":"2026-11-01T10:00:00Z"}]'::jsonb,
     now()
   )
   on conflict (student_id) do update set goals = excluded.goals, habits = excluded.habits, tasks = excluded.tasks, updated_at = now();
@@ -223,8 +223,8 @@ begin
 
   insert into student_roadmaps(student_id, goals, habits, tasks, updated_at)
   values (v_s4,
-    '[{"id":"g1","title":"Мектеп журналының мұқабасын безендіру","category":"creativity","target":100,"current":80,"unit":"%","priority":"high","deadline":"2026-12-20"}]'::jsonb,
-    '[{"id":"h1","title":"Күніне 30 мин скетчинг","category":"skills","frequency":"daily","streak":15,"targetCount":30,"currentCount":20,"unit":"күн"}]'::jsonb,
+    '[{"id":"g1","title":"Мектеп журналының мұқабасын безендіру","category":"other","metric":"Векторлық форматта баспаға дайындау","priority":"high","due_on":"2026-12-20","done":false,"steps":[{"id":"s1","title":"Эскиз нұсқаларын сызу","done":true},{"id":"s2","title":"Сынып жетекшісімен бекіту","done":true},{"id":"s3","title":"Финалдық рендер жасау","done":false}],"created_at":"2026-11-01T10:00:00Z"}]'::jsonb,
+    '[{"id":"h1","title":"Күніне 30 мин скетчинг","category":"other","target_val":"30 мин","time_of_day":"afternoon","frequency":"daily","motivation":"Сурет салу дағдысын шыңдау","goal_id":"g1","archived":false,"checks":["2026-11-03","2026-11-02","2026-11-01","2026-10-31","2026-10-30","2026-10-29"],"created_at":"2026-10-20T10:00:00Z"}]'::jsonb,
     '[]'::jsonb,
     now()
   )
@@ -265,8 +265,8 @@ begin
 
   insert into student_roadmaps(student_id, goals, habits, tasks, updated_at)
   values (v_s5,
-    '[{"id":"g1","title":"Физикадан ғылыми зерттеу жобасын қорғау","category":"olympiad","target":100,"current":30,"unit":"%","priority":"high","deadline":"2027-04-10"}]'::jsonb,
-    '[{"id":"h1","title":"Ағылшынша терминдер (күніне 5 сөз)","category":"study","frequency":"daily","streak":7,"targetCount":30,"currentCount":10,"unit":"күн"}]'::jsonb,
+    '[{"id":"g1","title":"Физикадан ғылыми зерттеу жобасын қорғау","category":"olympiad","metric":"Қалалық кезеңге өту","priority":"high","due_on":"2027-04-10","done":false,"steps":[{"id":"s1","title":"Тақырып бойынша әдебиеттерді зерттеу","done":true},{"id":"s2","title":"Тәжірибелік қондырғы жинау","done":false}],"created_at":"2026-11-01T10:00:00Z"}]'::jsonb,
+    '[{"id":"h1","title":"Ағылшынша терминдер (күніне 5 сөз)","category":"study","target_val":"5 сөз","time_of_day":"morning","frequency":"daily","motivation":"Халықаралық әдебиеттерді еркін оқу","goal_id":"g1","archived":false,"checks":["2026-11-03","2026-11-02","2026-11-01","2026-10-31"],"created_at":"2026-10-20T10:00:00Z"}]'::jsonb,
     '[]'::jsonb,
     now()
   )
