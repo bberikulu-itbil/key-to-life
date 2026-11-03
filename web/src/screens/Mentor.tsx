@@ -8,7 +8,7 @@ import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
 import { RIASEC, hollandScore } from '../lib/holland'
 import {
-  calcGoalProgress, fmtBirthday, FORM, FREQUENCY_LABELS, getCategoryMeta, MBTI_TYPES, mentorStatus, NATIONS, PLAN_CATEGORIES, PLAN_PRESETS,
+  calcGoalProgress, fmtBirthday, FORM, FREQUENCY_LABELS, getCategoryMeta, MBTI_TYPES, mentorStatus, PLAN_CATEGORIES, PLAN_PRESETS,
   PRIORITY_LABELS, TEMPLATES, TIME_OF_DAY_LABELS, type PlanCategory, type PlanPreset, type RoadmapGoal,
   type RoadmapHabit, type RoadmapTask, type StudentRoadmap,
 } from '../lib/mentor'
