@@ -51,17 +51,18 @@ const P: Record<string, string> = {
   filter: 'M22 3H2l8 9.46V19l4 2v-8.54L22 3z',
   expand: 'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7',
   dots: 'M12 6h.01M12 12h.01M12 18h.01',
+  sparkles: 'm12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z',
 }
 export const Icon = ({ n, size = 20, className = '' }: { n: keyof typeof P | string; size?: number; className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`shrink-0 ${className}`}><path d={P[n]} /></svg>
 )
 
 /* ---------- primitives ---------- */
-type BtnProps = { children: ReactNode; onClick?: () => void; kind?: 'primary' | 'gold' | 'secondary' | 'ghost' | 'danger'; block?: boolean; disabled?: boolean; loading?: boolean; type?: 'button' | 'submit' }
-export function Button({ children, onClick, kind = 'primary', block, disabled, loading, type = 'button' }: BtnProps) {
+type BtnProps = { children: ReactNode; onClick?: () => void; kind?: 'primary' | 'gold' | 'secondary' | 'ghost' | 'danger'; block?: boolean; disabled?: boolean; loading?: boolean; type?: 'button' | 'submit'; title?: string }
+export function Button({ children, onClick, kind = 'primary', block, disabled, loading, type = 'button', title }: BtnProps) {
   const k = { primary: 'bg-accent text-on-accent', gold: 'bg-gold text-on-gold', secondary: 'bg-accent-soft text-accent', ghost: 'text-accent', danger: 'bg-danger-soft text-danger' }[kind]
   return (
-    <button type={type} onClick={onClick} disabled={disabled || loading} aria-busy={loading}
+    <button type={type} onClick={onClick} disabled={disabled || loading} aria-busy={loading} title={title}
       className={`${k} ${block ? 'w-full h-[52px]' : 'h-11'} inline-flex items-center justify-center gap-2 rounded-md px-4 font-semibold transition active:scale-[.98] active:opacity-85 disabled:opacity-40`}>
       {loading && <span className="size-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />}
       {children}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
   mentorAssign, mentorEvery, removeMentorMeeting, saveStudentForm,
-  saveStudentRoadmap, studentMentor, type MentorMeeting,
+  saveStudentRoadmap, seedDemoClass, studentMentor, type MentorMeeting,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
@@ -40,8 +40,23 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
   const deputy = me.role === 'deputy' || me.role === 'admin'
   const classes = useLoad(listClasses, [])
   const mine = (classes.data ?? []).filter((c) => c.teacher_id === me.id || c.tutor_id === me.id)
-  const options = deputy ? classes.data ?? [] : mine
+  const options = deputy || mine.length === 0 ? classes.data ?? [] : mine
   const cls = options.find((c) => c.id === classId) ?? mine[0] ?? options[0]
+
+  const [seeding, setSeeding] = useState(false)
+  const handleSeedDemo = async () => {
+    setSeeding(true)
+    try {
+      const res = await seedDemoClass('7-Демо')
+      toast(tx('Демо сынып және 5 оқушының анкетасы сәтті жасалды!'))
+      classes.reload()
+      go(`/mentor?class=${res.class_id}`)
+    } catch (e) {
+      toast(errText(e))
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   const data = useLoad(async () => {
     if (!cls) return null
@@ -86,11 +101,26 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
   if (!cls) {
     return (
       <div className="grid gap-3 pb-6">
-        <PageHead title={tx('Оқушылар анкетасы')} back />
+        <PageHead
+          title={tx('Оқушылар анкетасы')}
+          back
+          right={
+            <Button kind="primary" onClick={handleSeedDemo} loading={seeding}>
+              <Icon n="sparkles" size={16} />
+              <span>{tx('Демо сыныпты қосу')}</span>
+            </Button>
+          }
+        />
         <Empty
           icon="user"
           title={tx('Сынып бекітілмеген')}
           text={tx('Сынып жетекшісі немесе тәрбиеші болып белгіленгенде, сыныбыңыз осында шығады.')}
+          action={
+            <Button kind="primary" onClick={handleSeedDemo} loading={seeding}>
+              <Icon n="sparkles" size={16} />
+              <span>{tx('Демо сыныпты қосу (7-Демо)')}</span>
+            </Button>
+          }
         />
       </div>
     )
@@ -129,6 +159,15 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
         back
         right={
           <div className="flex items-center gap-2">
+            <Button
+              kind="secondary"
+              onClick={handleSeedDemo}
+              loading={seeding}
+              title={tx('Демо сынып пен 5 оқушының деректерін жүктеу')}
+            >
+              <Icon n="sparkles" size={16} />
+              <span className="hidden md:inline">{tx('Демо сынып')}</span>
+            </Button>
             {options.length > 1 && (
               <select
                 aria-label={tx('Сынып')}
@@ -172,7 +211,7 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={tx('Search')}
+                placeholder={tx('Іздеу...')}
                 className="w-full bg-surface-2 dark:bg-surface-3 rounded-lg pl-9 pr-8 py-2 text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent-soft transition"
               />
               {search && (
@@ -198,8 +237,14 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
             {/* Students List */}
             <div className="space-y-1 max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
               {!filtered.length ? (
-                <div className="py-8 text-center text-xs text-muted">
-                  {tx('Оқушы табылмады')}
+                <div className="py-8 text-center text-xs text-muted grid gap-2 place-items-center">
+                  <span>{tx('Оқушы табылмады')}</span>
+                  {students.length === 0 && (
+                    <Button kind="secondary" onClick={handleSeedDemo} loading={seeding}>
+                      <Icon n="sparkles" size={14} />
+                      <span>{tx('Демо оқушылар')}</span>
+                    </Button>
+                  )}
                 </div>
               ) : (
                 filtered.map(({ s, st, form }) => {
@@ -263,6 +308,8 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
               <StudentDossierView
                 key={selectedStudent.id}
                 student={selectedStudent}
+                allStudents={students}
+                onSelectStudent={setSelectedId}
                 classId={cls.id}
                 classNameStr={cls.name}
                 tab={tab}
@@ -294,6 +341,8 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
 
 function StudentDossierView({
   student,
+  allStudents,
+  onSelectStudent,
   classId,
   classNameStr,
   tab,
@@ -304,6 +353,8 @@ function StudentDossierView({
   onFormUpdated,
 }: {
   student: { id: string; full_name: string; photo: string | null; class_id?: string; olympiad?: string | null; club?: string | null }
+  allStudents?: { id: string; full_name: string }[]
+  onSelectStudent?: (id: string) => void
   classId?: string
   classNameStr?: string
   tab: DossierTab
@@ -315,6 +366,10 @@ function StudentDossierView({
 }) {
   const data = useLoad(async () => Promise.all([studentMentor(student.id), listStaff()]), [student.id])
   const [d, staff] = data.data ?? [null, []]
+
+  const currentIndex = allStudents ? allStudents.findIndex((s) => s.id === student.id) : -1
+  const prevStudent = allStudents && currentIndex > 0 ? allStudents[currentIndex - 1] : null
+  const nextStudent = allStudents && currentIndex >= 0 && currentIndex < allStudents.length - 1 ? allStudents[currentIndex + 1] : null
 
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [roadmap, setRoadmap] = useState<StudentRoadmap>({ goals: [], habits: [], tasks: [] })
@@ -396,11 +451,11 @@ function StudentDossierView({
     .filter(Boolean)
 
   const tabs: { id: DossierTab; label: string; icon: string }[] = [
-    { id: 'info', label: 'Info', icon: 'file' },
-    { id: 'tests', label: 'Personalities test', icon: 'list' },
-    { id: 'plan', label: 'Plan', icon: 'grid' },
-    { id: 'meetings', label: 'Meetings', icon: 'calendar' },
-    { id: 'resources', label: 'Resources', icon: 'book' },
+    { id: 'info', label: tx('Ақпарат'), icon: 'file' },
+    { id: 'tests', label: tx('Жеке қасиеттер'), icon: 'list' },
+    { id: 'plan', label: tx('Жоспар'), icon: 'grid' },
+    { id: 'meetings', label: tx('Кездесулер'), icon: 'calendar' },
+    { id: 'resources', label: tx('Ресурстар'), icon: 'book' },
   ]
 
   return (
@@ -486,8 +541,34 @@ function StudentDossierView({
           </div>
         </div>
 
-        {/* Right Action Icons: ⋮ and ⤢ */}
+        {/* Right Action Icons: student navigation, ⋮ and ⤢ */}
         <div className="flex items-center gap-1 shrink-0 relative">
+          {allStudents && allStudents.length > 1 && (
+            <div className="flex items-center gap-1 border-r border-line pr-2 mr-1">
+              <button
+                type="button"
+                disabled={!prevStudent}
+                onClick={() => prevStudent && onSelectStudent?.(prevStudent.id)}
+                className="size-8 rounded-lg text-muted hover:text-fg hover:bg-surface-2 grid place-items-center disabled:opacity-20 disabled:pointer-events-none transition"
+                title={prevStudent ? `${tx('Алдыңғы оқушы')}: ${prevStudent.full_name}` : tx('Алдыңғы оқушы')}
+              >
+                <Icon n="back" size={15} />
+              </button>
+              <span className="text-xs font-mono font-medium text-muted px-1 select-none">
+                {currentIndex + 1}/{allStudents.length}
+              </span>
+              <button
+                type="button"
+                disabled={!nextStudent}
+                onClick={() => nextStudent && onSelectStudent?.(nextStudent.id)}
+                className="size-8 rounded-lg text-muted hover:text-fg hover:bg-surface-2 grid place-items-center disabled:opacity-20 disabled:pointer-events-none transition"
+                title={nextStudent ? `${tx('Келесі оқушы')}: ${nextStudent.full_name}` : tx('Келесі оқушы')}
+              >
+                <Icon n="chev" size={15} className="rotate-90" />
+              </button>
+            </div>
+          )}
+
           <div className="relative">
             <button
               type="button"
@@ -587,7 +668,7 @@ function StudentDossierView({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Father Name */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Father Name')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Әкесінің аты-жөні')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <span className="text-xs font-mono font-bold text-muted select-none">T</span>
                 <input
@@ -603,7 +684,7 @@ function StudentDossierView({
 
             {/* Birthday */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Birthday')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Туған күні')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <Icon n="calendar" size={16} className="text-muted" />
                 <input
@@ -620,7 +701,7 @@ function StudentDossierView({
 
             {/* Adress */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Adress')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Мекенжайы')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <Icon n="pin" size={16} className="text-muted" />
                 <input
@@ -636,7 +717,7 @@ function StudentDossierView({
 
             {/* Nation */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Nation')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Ұлты')}</label>
               <div className="relative">
                 <select
                   value={answers.nation ?? 'қазақ'}
@@ -662,7 +743,7 @@ function StudentDossierView({
 
             {/* Document N */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Document N')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Құжат нөмірі')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <Icon n="file" size={16} className="text-muted" />
                 <input
@@ -678,7 +759,7 @@ function StudentDossierView({
 
             {/* JSN */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('JSN')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('ЖСН')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <span className="text-xs font-mono font-bold text-muted select-none">#</span>
                 <input
@@ -695,7 +776,7 @@ function StudentDossierView({
 
             {/* Hobby */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Hobby')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Хобби')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <span className="text-xs font-mono font-bold text-muted select-none">T</span>
                 <input
@@ -711,7 +792,7 @@ function StudentDossierView({
 
             {/* Sport */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Sport')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Спорт')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <span className="text-xs font-mono font-bold text-muted select-none">T</span>
                 <input
@@ -727,7 +808,7 @@ function StudentDossierView({
 
             {/* Mother Name */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Анасының аты-жөні')} (Mother Name)</label>
+              <label className="text-xs font-semibold text-muted">{tx('Анасының аты-жөні')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <span className="text-xs font-mono font-bold text-muted select-none">T</span>
                 <input
@@ -743,7 +824,7 @@ function StudentDossierView({
 
             {/* Student Phone */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Телефон (оқушы)')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Оқушының телефоны')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <Icon n="phone" size={16} className="text-muted" />
                 <input
@@ -759,7 +840,7 @@ function StudentDossierView({
 
             {/* Father Phone */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Әкесінің тел.')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Әкесінің телефоны')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <Icon n="phone" size={16} className="text-muted" />
                 <input
@@ -775,7 +856,7 @@ function StudentDossierView({
 
             {/* Mother Phone */}
             <div className="grid gap-1">
-              <label className="text-xs font-semibold text-muted">{tx('Анасының тел.')}</label>
+              <label className="text-xs font-semibold text-muted">{tx('Анасының телефоны')}</label>
               <div className="flex items-center gap-2 rounded-lg bg-surface-2 dark:bg-surface-3 px-3.5 min-h-12 border border-transparent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
                 <Icon n="phone" size={16} className="text-muted" />
                 <input
@@ -790,32 +871,81 @@ function StudentDossierView({
             </div>
           </div>
 
-          {/* Quick Previews of Low Gallup & MBTI (from bottom of screenshot) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-line">
+          {/* Quick Previews of Gallup & MBTI */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-line">
+            {/* Top 5 Gallup Card */}
             <div
-              onClick={() => onTabChange('tests')}
-              className="p-3.5 rounded-lg bg-surface-2 hover:bg-surface-2/80 transition cursor-pointer flex items-center justify-between"
+              onClick={() => setGallupPicker('top')}
+              className="p-3.5 rounded-lg bg-surface-2 hover:bg-surface-2/80 transition cursor-pointer flex flex-col justify-between gap-2 border border-transparent hover:border-line"
             >
-              <div>
-                <span className="text-xs font-semibold text-muted block">Low Gallup</span>
-                <span className="text-sm font-medium mt-0.5 block">
-                  {lowGallupList.length ? lowGallupList.join(', ') : tx('Белгіленбеген (толтыру →)')}
-                </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-muted tracking-wider">Top 5 Gallup</span>
+                <span className="text-xs font-semibold text-accent hover:underline">{tx('Таңдау →')}</span>
               </div>
-              <Icon n="chev" size={16} className="text-muted" />
+              <div className="flex flex-wrap gap-1.5 min-h-6">
+                {!topGallupList.length ? (
+                  <span className="text-xs text-muted">{tx('Таңдалмаған (толтыру →)')}</span>
+                ) : (
+                  topGallupList.slice(0, 5).map((t) => {
+                    const found = findGallup(t)
+                    const dom = found ? GALLUP_DOMAINS[found.domain] : GALLUP_DOMAINS.executing
+                    return (
+                      <span
+                        key={t}
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border ${dom.bg} ${dom.text} ${dom.border}`}
+                      >
+                        {t}
+                      </span>
+                    )
+                  })
+                )}
+              </div>
             </div>
 
+            {/* Low Gallup Card */}
+            <div
+              onClick={() => setGallupPicker('low')}
+              className="p-3.5 rounded-lg bg-surface-2 hover:bg-surface-2/80 transition cursor-pointer flex flex-col justify-between gap-2 border border-transparent hover:border-line"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-muted tracking-wider">Low Gallup</span>
+                <span className="text-xs font-semibold text-accent hover:underline">{tx('Таңдау →')}</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 min-h-6">
+                {!lowGallupList.length ? (
+                  <span className="text-xs text-muted">{tx('Белгіленбеген (толтыру →)')}</span>
+                ) : (
+                  lowGallupList.map((t) => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-surface text-muted border border-line"
+                    >
+                      {t}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* MBTI Card */}
             <div
               onClick={() => onTabChange('tests')}
-              className="p-3.5 rounded-lg bg-surface-2 hover:bg-surface-2/80 transition cursor-pointer flex items-center justify-between"
+              className="p-3.5 rounded-lg bg-surface-2 hover:bg-surface-2/80 transition cursor-pointer flex flex-col justify-between gap-2 border border-transparent hover:border-line"
             >
-              <div>
-                <span className="text-xs font-semibold text-muted block">MBTI</span>
-                <span className="text-sm font-bold text-accent mt-0.5 block tracking-wider">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-muted tracking-wider">MBTI</span>
+                <span className="text-xs font-semibold text-accent hover:underline">{tx('Толық көру →')}</span>
+              </div>
+              <div className="flex items-center gap-2 min-h-6">
+                <span className="text-base font-extrabold text-accent tracking-wider">
                   {mbtiDisplayType}
                 </span>
+                {mbtiComputed && (
+                  <span className="text-[11px] text-muted">
+                    ({mbtiComputed.pct[0]}% E · {mbtiComputed.pct[1]}% S)
+                  </span>
+                )}
               </div>
-              <Icon n="chev" size={16} className="text-muted" />
             </div>
           </div>
 

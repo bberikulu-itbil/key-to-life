@@ -855,6 +855,9 @@ export const saveStudentForm = async (student_id: string, answers: Record<string
   }
 }
 export const saveMyForm = saveStudentForm
+export const seedDemoClass = async (className = '7-Демо'): Promise<{ ok: boolean; class_id: string; class_name: string; students_count: number }> => {
+  return await rpc('seed_demo_class', { p_class_name: className })
+}
 export const mentorEvery = async (classId: string) =>
   ((await ok(supabase.from('mentor_settings').select('every_days').eq('class_id', classId).maybeSingle())) as { every_days: number } | null)?.every_days ?? 30
 export const setMentorEvery = (class_id: string, every_days: number) => ok(supabase.from('mentor_settings').upsert({ class_id, every_days }))
