@@ -753,17 +753,18 @@ export type MentorMeeting = { id: string; student_id: string; staff_id: string |
 const MM = 'id, student_id, staff_id, starts_at, topic, visible, actions, notes, done_at, place'
 export const classMentorMeetings = (classId: string) =>
   ok(supabase.from('mentor_meetings').select(MM).eq('class_id', classId).order('starts_at', { ascending: false }).limit(500)) as Promise<MentorMeeting[]>
+const normalizeRoadmap = (raw: { goals?: RoadmapGoal[]; habits?: RoadmapHabit[]; tasks?: RoadmapTask[] } | null | undefined): StudentRoadmap => ({
+  goals: Array.isArray(raw?.goals) ? raw.goals.map((g) => ({ ...g, steps: Array.isArray(g.steps) ? g.steps : [] })) : [],
+  habits: Array.isArray(raw?.habits) ? raw.habits.map((h) => ({ ...h, archived: Boolean(h.archived), checks: Array.isArray(h.checks) ? h.checks : [] })) : [],
+  tasks: Array.isArray(raw?.tasks) ? raw.tasks : [],
+})
 export const loadStudentRoadmap = async (studentId: string): Promise<StudentRoadmap> => {
   try {
     const res = (await ok(
       supabase.from('student_roadmaps').select('goals, habits, tasks').eq('student_id', studentId).maybeSingle()
     )) as { goals?: RoadmapGoal[]; habits?: RoadmapHabit[]; tasks?: RoadmapTask[] } | null
     if (res && (res.goals || res.habits || res.tasks)) {
-      return {
-        goals: Array.isArray(res.goals) ? res.goals : [],
-        habits: Array.isArray(res.habits) ? res.habits : [],
-        tasks: Array.isArray(res.tasks) ? res.tasks : [],
-      }
+      return normalizeRoadmap(res)
     }
   } catch {
     // If student_roadmaps table does not exist or fails, fall through to student_forms
@@ -772,11 +773,7 @@ export const loadStudentRoadmap = async (studentId: string): Promise<StudentRoad
     const form = await studentForm(studentId)
     if (form?.answers?.['__roadmap']) {
       const parsed = JSON.parse(form.answers['__roadmap'])
-      return {
-        goals: Array.isArray(parsed.goals) ? parsed.goals : [],
-        habits: Array.isArray(parsed.habits) ? parsed.habits : [],
-        tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-      }
+      return normalizeRoadmap(parsed)
     }
   } catch {
     // ignore
@@ -808,6 +805,33 @@ export const saveStudentRoadmap = async (studentId: string, roadmap: StudentRoad
   } catch (err) {
     if (!savedToTable) throw err
   }
+}
+
+/** Update only one roadmap lane so a habit check cannot overwrite a goal edit made in another tab. */
+export const patchStudentRoadmap = async (
+  studentId: string,
+  patch: Partial<Pick<StudentRoadmap, 'goals' | 'habits' | 'tasks'>>,
+): Promise<void> => {
+  try {
+    await rpc('patch_student_roadmap', {
+      p_student_id: studentId,
+      p_goals: patch.goals ?? null,
+      p_habits: patch.habits ?? null,
+      p_tasks: patch.tasks ?? null,
+    })
+    return
+  } catch (e) {
+    const message = String((e as { message?: string })?.message ?? e)
+    if (!message.includes('patch_student_roadmap') && !message.includes('42883')) throw e
+  }
+
+  // Backward-compatible fallback for environments where migration 0071 is not installed yet.
+  const current = await loadStudentRoadmap(studentId)
+  await saveStudentRoadmap(studentId, {
+    goals: patch.goals ?? current.goals,
+    habits: patch.habits ?? current.habits,
+    tasks: patch.tasks ?? current.tasks,
+  })
 }
 
 

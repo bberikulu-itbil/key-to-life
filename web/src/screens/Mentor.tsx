@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
 import {
   addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
-  mentorAssign, mentorEvery, patchStudentForm, removeMentorMeeting,
+  mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting,
   saveStudentRoadmap, studentMentor, type MentorMeeting,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
 import { RIASEC, hollandScore } from '../lib/holland'
 import {
-  calcGoalProgress, fmtBirthday, FORM, FREQUENCY_LABELS, getCategoryMeta, MBTI_TYPES, mentorStatus, PLAN_CATEGORIES, PLAN_PRESETS,
+  calcGoalProgress, fmtBirthday, FORM, FREQUENCY_LABELS, getCategoryMeta, habitCurrentStreak, habitDueOn, habitWeekProgress, MBTI_TYPES, mentorStatus, PLAN_CATEGORIES, PLAN_PRESETS,
   PRIORITY_LABELS, TEMPLATES, TIME_OF_DAY_LABELS, type PlanCategory, type PlanPreset, type RoadmapGoal,
-  type RoadmapHabit, type RoadmapTask, type StudentRoadmap,
+  type HabitFrequency, type RoadmapHabit, type RoadmapTask, type StudentRoadmap,
 } from '../lib/mentor'
 import { GALLUP_DOMAINS, GALLUP_THEMES, findGallup } from '../lib/gallup'
 import { addDays, fmtDate, today } from '../lib/time'
@@ -1247,30 +1247,35 @@ function RoadmapSection({
   onUpdate: (r: StudentRoadmap) => void
   onOpenAdd?: () => void
 }) {
-  const [tab, setTab] = useState<'all' | 'goals' | 'habits' | 'tasks'>('all')
+  const [tab, setTab] = useState<'today' | 'all' | 'goals' | 'habits' | 'tasks'>('today')
   const [catFilter, setCatFilter] = useState<string>('all')
   const [newStepInputs, setNewStepInputs] = useState<Record<string, string>>({})
+  const [editingGoal, setEditingGoal] = useState<RoadmapGoal | null>(null)
+  const [editingHabit, setEditingHabit] = useState<RoadmapHabit | null>(null)
+  const [showArchivedHabits, setShowArchivedHabits] = useState(false)
   const t = today()
 
   const goals = roadmap.goals ?? []
-  const habits = roadmap.habits ?? []
+  const allHabits = roadmap.habits ?? []
+  const habits = allHabits.filter((h) => showArchivedHabits ? h.archived : !h.archived)
   const tasks = roadmap.tasks ?? []
 
-  const update = (fn: (prev: StudentRoadmap) => StudentRoadmap) => {
+  const update = (fn: (prev: StudentRoadmap) => StudentRoadmap, lane?: 'goals' | 'habits' | 'tasks') => {
     const next = fn({
       goals: [...goals],
-      habits: [...habits],
+      habits: [...allHabits],
       tasks: [...tasks],
     })
     onUpdate(next)
-    saveStudentRoadmap(studentId, next).catch((e) => toast(errText(e)))
+    const save = lane ? patchStudentRoadmap(studentId, { [lane]: next[lane] }) : saveStudentRoadmap(studentId, next)
+    save.catch((e) => toast(errText(e)))
   }
 
   const toggleGoal = (id: string) => {
     update((prev) => ({
       ...prev,
       goals: prev.goals.map((g) => (g.id === id ? { ...g, done: !g.done } : g)),
-    }))
+    }), 'goals')
   }
 
   const toggleStep = (goalId: string, stepId: string) => {
@@ -1282,7 +1287,7 @@ function RoadmapSection({
         const allDone = nextSteps.length > 0 && nextSteps.every((s) => s.done)
         return { ...g, steps: nextSteps, done: allDone ? true : g.done }
       }),
-    }))
+    }), 'goals')
   }
 
   const addStep = (goalId: string) => {
@@ -1295,7 +1300,7 @@ function RoadmapSection({
           ? { ...g, steps: [...g.steps, { id: 's_' + Date.now(), title: text, done: false }] }
           : g
       ),
-    }))
+    }), 'goals')
     setNewStepInputs({ ...newStepInputs, [goalId]: '' })
   }
 
@@ -1304,7 +1309,7 @@ function RoadmapSection({
     update((prev) => ({
       ...prev,
       goals: prev.goals.filter((g) => g.id !== id),
-    }))
+    }), 'goals')
   }
 
   const toggleHabit = (id: string) => {
@@ -1317,22 +1322,23 @@ function RoadmapSection({
         else checks.add(t)
         return { ...h, checks: Array.from(checks) }
       }),
-    }))
+    }), 'habits')
   }
 
   const removeHabit = (id: string, title: string) => {
-    if (!confirm(tx('«{0}» әдетін өшіресіз бе?', title))) return
+    const archived = allHabits.find((h) => h.id === id)?.archived ?? false
+    if (!confirm(archived ? tx('«{0}» әдетін қайта белсендіресіз бе?', title) : tx('«{0}» әдетін архивке жібересіз бе? Сериясы сақталады.', title))) return
     update((prev) => ({
       ...prev,
-      habits: prev.habits.filter((h) => h.id !== id),
-    }))
+      habits: prev.habits.map((h) => (h.id === id ? { ...h, archived: !archived } : h)),
+    }), 'habits')
   }
 
   const toggleTask = (id: string) => {
     update((prev) => ({
       ...prev,
       tasks: prev.tasks.map((tk) => (tk.id === id ? { ...tk, done: !tk.done } : tk)),
-    }))
+    }), 'tasks')
   }
 
   const removeTask = (id: string, title: string) => {
@@ -1340,24 +1346,29 @@ function RoadmapSection({
     update((prev) => ({
       ...prev,
       tasks: prev.tasks.filter((tk) => tk.id !== id),
-    }))
+    }), 'tasks')
   }
 
   const filterCat = (itemCat: string) => catFilter === 'all' || itemCat === catFilter
 
-  const filteredGoals = goals.filter((g) => filterCat(g.category))
-  const filteredHabits = habits.filter((h) => filterCat(h.category))
-  const filteredTasks = tasks.filter((tk) => filterCat(tk.category))
+  const filteredGoals = goals.filter((g) => filterCat(g.category) && (tab !== 'today' || !g.done))
+  const filteredHabits = habits.filter((h) => filterCat(h.category) && (tab !== 'today' || habitDueOn(h, t)))
+  const filteredTasks = tasks.filter((tk) => filterCat(tk.category) && (tab !== 'today' || (!tk.done && (!tk.due_on || tk.due_on <= t))))
 
   const totalVisible =
-    (tab === 'all' || tab === 'goals' ? filteredGoals.length : 0) +
-    (tab === 'all' || tab === 'habits' ? filteredHabits.length : 0) +
-    (tab === 'all' || tab === 'tasks' ? filteredTasks.length : 0)
+    (tab === 'today' || tab === 'all' || tab === 'goals' ? filteredGoals.length : 0) +
+    (tab === 'today' || tab === 'all' || tab === 'habits' ? filteredHabits.length : 0) +
+    (tab === 'today' || tab === 'all' || tab === 'tasks' ? filteredTasks.length : 0)
 
   // Last 7 days for habit tracker
   const last7Days = Array.from({ length: 7 }, (_, i) => addDays(t, i - 6))
+  const activeHabits = allHabits.filter((h) => !h.archived)
+  const dueTodayHabits = activeHabits.filter((h) => habitDueOn(h, t))
+  const doneTodayHabits = dueTodayHabits.filter((h) => (h.checks ?? []).includes(t))
+  const bestCurrentStreak = activeHabits.reduce((best, h) => Math.max(best, habitCurrentStreak(h, t)), 0)
 
   return (
+    <>
     <Card className="grid gap-3 p-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
@@ -1378,7 +1389,7 @@ function RoadmapSection({
       </div>
 
       {/* KPI көрсеткіштері */}
-      <div className="grid grid-cols-3 gap-2 py-1">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 py-1">
         <div className="rounded-lg bg-surface-2 p-2.5 text-center">
           <span className="block text-xs text-muted mb-0.5">{tx('Мақсаттар')}</span>
           <span className="text-lg font-bold tabular-nums text-accent">
@@ -1386,10 +1397,14 @@ function RoadmapSection({
           </span>
         </div>
         <div className="rounded-lg bg-surface-2 p-2.5 text-center">
-          <span className="block text-xs text-muted mb-0.5">{tx('Әдеттер')}</span>
+          <span className="block text-xs text-muted mb-0.5">{tx('Бүгін')}</span>
           <span className="text-lg font-bold tabular-nums text-success">
-            {habits.filter((h) => (h.checks ?? []).includes(t)).length} / {habits.length}
+            {doneTodayHabits.length} / {dueTodayHabits.length}
           </span>
+        </div>
+        <div className="rounded-lg bg-surface-2 p-2.5 text-center">
+          <span className="block text-xs text-muted mb-0.5">{tx('Серия')}</span>
+          <span className="text-lg font-bold tabular-nums text-warning">{bestCurrentStreak} {tx('күн')}</span>
         </div>
         <div className="rounded-lg bg-surface-2 p-2.5 text-center">
           <span className="block text-xs text-muted mb-0.5">{tx('Тапсырмалар')}</span>
@@ -1401,6 +1416,13 @@ function RoadmapSection({
 
       {/* Түрлері бойынша сүзгі */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 text-xs">
+        <button
+          type="button"
+          onClick={() => setTab('today')}
+          className={`px-3 py-1.5 rounded-full font-semibold transition ${tab === 'today' ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}
+        >
+          ☀️ {tx('Бүгін')}
+        </button>
         <button
           type="button"
           onClick={() => setTab('all')}
@@ -1428,6 +1450,19 @@ function RoadmapSection({
           className={`px-3 py-1.5 rounded-full font-semibold transition ${tab === 'tasks' ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}
         >
           ✅ {tx('Тапсырмалар ({0})', tasks.length)}
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] text-muted">
+          {tx('Әдетті аз-аздан, бірақ тұрақты орындау маңызды. Бүгінгі бет тек керек қадамдарды көрсетеді.')}
+        </p>
+        <button
+          type="button"
+          onClick={() => setShowArchivedHabits((v) => !v)}
+          className="shrink-0 text-[11px] text-accent font-semibold hover:underline"
+        >
+          {showArchivedHabits ? tx('Белсенді әдеттер') : tx('Архив ({0})', allHabits.filter((h) => h.archived).length)}
         </button>
       </div>
 
@@ -1470,7 +1505,7 @@ function RoadmapSection({
       ) : null}
 
       {/* 1. Мақсаттар (Goals) */}
-      {(tab === 'all' || tab === 'goals') && filteredGoals.length > 0 && (
+      {(tab === 'today' || tab === 'all' || tab === 'goals') && filteredGoals.length > 0 && (
         <div className="grid gap-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">🎯 {tx('Мақсаттар мен қадамдар')}</p>
           {filteredGoals.map((g) => {
@@ -1503,14 +1538,24 @@ function RoadmapSection({
                       </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeGoal(g.id, g.title)}
-                    className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger"
-                    aria-label={tx('Өшіру')}
-                  >
-                    <Icon n="x" size={14} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingGoal(g)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-accent"
+                      aria-label={tx('Өзгерту')}
+                    >
+                      <Icon n="compose" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeGoal(g.id, g.title)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger"
+                      aria-label={tx('Өшіру')}
+                    >
+                      <Icon n="x" size={14} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-start gap-2.5">
@@ -1530,6 +1575,7 @@ function RoadmapSection({
                         🎯 {tx('Нәтиже:')} {g.metric}
                       </p>
                     )}
+                    {g.why && <p className="text-xs text-muted mt-1">💡 {g.why}</p>}
                   </div>
                 </div>
 
@@ -1608,7 +1654,7 @@ function RoadmapSection({
       )}
 
       {/* 2. Әдеттер (Habits) */}
-      {(tab === 'all' || tab === 'habits') && filteredHabits.length > 0 && (
+      {(tab === 'today' || tab === 'all' || tab === 'habits') && filteredHabits.length > 0 && (
         <div className="grid gap-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">🔄 {tx('Күнделікті әдеттер трекері')}</p>
           {filteredHabits.map((h) => {
@@ -1636,14 +1682,24 @@ function RoadmapSection({
                       {freqLabel}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeHabit(h.id, h.title)}
-                    className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger"
-                    aria-label={tx('Өшіру')}
-                  >
-                    <Icon n="x" size={14} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingHabit(h)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-accent"
+                      aria-label={tx('Өзгерту')}
+                    >
+                      <Icon n="compose" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeHabit(h.id, h.title)}
+                      className="size-7 grid place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-danger"
+                      aria-label={h.archived ? tx('Қайта белсендіру') : tx('Архивке жіберу')}
+                    >
+                      <Icon n={h.archived ? 'repeat' : 'archive'} size={14} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-baseline justify-between gap-2">
@@ -1662,6 +1718,12 @@ function RoadmapSection({
                     «{h.motivation}»
                   </p>
                 )}
+
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+                  <span>{tx('Осы апта')}: <b className="text-fg">{habitWeekProgress(h, t).done}/{habitWeekProgress(h, t).total}</b></span>
+                  <span>🔥 {habitCurrentStreak(h, t)} {tx('күндік серия')}</span>
+                  {h.reminder_time && <span>⏰ {h.reminder_time.slice(0, 5)}</span>}
+                </div>
 
                 {/* 7 күндік визуалды трекер */}
                 <div className="flex items-center justify-between gap-2 pt-1 border-t border-line/40">
@@ -1706,7 +1768,7 @@ function RoadmapSection({
       )}
 
       {/* 3. Тапсырмалар (Tasks) */}
-      {(tab === 'all' || tab === 'tasks') && filteredTasks.length > 0 && (
+      {(tab === 'today' || tab === 'all' || tab === 'tasks') && filteredTasks.length > 0 && (
         <div className="grid gap-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">✅ {tx('Нақты тапсырмалар')}</p>
           {filteredTasks.map((tk) => {
@@ -1779,6 +1841,196 @@ function RoadmapSection({
         </div>
       )}
     </Card>
+    {editingGoal && (
+      <RoadmapGoalEditorSheet
+        goal={editingGoal}
+        onClose={() => setEditingGoal(null)}
+        onSave={(next) => {
+          update((prev) => ({ ...prev, goals: prev.goals.map((g) => (g.id === next.id ? next : g)) }), 'goals')
+          setEditingGoal(null)
+          toast(tx('Мақсат өзгертілді'))
+        }}
+      />
+    )}
+    {editingHabit && (
+      <RoadmapHabitEditorSheet
+        habit={editingHabit}
+        goals={goals}
+        onClose={() => setEditingHabit(null)}
+        onSave={(next) => {
+          update((prev) => ({ ...prev, habits: prev.habits.map((h) => (h.id === next.id ? next : h)) }), 'habits')
+          setEditingHabit(null)
+          toast(tx('Әдет өзгертілді'))
+        }}
+      />
+    )}
+    </>
+  )
+}
+
+function RoadmapGoalEditorSheet({
+  goal,
+  onClose,
+  onSave,
+}: {
+  goal: RoadmapGoal
+  onClose: () => void
+  onSave: (goal: RoadmapGoal) => void
+}) {
+  const [category, setCategory] = useState<PlanCategory>(goal.category)
+  const [title, setTitle] = useState(goal.title)
+  const [metric, setMetric] = useState(goal.metric ?? '')
+  const [why, setWhy] = useState(goal.why ?? '')
+  const [dueOn, setDueOn] = useState(goal.due_on ?? '')
+  const [priority, setPriority] = useState<'high' | 'medium' | 'normal'>(goal.priority ?? 'normal')
+  const [steps, setSteps] = useState<RoadmapGoal['steps']>(goal.steps ?? [])
+
+  const save = () => {
+    if (title.trim().length < 2) return toast(tx('Мақсат атауын жазыңыз'))
+    onSave({
+      ...goal,
+      title: title.trim(),
+      category,
+      metric: metric.trim() || undefined,
+      why: why.trim() || undefined,
+      due_on: dueOn || null,
+      priority,
+      steps: steps.filter((s) => s.title.trim().length > 0).map((s) => ({ ...s, title: s.title.trim() })),
+    })
+  }
+
+  return (
+    <Sheet title={tx('Мақсатты өзгерту')} onClose={onClose}>
+      <div className="grid gap-4">
+        <Field label={tx('Бағыты')}>
+          {() => (
+            <div className="flex gap-1.5 flex-wrap">
+              {PLAN_CATEGORIES.map((c) => (
+                <button key={c.id} type="button" onClick={() => setCategory(c.id)} className={`px-2.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 ${category === c.id ? `${c.bg} ${c.color} ring-2 ring-accent` : 'bg-surface-2 text-muted'}`}>
+                  <Icon n={c.icon} size={12} />{c.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </Field>
+        <Field label={tx('Мақсат атауы')}>
+          {(id) => <input id={id} value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />}
+        </Field>
+        <Field label={tx('Күтілетін нәтиже / өлшем')} hint={tx('Нәтиже өлшенетін болса, тұрақты орындау жеңілдейді.') }>
+          {(id, describedBy) => <input id={id} aria-describedby={describedBy} value={metric} onChange={(e) => setMetric(e.target.value)} placeholder={tx('Мысалы: БЖБ-дан 17 балл')} className={inputCls} />}
+        </Field>
+        <Field label={tx('Неге бұл маңызды?')}>
+          {(id) => <textarea id={id} value={why} onChange={(e) => setWhy(e.target.value)} rows={2} className={`${inputCls} h-auto py-3 resize-y`} placeholder={tx('Өзіңе қысқа себеп жаз')} />}
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label={tx('Мерзімі')}>
+            {(id) => <input id={id} type="date" value={dueOn} min={today()} onChange={(e) => setDueOn(e.target.value)} className={inputCls} />}
+          </Field>
+          <Field label={tx('Басымдығы')}>
+            {(id) => <select id={id} value={priority} onChange={(e) => setPriority(e.target.value as 'high' | 'medium' | 'normal')} className={inputCls}><option value="high">{tx('Жоғары')}</option><option value="medium">{tx('Орташа')}</option><option value="normal">{tx('Қалыпты')}</option></select>}
+          </Field>
+        </div>
+        <div className="grid gap-2 border-t border-line pt-3">
+          <p className="font-semibold text-xs text-muted uppercase tracking-wider">{tx('Қадамдар')}</p>
+          {steps.map((step, i) => (
+            <div key={step.id} className="flex gap-2 items-center">
+              <input value={step.title} onChange={(e) => setSteps(steps.map((s) => s.id === step.id ? { ...s, title: e.target.value } : s))} className={`${inputCls} text-sm flex-1`} placeholder={tx('{0}-қадам', i + 1)} />
+              <button type="button" onClick={() => setSteps(steps.filter((s) => s.id !== step.id))} className="size-10 grid place-items-center rounded-md bg-surface-2 text-muted hover:text-danger" aria-label={tx('Қадамды өшіру')}><Icon n="x" size={15} /></button>
+            </div>
+          ))}
+          <Button kind="secondary" onClick={() => setSteps([...steps, { id: `s_${Date.now()}`, title: '', done: false }])}><Icon n="plus" size={15} />{tx('Қадам қосу')}</Button>
+        </div>
+        <Button onClick={save}>{tx('Сақтау')}</Button>
+      </div>
+    </Sheet>
+  )
+}
+
+function RoadmapHabitEditorSheet({
+  habit,
+  goals,
+  onClose,
+  onSave,
+}: {
+  habit: RoadmapHabit
+  goals: RoadmapGoal[]
+  onClose: () => void
+  onSave: (habit: RoadmapHabit) => void
+}) {
+  const initialDays = habit.days_of_week ?? (habit.frequency === 'weekdays' ? [1, 2, 3, 4, 5] : habit.frequency === '3x_week' ? [1, 3, 5] : [])
+  const [category, setCategory] = useState<PlanCategory>(habit.category)
+  const [title, setTitle] = useState(habit.title)
+  const [target, setTarget] = useState(habit.target_val ?? '')
+  const [timeOfDay, setTimeOfDay] = useState<NonNullable<RoadmapHabit['time_of_day']>>(habit.time_of_day ?? 'any')
+  const [frequency, setFrequency] = useState<HabitFrequency>(habit.frequency ?? 'daily')
+  const [days, setDays] = useState<number[]>(initialDays)
+  const [targetPerWeek, setTargetPerWeek] = useState(String(habit.target_per_week ?? (habit.frequency === '3x_week' ? 3 : habit.frequency === 'weekdays' ? 5 : 7)))
+  const [reminderTime, setReminderTime] = useState(habit.reminder_time ?? '')
+  const [motivation, setMotivation] = useState(habit.motivation ?? '')
+  const [goalId, setGoalId] = useState(habit.goal_id ?? '')
+
+  const toggleDay = (day: number) => setDays(days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort((a, b) => a - b))
+  const save = () => {
+    if (title.trim().length < 2) return toast(tx('Әдет атауын жазыңыз'))
+    const selectedDays = frequency === 'weekdays' ? [1, 2, 3, 4, 5] : frequency === '3x_week' && days.length === 0 ? [1, 3, 5] : days
+    onSave({
+      ...habit,
+      title: title.trim(),
+      category,
+      target_val: target.trim() || undefined,
+      time_of_day: timeOfDay,
+      frequency,
+      days_of_week: frequency === 'daily' ? undefined : selectedDays,
+      target_per_week: Math.max(1, Math.min(7, Number(targetPerWeek) || 1)),
+      reminder_time: reminderTime || null,
+      motivation: motivation.trim() || undefined,
+      goal_id: goalId || null,
+    })
+  }
+
+  return (
+    <Sheet title={tx('Әдетті өзгерту')} onClose={onClose}>
+      <div className="grid gap-4">
+        <Field label={tx('Бағыты')}>
+          {() => <div className="flex gap-1.5 flex-wrap">{PLAN_CATEGORIES.map((c) => <button key={c.id} type="button" onClick={() => setCategory(c.id)} className={`px-2.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 ${category === c.id ? `${c.bg} ${c.color} ring-2 ring-accent` : 'bg-surface-2 text-muted'}`}><Icon n={c.icon} size={12} />{c.label}</button>)}</div>}
+        </Field>
+        <Field label={tx('Әдет атауы')}>
+          {(id) => <input id={id} value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />}
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label={tx('Күнделікті мөлшері')} hint={tx('Мысалы: 20 бет, 30 минут')}>
+            {(id, describedBy) => <input id={id} aria-describedby={describedBy} value={target} onChange={(e) => setTarget(e.target.value)} className={inputCls} />}
+          </Field>
+          <Field label={tx('Еске салу уақыты')}>
+            {(id) => <input id={id} type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} className={inputCls} />}
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label={tx('Қай уақытта')}>
+            {(id) => <select id={id} value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value as NonNullable<RoadmapHabit['time_of_day']>)} className={inputCls}>{(Object.entries(TIME_OF_DAY_LABELS) as [NonNullable<RoadmapHabit['time_of_day']>, { label: string; icon: string }][]).map(([key, val]) => <option key={key} value={key}>{val.icon} {val.label}</option>)}</select>}
+          </Field>
+          <Field label={tx('Жиілігі')}>
+            {(id) => <select id={id} value={frequency} onChange={(e) => setFrequency(e.target.value as HabitFrequency)} className={inputCls}>{(Object.entries(FREQUENCY_LABELS) as [HabitFrequency, string][]).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>}
+          </Field>
+        </div>
+        {frequency !== 'daily' && (
+          <div className="grid gap-2">
+            <p className="text-sm font-semibold">{tx('Орындайтын күндер')}</p>
+            <div className="grid grid-cols-7 gap-1">
+              {['Дс', 'Сс', 'Ср', 'Бс', 'Жм', 'Сн', 'Жс'].map((label, i) => <button key={label} type="button" onClick={() => toggleDay(i + 1)} className={`h-9 rounded-md text-xs font-semibold ${days.includes(i + 1) ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}>{label}</button>)}
+            </div>
+            <p className="text-xs text-muted">{tx('Аптасына мақсат')}: <input type="number" min={1} max={7} value={targetPerWeek} onChange={(e) => setTargetPerWeek(e.target.value)} className="w-14 h-8 rounded-md border border-input bg-surface px-2 text-center" /> {tx('рет')}</p>
+          </div>
+        )}
+        {goals.length > 0 && <Field label={tx('Қай мақсатқа байланысты?')}>
+          {(id) => <select id={id} value={goalId} onChange={(e) => setGoalId(e.target.value)} className={inputCls}><option value="">{tx('Байланыстырмау')}</option>{goals.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}</select>}
+        </Field>}
+        <Field label={tx('Неге бұл маңызды?')}>
+          {(id) => <textarea id={id} value={motivation} onChange={(e) => setMotivation(e.target.value)} rows={2} className={`${inputCls} h-auto py-3 resize-y`} placeholder={tx('Өзіңе қысқа себеп жаз')} />}
+        </Field>
+        <Button onClick={save}>{tx('Сақтау')}</Button>
+      </div>
+    </Sheet>
   )
 }
 
@@ -1822,7 +2074,10 @@ function RoadmapBuilderSheet({
   const [habitTitle, setHabitTitle] = useState('')
   const [habitTarget, setHabitTarget] = useState('')
   const [habitTime, setHabitTime] = useState<'morning' | 'afternoon' | 'evening' | 'any'>('evening')
-  const [habitFreq, setHabitFreq] = useState<'daily' | 'weekdays' | '3x_week'>('daily')
+  const [habitFreq, setHabitFreq] = useState<HabitFrequency>('daily')
+  const [habitDays, setHabitDays] = useState<number[]>([1, 3, 5])
+  const [habitReminderTime, setHabitReminderTime] = useState('')
+  const [habitTargetPerWeek, setHabitTargetPerWeek] = useState('7')
   const [habitMotivation, setHabitMotivation] = useState('')
   const [habitGoalId, setHabitGoalId] = useState<string>('')
 
@@ -2003,6 +2258,9 @@ function RoadmapBuilderSheet({
         target_val: habitTarget.trim() || undefined,
         time_of_day: habitTime,
         frequency: habitFreq,
+        days_of_week: habitFreq === 'daily' ? undefined : habitFreq === 'weekdays' ? [1, 2, 3, 4, 5] : habitDays,
+        target_per_week: Math.max(1, Math.min(7, Number(habitTargetPerWeek) || (habitFreq === '3x_week' ? 3 : 7))),
+        reminder_time: habitReminderTime || null,
         motivation: habitMotivation.trim() || undefined,
         goal_id: habitGoalId || null,
         archived: false,
@@ -2440,15 +2698,41 @@ function RoadmapBuilderSheet({
                 <Chips
                   label={tx('Жиілік')}
                   value={habitFreq}
-                  onChange={(v) => setHabitFreq(v as 'daily' | 'weekdays' | '3x_week')}
+                  onChange={(v) => {
+                    const next = v as HabitFrequency
+                    setHabitFreq(next)
+                    if (next === '3x_week') setHabitTargetPerWeek('3')
+                    if (next === 'weekdays') setHabitTargetPerWeek('5')
+                    if (next === 'daily') setHabitTargetPerWeek('7')
+                  }}
                   items={[
                     ['daily', tx('Күн сайын')],
                     ['weekdays', tx('Дс-Жм')],
                     ['3x_week', tx('Аптасына 3 рет')],
+                    ['custom', tx('Өз күндерім')],
                   ]}
                 />
               )}
             </Field>
+
+            {habitFreq !== 'daily' && (
+              <div className="grid gap-2 rounded-lg bg-surface-2 p-3">
+                <p className="text-sm font-semibold">{tx('Қай күндері орындау?')}</p>
+                <div className="grid grid-cols-7 gap-1">
+                  {['Дс', 'Сс', 'Ср', 'Бс', 'Жм', 'Сн', 'Жс'].map((label, i) => (
+                    <button key={label} type="button" onClick={() => setHabitDays(habitDays.includes(i + 1) ? habitDays.filter((d) => d !== i + 1) : [...habitDays, i + 1].sort((a, b) => a - b))} className={`h-9 rounded-md text-xs font-semibold ${habitDays.includes(i + 1) ? 'bg-accent text-on-accent' : 'bg-surface text-muted'}`}>{label}</button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label={tx('Апталық мақсат')}>
+                    {(id) => <input id={id} type="number" min={1} max={7} value={habitTargetPerWeek} onChange={(e) => setHabitTargetPerWeek(e.target.value)} className={inputCls} />}
+                  </Field>
+                  <Field label={tx('Еске салу уақыты')}>
+                    {(id) => <input id={id} type="time" value={habitReminderTime} onChange={(e) => setHabitReminderTime(e.target.value)} className={inputCls} />}
+                  </Field>
+                </div>
+              </div>
+            )}
 
             <Field label={tx('Мотивациясы')} hint={tx('Не үшін қажет? (қысқаша түсіндірме)')}>
               {(id, d) => (
