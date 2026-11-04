@@ -32,27 +32,6 @@ export type CalViewMode = 'month' | 'week' | 'day' | 'year' | 'agenda'
 
 const dayLabel = (d: string) => `${WD_SHORT[isoDow(d) - 1]}, ${fmtDate(d)}`
 
-const TYPE_COLORS: Record<EventTypeCode, string> = {
-  sport: '#2563eb',
-  food: '#f59e0b',
-  game: '#8b5cf6',
-  film: '#7c3aed',
-  cleaning: '#0d9488',
-  walk: '#16a34a',
-  outing: '#16a34a',
-  trip: '#0891b2',
-  hour_lead: '#16a34a',
-  hour_parent: '#9333ea',
-  meeting: '#64748b',
-  parent_activity: '#ec4899',
-  visit: '#ec4899',
-  mentor: '#2563eb',
-  exam: '#dc2626',
-  birthday: '#db2777',
-  competition: '#dc2626',
-  other: '#6b7280',
-}
-
 const TYPE_EMOJIS: Record<string, string> = {
   sport: '⚽',
   food: '🍕',
@@ -78,6 +57,13 @@ const ALL_TYPES: EventTypeCode[] = [
   'sport', 'food', 'game', 'film', 'cleaning', 'walk', 'outing', 'trip',
   'hour_lead', 'hour_parent', 'meeting', 'parent_activity', 'visit',
   'mentor', 'exam', 'birthday', 'competition', 'other',
+]
+
+const TYPE_GROUPS: { id: string; label: string; icon: string; types: EventTypeCode[] }[] = [
+  { id: 'class', label: tx('Сынып белсенділігі'), icon: '🎒', types: ['sport', 'food', 'game', 'film', 'cleaning', 'walk', 'outing', 'trip', 'competition'] },
+  { id: 'education', label: tx('Оқу және тәрбие'), icon: '📚', types: ['hour_lead', 'hour_parent', 'meeting', 'mentor', 'exam'] },
+  { id: 'parents', label: tx('Ата-ана және жеке'), icon: '🤝', types: ['parent_activity', 'visit', 'birthday'] },
+  { id: 'other', label: tx('Басқа'), icon: '📌', types: ['other'] },
 ]
 
 export default function ClassCalendarView({
@@ -109,6 +95,7 @@ export default function ClassCalendarView({
   // Filters
   const [showHolidays, setShowHolidays] = useState(true)
   const [enabledTypes, setEnabledTypes] = useState<Set<EventTypeCode>>(() => new Set(ALL_TYPES))
+  const [openTypeGroups, setOpenTypeGroups] = useState<Set<string>>(() => new Set(['class']))
   const [onlyVisibleToStudents, setOnlyVisibleToStudents] = useState(false)
   const [includeArchived, setIncludeArchived] = useState(false)
 
@@ -186,6 +173,14 @@ export default function ClassCalendarView({
 
   const selectAllTypes = () => setEnabledTypes(new Set(ALL_TYPES))
   const deselectAllTypes = () => setEnabledTypes(new Set())
+  const toggleTypeGroup = (types: EventTypeCode[]) => {
+    setEnabledTypes((prev) => {
+      const next = new Set(prev)
+      const allOn = types.every((type) => next.has(type))
+      types.forEach((type) => allOn ? next.delete(type) : next.add(type))
+      return next
+    })
+  }
 
   // Header Title
   const headerTitle = useMemo(() => {
@@ -397,28 +392,24 @@ export default function ClassCalendarView({
                 )}
               </label>
 
-              {/* Event Types Checkboxes */}
-              <div className="max-h-60 overflow-y-auto pr-1 grid gap-1">
-                {ALL_TYPES.map((code) => {
-                  const color = TYPE_COLORS[code]
-                  const emoji = TYPE_EMOJIS[code]
-                  const label = typeLabels[code] ?? code
-                  const checked = enabledTypes.has(code)
+              {/* Compact grouped event type filters */}
+              <div className="grid gap-1.5">
+                {TYPE_GROUPS.map((group) => {
+                  const selected = group.types.filter((type) => enabledTypes.has(type)).length
+                  const open = openTypeGroups.has(group.id)
                   return (
-                    <label
-                      key={code}
-                      className="flex items-center gap-2 text-xs text-ink cursor-pointer hover:bg-surface-2 p-1.5 rounded-lg transition"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleType(code)}
-                        className="size-4 rounded accent-accent cursor-pointer"
-                      />
-                      <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                      <span className="text-xs shrink-0">{emoji}</span>
-                      <span className="truncate flex-1 font-medium">{label}</span>
-                    </label>
+                    <div key={group.id} className="rounded-lg border border-line bg-surface overflow-hidden">
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => setOpenTypeGroups((prev) => { const next = new Set(prev); if (open) next.delete(group.id); else next.add(group.id); return next })} className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 text-left hover:bg-surface-2">
+                          <span>{group.icon}</span><span className="font-semibold text-xs truncate flex-1">{group.label}</span><span className="text-[10px] text-muted tabular-nums">{selected}/{group.types.length}</span><Icon n="chev" size={13} className={`text-muted transition-transform ${open ? 'rotate-90' : ''}`} />
+                        </button>
+                        <button type="button" onClick={() => toggleTypeGroup(group.types)} className="px-2 text-[10px] text-accent font-semibold hover:underline">{selected === group.types.length ? tx('Алу') : tx('Бәрі')}</button>
+                      </div>
+                      {open && <div className="grid grid-cols-2 gap-1 px-2 pb-2 border-t border-line pt-1.5">{group.types.map((code) => {
+                        const checked = enabledTypes.has(code)
+                        return <label key={code} className="flex items-center gap-1.5 min-w-0 text-[11px] text-ink cursor-pointer rounded px-1 py-1 hover:bg-surface-2"><input type="checkbox" checked={checked} onChange={() => toggleType(code)} className="size-3.5 rounded accent-accent cursor-pointer" /><span>{TYPE_EMOJIS[code]}</span><span className="truncate">{typeLabels[code] ?? code}</span></label>
+                      })}</div>}
+                    </div>
                   )
                 })}
               </div>

@@ -18,6 +18,40 @@ const DIRECTION: Record<string, string> = {
   moral: tx('Адамгершілік'), safety: tx('Қауіпсіздік'), national: tx('Ұлттық құндылықтар'), patriotic: tx('Патриоттық'),
   health: tx('Салауатты өмір'), family: tx('Отбасы'), career: tx('Кәсіптік бағдар'), other: tx('Басқа'),
 }
+const HOUR_TOPICS: Record<string, string[]> = {
+  moral: [
+    tx('Құрмет және жауапкершілік'), tx('Адалдық — адамдықтың белгісі'), tx('Эмпатия және бір-бірін түсіну'), tx('Қақтығысты бейбіт шешу'),
+    tx('Сөз мәдениеті және әдеп'), tx('Достықтың құндылығы'), tx('Киберәдеп және онлайн қарым-қатынас'), tx('Жақсылық жасау марафоны'),
+  ],
+  safety: [
+    tx('Жолдағы қауіпсіздік'), tx('Өрт қауіпсіздігі'), tx('Интернеттегі қауіпсіздік'), tx('Буллингтің алдын алу'),
+    tx('Төтенше жағдайда не істеу керек?'), tx('Жатақханадағы қауіпсіздік ережелері'), tx('Бейтаныс адамдардан сақтану'), tx('Қауіпсіз демалыс'),
+  ],
+  national: [
+    tx('Қазақтың салт-дәстүрі'), tx('Ұлттық ойындар'), tx('Қазақтың қонақжайлығы'), tx('Ана тілі — асыл қазына'),
+    tx('Ұлттық тағамдар және мәдениет'), tx('Ұлы тұлғалар мұрасы'), tx('Домбыра және күй өнері'), tx('Тәуелсіздік құндылығы'),
+  ],
+  patriotic: [
+    tx('Отанды сүю — отбасынан басталады'), tx('Менің Қазақстаным'), tx('Мемлекеттік рәміздер'), tx('Ел қорғаған ерлер'),
+    tx('Туған жерге қызмет ету'), tx('Бірлік пен келісім'), tx('Азаматтық жауапкершілік'), tx('Қазақстанның болашағы — жастар'),
+  ],
+  health: [
+    tx('Ұйқы және күн тәртібі'), tx('Дұрыс тамақтану'), tx('Қозғалыс және спорт'), tx('Психологиялық денсаулық'),
+    tx('Стресті басқару'), tx('Зиянды әдеттердің алдын алу'), tx('Жеке гигиена'), tx('Экран уақытын басқару'),
+  ],
+  family: [
+    tx('Отбасындағы өзара қолдау'), tx('Ата-анамен ашық сөйлесу'), tx('Үйдегі міндеттерді бөлісу'), tx('Отбасылық дәстүрлер'),
+    tx('Үлкенді сыйлау, кішіні қорғау'), tx('Ризашылық білдіру'), tx('Қиын кезде көмек сұрау'), tx('Отбасылық қаржы мәдениеті'),
+  ],
+  career: [
+    tx('Мамандықты қалай таңдаймыз?'), tx('Менің қызығушылығым мен қабілетім'), tx('Holland коды және мамандықтар'), tx('Мақсат қою және жоспарлау'),
+    tx('Уақытты басқару'), tx('Кәсіптер әлемі'), tx('Қаржылық сауаттылық'), tx('Болашаққа қажетті дағдылар'),
+  ],
+  other: [
+    tx('Сыныптың ортақ ережелері'), tx('Оқу тоқсанын қорытындылау'), tx('Сыныптың даму жоспары'), tx('Кері байланыс мәдениеті'),
+    tx('Менің жетістіктерім'), tx('Арман картасы'), tx('Кітап және фильм талқылауы'), tx('Еркін тақырып'),
+  ],
+}
 // colour of each kind of day on the calendar
 const KIND = {
   school: ['#dc2626', tx('Емтихан, мектеп шарасы')], mentor: ['#2563eb', tx('Жеке кездесу')], hour: ['#16a34a', tx('Тәрбие сағаты')],
@@ -495,6 +529,22 @@ function Hours({ classId, d, staffName, reload }: { classId: string; d: D; staff
         )}
       </div>
       <div className="grid gap-2">
+        <details className="rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 py-3" open>
+          <summary className="font-semibold cursor-pointer flex items-center justify-between gap-2">
+            <span>📚 {tx('Тәрбие сағаты тақырыптары')}</span>
+            <span className="text-xs text-muted font-normal">{tx('{0} бағыт · {1} тақырып', Object.keys(HOUR_TOPICS).length, Object.values(HOUR_TOPICS).flat().length)}</span>
+          </summary>
+          <div className="mt-3 grid gap-3 max-h-72 overflow-y-auto pr-1">
+            {Object.entries(DIRECTION).map(([key, label]) => (
+              <div key={key} className="grid gap-1.5">
+                <button type="button" onClick={() => { setDir(key); setQ('') }} className={`text-left text-xs font-bold ${dir === key ? 'text-accent' : 'text-muted hover:text-ink'}`}>{label}</button>
+                <div className="flex flex-wrap gap-1.5">
+                  {(HOUR_TOPICS[key] ?? []).map((topic) => <button key={topic} type="button" onClick={() => { setDir(key); setQ(topic) }} className="max-w-full truncate rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-ink hover:bg-accent-soft hover:text-accent" title={topic}>{topic}</button>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
         <div className="grid grid-cols-2 gap-2">
           <select aria-label={tx('Бағыты')} value={dir} onChange={(e) => setDir(e.target.value)} className={`${inputCls} h-10 text-sm`}>
             <option value="">{tx('Барлық бағыт')}</option>
@@ -1449,6 +1499,12 @@ function AddSheet({ classId, init, students, events, people, staffName, onClose,
             {Object.entries(DIRECTION).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
           <input aria-label={tx('Тақырыбы')} value={h.topic} onChange={(e) => setH({ ...h, topic: e.target.value })} maxLength={300} className={inputCls} placeholder={tx('Тақырыбы')} />
+          <div className="rounded-lg bg-surface-2 p-3 grid gap-2">
+            <div className="flex items-center justify-between gap-2"><span className="text-xs font-bold text-muted uppercase tracking-wider">{tx('Дайын тақырыптар')}</span><span className="text-[11px] text-muted">{tx('{0} нұсқа', (HOUR_TOPICS[h.direction] ?? []).length)}</span></div>
+            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+              {(HOUR_TOPICS[h.direction] ?? []).map((topic) => <button key={topic} type="button" onClick={() => setH({ ...h, topic })} className={`max-w-full truncate rounded-full px-2.5 py-1 text-[11px] ${h.topic === topic ? 'bg-accent text-on-accent' : 'bg-surface text-ink hover:bg-accent-soft hover:text-accent'}`} title={topic}>{topic}</button>)}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <select aria-label={tx('Кім өткізді')} value={h.led_by} onChange={(e) => setH({ ...h, led_by: e.target.value })} className={inputCls}>
               {people.map((p) => <option key={p} value={p}>{staffName(p)}</option>)}

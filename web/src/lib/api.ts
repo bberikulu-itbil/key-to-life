@@ -901,21 +901,56 @@ type StudentDossierRpc = Omit<StudentDossier, 'profileDetails' | 'health' | 'hea
 }
 
 export const studentMentor = async (id: string) => {
-  const payload = await rpc<StudentDossierRpc>('student_dossier', { p_student: id })
+  try {
+    const payload = await rpc<StudentDossierRpc>('student_dossier', { p_student: id })
+    return {
+      student: payload.student,
+      meetings: payload.meetings ?? [],
+      tests: payload.tests ?? [],
+      notes: payload.notes ?? [],
+      contacts: payload.contacts ?? [],
+      form: payload.form ?? null,
+      items: payload.items ?? [],
+      roadmap: payload.roadmap ?? { goals: [], habits: [], tasks: [] },
+      profileDetails: payload.profile_details ?? null,
+      health: payload.health ?? null,
+      healthEvents: payload.health_events ?? [],
+      familyContacts: payload.family_contacts ?? [],
+    } satisfies StudentDossier
+  } catch (e) {
+    const message = String((e as { message?: string })?.message ?? e)
+    if (!message.includes('student_dossier') && !message.includes('42883')) throw e
+    return legacyStudentMentor(id)
+  }
+}
+
+const optionalQuery = async <T,>(query: () => Promise<T>, fallback: T): Promise<T> => {
+  try { return await query() } catch { return fallback }
+}
+
+/** Temporary compatibility path while the structured dossier migration is being rolled out. */
+const legacyStudentMentor = async (id: string): Promise<StudentDossier> => {
+  const base = (await ok(supabase.from('profiles').select('id, full_name, photo, class_id').eq('id', id).single())) as { id: string; full_name: string; photo: string | null; class_id: string | null }
+  const form = await studentForm(id)
+  const [meetings, items, roadmap, notes, contacts, profileDetails, health, healthEvents, familyContacts] = await Promise.all([
+    optionalQuery(() => ok(supabase.from('mentor_meetings').select(MM).eq('student_id', id).order('starts_at', { ascending: false }).limit(300)) as Promise<MentorMeeting[]>, []),
+    optionalQuery(() => mentorItems(id), []),
+    loadStudentRoadmap(id),
+    optionalQuery(() => base.class_id
+      ? ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at, tags, urgent, photo').eq('class_id', base.class_id).contains('student_ids', [id]).order('created_at', { ascending: false }).limit(100)) as Promise<CouncilNote[]>
+      : Promise.resolve([] as CouncilNote[]), []),
+    optionalQuery(() => base.class_id
+      ? ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('class_id', base.class_id).eq('student_id', id).order('on_date', { ascending: false }).limit(100)) as Promise<ParentContact[]>
+      : Promise.resolve([] as ParentContact[]), []),
+    optionalQuery(() => ok(supabase.from('student_profile_details').select('*').eq('student_id', id).maybeSingle()) as Promise<StudentProfileDetails | null>, null),
+    optionalQuery(() => ok(supabase.from('student_health_profiles').select('*').eq('student_id', id).maybeSingle()) as Promise<StudentHealthProfile | null>, null),
+    optionalQuery(() => ok(supabase.from('student_health_events').select('*').eq('student_id', id).order('started_on', { ascending: false }).limit(100)) as Promise<StudentHealthEvent[]>, []),
+    optionalQuery(() => ok(supabase.from('student_family_contacts').select('*').eq('student_id', id).order('relationship')) as Promise<StudentFamilyContact[]>, []),
+  ])
   return {
-    student: payload.student,
-    meetings: payload.meetings ?? [],
-    tests: payload.tests ?? [],
-    notes: payload.notes ?? [],
-    contacts: payload.contacts ?? [],
-    form: payload.form ?? null,
-    items: payload.items ?? [],
-    roadmap: payload.roadmap ?? { goals: [], habits: [], tasks: [] },
-    profileDetails: payload.profile_details ?? null,
-    health: payload.health ?? null,
-    healthEvents: payload.health_events ?? [],
-    familyContacts: payload.family_contacts ?? [],
-  } satisfies StudentDossier
+    student: { id: base.id, full_name: base.full_name, photo: base.photo, class_id: base.class_id ?? undefined, olympiad: null, club: null },
+    meetings, tests: [], notes, contacts, form, items, roadmap, profileDetails, health, healthEvents, familyContacts,
+  }
 }
 export const addMentorMeeting = (row: { class_id: string; student_id: string; starts_at: string; topic: string; visible: boolean; place?: string | null }) => ok(supabase.from('mentor_meetings').insert(row))
 export const finishMentorMeeting = (id: string, actions: string, notes: string) =>
