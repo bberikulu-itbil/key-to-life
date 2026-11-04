@@ -7,13 +7,17 @@ import { tx } from '../lib/i18n'
 
 const KIND_LABEL: Record<ClassResourceKind, string> = { book: tx('Кітап'), movie: tx('Фильм'), recipe: tx('Рецепт') }
 const KIND_ICON: Record<ClassResourceKind, string> = { book: 'book', movie: 'file', recipe: 'utensils' }
-const STATUS_LABEL: Record<ClassResourceProgress['status'], string> = { saved: tx('Тізімімде'), in_progress: tx('Басталды'), done: tx('Орындалды') }
+const STATUS_LABEL: Record<ClassResourceProgress['status'], string> = {
+  saved: tx('Алда орындаймын'),
+  in_progress: tx('Орындап жатырмын'),
+  done: tx('Орындадым'),
+}
 
 export default function ClassHub({ classId }: { classId?: string }) {
   const { me } = useMe()
   const [tab, setTab] = useState<'resources' | 'plans'>('resources')
   const [kind, setKind] = useState<'all' | ClassResourceKind>('all')
-  const [mine, setMine] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | ClassResourceProgress['status']>('all')
   const [resourceForm, setResourceForm] = useState(false)
   const [planForm, setPlanForm] = useState(false)
   const data = useLoad(async () => {
@@ -23,9 +27,11 @@ export default function ClassHub({ classId }: { classId?: string }) {
   }, [classId])
   const d = data.data
   const manager = !!d?.cls && (me.role === 'deputy' || me.role === 'admin' || d.cls.teacher_id === me.id || d.cls.tutor_id === me.id)
-  const resources = (d?.resources ?? []).filter((r) => (kind === 'all' || r.kind === kind) && (!mine || r.progress.some((p) => p.user_id === me.id)))
+  const resources = (d?.resources ?? []).filter((r) => (kind === 'all' || r.kind === kind) && (
+    statusFilter === 'all' || r.progress.some((p) => p.user_id === me.id && p.status === statusFilter)
+  ))
 
-  const progress = async (resourceId: string, volume: number, status: ClassResourceProgress['status'], rating: number | null) => {
+  const progress = async (resourceId: string, volume: number, status: ClassResourceProgress['status'] | null, rating: number | null) => {
     try { await setClassHubResourceProgress(resourceId, me.id, volume, status, rating); data.reload() } catch (e) { toast(errText(e)) }
   }
 
@@ -44,8 +50,13 @@ export default function ClassHub({ classId }: { classId?: string }) {
       {tab === 'resources' ? (
         <>
           <Chips label={tx('Түрі')} value={kind} onChange={setKind} items={[["all", tx('Барлығы')], ['book', tx('Кітап')], ['movie', tx('Фильм')], ['recipe', tx('Рецепт')]]} />
-          <button type="button" onClick={() => setMine(!mine)} aria-pressed={mine} className={`h-11 rounded-md text-sm font-semibold ${mine ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}>{tx('Менің тізімім')}</button>
-          {!resources.length ? <Card><Empty icon={kind === 'recipe' ? 'utensils' : 'book'} title={mine ? tx('Тізіміңіз әзірге бос') : tx('Әзірге ештеңе қосылмады')} text={manager ? tx('Оқушыларға пайдалы кітап, фильм немесе рецепт қосыңыз.') : undefined} /></Card>
+          <Chips label={tx('Менің медиатекам')} value={statusFilter} onChange={setStatusFilter} items={[
+            ['all', tx('Барлығы')],
+            ['saved', tx('Алда орындаймын')],
+            ['in_progress', tx('Орындап жатырмын')],
+            ['done', tx('Орындадым')],
+          ]} />
+          {!resources.length ? <Card><Empty icon={kind === 'recipe' ? 'utensils' : 'book'} title={statusFilter === 'all' ? tx('Әзірге ештеңе қосылмады') : tx('Бұл бөлім әзірге бос')} text={manager ? tx('Оқушыларға пайдалы кітап, фильм немесе рецепт қосыңыз.') : undefined} /></Card>
             : resources.map((r) => <ResourceCard key={r.id} resource={r} me={me.id} onProgress={progress} />)}
         </>
       ) : <PlansTab tasks={d.tasks} students={d.students} me={me.id} manager={manager} onAdd={() => setPlanForm(true)} onReload={data.reload} />}
@@ -55,7 +66,7 @@ export default function ClassHub({ classId }: { classId?: string }) {
   )
 }
 
-function ResourceCard({ resource: r, me, onProgress }: { resource: ClassResource; me: string; onProgress: (id: string, volume: number, status: ClassResourceProgress['status'], rating: number | null) => void }) {
+function ResourceCard({ resource: r, me, onProgress }: { resource: ClassResource; me: string; onProgress: (id: string, volume: number, status: ClassResourceProgress['status'] | null, rating: number | null) => void }) {
   const [servings, setServings] = useState(r.servings ?? 1)
   const volumes = r.kind === 'book' ? Math.max(1, r.volumes) : 1
   const mine = (v: number) => r.progress.find((p) => p.user_id === me && p.volume === v)
@@ -84,10 +95,15 @@ function ResourceCard({ resource: r, me, onProgress }: { resource: ClassResource
       <div className="grid gap-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">{r.kind === 'book' && volumes > 1 ? tx('Томдар') : tx('Менің белгіім')}</p>
         {Array.from({ length: volumes }, (_, i) => {
-          const v = i + 1; const p = mine(v); const done = p?.status === 'done'
-          return <div key={v} className="flex items-center gap-2 rounded-md bg-surface-2 px-3 py-2">
-            <button type="button" onClick={() => onProgress(r.id, v, done ? 'saved' : 'done', p?.rating ?? null)} aria-pressed={done} className={`size-8 rounded-full grid place-items-center shrink-0 ${done ? 'bg-success text-white' : 'bg-surface border border-line'}`}><Icon n="check" size={17} /></button>
-            <span className="flex-1 min-w-0 text-sm font-medium">{r.kind === 'book' && volumes > 1 ? tx('{0}-том', v) : p ? STATUS_LABEL[p.status] : tx('Тізіміме қосу')}</span>
+          const v = i + 1; const p = mine(v)
+          const statusIcon = p?.status === 'done' ? 'check' : p?.status === 'in_progress' ? 'clock' : 'file'
+          return <div key={v} className="flex flex-wrap items-center gap-2 rounded-md bg-surface-2 px-3 py-2">
+            <span className={`size-8 rounded-full grid place-items-center shrink-0 ${p?.status === 'done' ? 'bg-success text-white' : 'bg-surface border border-line text-muted'}`}><Icon n={statusIcon} size={16} /></span>
+            <span className="flex-1 min-w-0 text-sm font-medium">{r.kind === 'book' && volumes > 1 ? tx('{0}-том', v) : tx('Менің белгіім')}</span>
+            <select aria-label={tx('{0} мәртебесі', r.title)} value={p?.status ?? ''} onChange={(e) => onProgress(r.id, v, (e.target.value || null) as ClassResourceProgress['status'] | null, p?.rating ?? null)} className="h-9 min-w-40 rounded-md border border-input bg-surface px-2 text-sm">
+              <option value="">{tx('Қоспау')}</option>
+              {(Object.keys(STATUS_LABEL) as ClassResourceProgress['status'][]).map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}
+            </select>
             <select aria-label={tx('{0} бағасы', r.title)} value={p?.rating ?? ''} onChange={(e) => onProgress(r.id, v, p?.status ?? 'saved', e.target.value ? Number(e.target.value) : null)} className="h-9 rounded-md border border-input bg-surface px-2 text-sm">
               <option value="">{tx('Баға')}</option>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}/5</option>)}
             </select>
