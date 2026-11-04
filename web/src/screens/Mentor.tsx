@@ -1249,6 +1249,21 @@ const TRAJECTORY_META: Record<StudentTrajectoryKind, { label: string; icon: stri
   club: { label: tx('Үйірме'), icon: 'users' },
 }
 const TRAJECTORY_DAYS = ['Дс', 'Сс', 'Ср', 'Бс', 'Жм', 'Сн', 'Жс']
+const isPeriodTrajectory = (kind: StudentTrajectoryKind) => kind === 'olympiad' || kind === 'club'
+const trajectoryDuration = (startedOn: string, endedOn?: string | null) => {
+  const from = new Date(`${startedOn}T00:00:00`)
+  const to = new Date(`${endedOn ?? today()}T00:00:00`)
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return null
+  let months = (to.getFullYear() - from.getFullYear()) * 12 + to.getMonth() - from.getMonth()
+  if (to.getDate() < from.getDate()) months -= 1
+  if (months >= 12) {
+    const years = Math.floor(months / 12)
+    const rest = months % 12
+    return rest ? tx('{0} жыл {1} ай', years, rest) : tx('{0} жыл', years)
+  }
+  if (months > 0) return tx('{0} ай', months)
+  return tx('{0} күн', Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000)))
+}
 
 function StudentTrajectory({ studentId }: { studentId: string }) {
   const data = useLoad(() => listStudentTrajectory(studentId), [studentId])
@@ -1267,19 +1282,22 @@ function StudentTrajectory({ studentId }: { studentId: string }) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-bold text-base flex items-center gap-2"><Icon n="list" size={17} className="text-accent" />{tx('Қызығушылықтар және бағыттар')}</p>
-          <p className="text-xs text-muted">{tx('Хобби, спорт, олимпиада және үйірмені апталық уақытымен бірге сақтаңыз.')}</p>
+          <p className="text-xs text-muted">{tx('Хобби мен спортты апталық уақытымен, олимпиада мен үйірмені қатысу кезеңімен бірге сақтаңыз.')}</p>
         </div>
         <Button kind="secondary" onClick={openAdd}><Icon n="plus" size={15} />{tx('Қосу')}</Button>
       </div>
-      {data.loading && !data.data ? <p className="text-sm text-muted">{tx('Жүктелуде...')}</p> : !rows.length ? <Empty icon="list" title={tx('Бағыттар әлі қосылмаған')} text={tx('Оқушының хоббиін, спортын немесе үйірмесін уақыт кестесімен қосыңыз.')} /> : (
+      {data.loading && !data.data ? <p className="text-sm text-muted">{tx('Жүктелуде...')}</p> : !rows.length ? <Empty icon="list" title={tx('Бағыттар әлі қосылмаған')} text={tx('Хобби мен спортқа уақыт кестесін, олимпиада мен үйірмеге қатысу кезеңін қосыңыз.')} /> : (
         <div className="grid gap-2">
           {rows.map((item) => {
             const meta = TRAJECTORY_META[item.kind]
+            const period = isPeriodTrajectory(item.kind)
             const days = item.days_of_week.map((day) => TRAJECTORY_DAYS[day - 1]).filter(Boolean).join(' · ')
             const time = item.start_time || item.end_time ? `${item.start_time?.slice(0, 5) ?? '—'}–${item.end_time?.slice(0, 5) ?? '—'}` : tx('Уақыты белгіленбеген')
+            const participation = item.started_on ? `${fmtDate(item.started_on)} — ${item.ended_on ? fmtDate(item.ended_on) : tx('бүгінге дейін')}` : tx('Қатысу кезеңі белгіленбеген')
+            const duration = item.started_on ? trajectoryDuration(item.started_on, item.ended_on) : null
             return <div key={item.id} className="flex items-start gap-3 rounded-lg bg-surface-2 p-3">
               <span className="size-9 rounded-md bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={meta.icon} size={17} /></span>
-              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-sm break-words">{item.title}</p><span className="text-[11px] rounded-full bg-surface px-2 py-0.5 text-muted">{meta.label}</span></div><p className="text-xs text-muted mt-1">{days || tx('Апта күні белгіленбеген')} · {time}{item.coach_or_place ? ` · ${item.coach_or_place}` : ''}</p>{item.note && <p className="text-xs text-muted mt-1 whitespace-pre-line">{item.note}</p>}</div>
+              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-sm break-words">{item.title}</p><span className="text-[11px] rounded-full bg-surface px-2 py-0.5 text-muted">{meta.label}</span></div><p className="text-xs text-muted mt-1">{period ? participation : `${days || tx('Апта күні белгіленбеген')} · ${time}`}{duration ? ` · ${tx('ұзақтығы')}: ${duration}` : ''}{item.coach_or_place ? ` · ${item.coach_or_place}` : ''}</p>{item.note && <p className="text-xs text-muted mt-1 whitespace-pre-line">{item.note}</p>}</div>
               <div className="flex gap-1 shrink-0"><button type="button" className="size-8 rounded-md grid place-items-center text-muted hover:bg-surface hover:text-accent" aria-label={tx('Өзгерту')} onClick={() => { setEditing(item); setSheetOpen(true) }}><Icon n="compose" size={15} /></button><button type="button" className="size-8 rounded-md grid place-items-center text-muted hover:bg-surface hover:text-danger" aria-label={tx('Өшіру')} onClick={() => remove(item)}><Icon n="x" size={15} /></button></div>
             </div>
           })}
@@ -1291,21 +1309,24 @@ function StudentTrajectory({ studentId }: { studentId: string }) {
 }
 
 function TrajectoryForm({ studentId, item, onDone }: { studentId: string; item: StudentTrajectoryItem | null; onDone: () => void }) {
-  const [draft, setDraft] = useState<StudentTrajectoryDraft>(item ?? { kind: 'hobby', title: '', days_of_week: [], start_time: null, end_time: null, coach_or_place: '', note: '' })
+  const [draft, setDraft] = useState<StudentTrajectoryDraft>(item ?? { kind: 'hobby', title: '', days_of_week: [], start_time: null, end_time: null, started_on: null, ended_on: null, coach_or_place: '', note: '' })
   const [busy, setBusy] = useState(false)
   const update = (patch: Partial<StudentTrajectoryDraft>) => setDraft((prev) => ({ ...prev, ...patch }))
   const toggleDay = (day: number) => update({ days_of_week: draft.days_of_week.includes(day) ? draft.days_of_week.filter((x) => x !== day) : [...draft.days_of_week, day].sort((a, b) => a - b) })
+  const period = isPeriodTrajectory(draft.kind)
+  const current = draft.ended_on == null
   const save = async () => {
     if (draft.title.trim().length < 2) return toast(tx('Атауын жазыңыз'))
+    if (period && !draft.started_on) return toast(tx('Қатысу басталған күнді енгізіңіз'))
+    if (period && !current && !draft.ended_on) return toast(tx('Қатысу аяқталған күнді енгізіңіз'))
     if (draft.start_time && draft.end_time && draft.end_time < draft.start_time) return toast(tx('Аяқталу уақыты басталу уақытынан кейін болуы керек'))
     setBusy(true)
-    try { await saveStudentTrajectory(studentId, { ...draft, title: draft.title.trim(), coach_or_place: draft.coach_or_place?.trim() || null, note: draft.note?.trim() || null, start_time: draft.start_time || null, end_time: draft.end_time || null }); toast(tx('Сақталды')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+    try { await saveStudentTrajectory(studentId, { ...draft, title: draft.title.trim(), coach_or_place: draft.coach_or_place?.trim() || null, note: draft.note?.trim() || null, start_time: period ? null : draft.start_time || null, end_time: period ? null : draft.end_time || null, started_on: period ? draft.started_on || null : null, ended_on: period ? draft.ended_on || null : null }); toast(tx('Сақталды')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return <div className="grid gap-4">
-    <Field label={tx('Бағыт түрі')}>{(id) => <select id={id} className={inputCls} value={draft.kind} onChange={(e) => update({ kind: e.target.value as StudentTrajectoryKind })}>{(Object.keys(TRAJECTORY_META) as StudentTrajectoryKind[]).map((kind) => <option key={kind} value={kind}>{TRAJECTORY_META[kind].label}</option>)}</select>}</Field>
+    <Field label={tx('Бағыт түрі')}>{(id) => <select id={id} className={inputCls} value={draft.kind} onChange={(e) => { const kind = e.target.value as StudentTrajectoryKind; update({ kind, ...(isPeriodTrajectory(kind) ? { start_time: null, end_time: null } : { started_on: null, ended_on: null }) }) }}>{(Object.keys(TRAJECTORY_META) as StudentTrajectoryKind[]).map((kind) => <option key={kind} value={kind}>{TRAJECTORY_META[kind].label}</option>)}</select>}</Field>
     <Field label={tx('Атауы')} hint={tx('Мысалы: футбол, робототехника, математика олимпиадасы')}>{(id) => <input id={id} className={inputCls} value={draft.title} onChange={(e) => update({ title: e.target.value })} />}</Field>
-    <div className="grid gap-2"><p className="text-sm font-semibold">{tx('Апта күндері')}</p><div className="grid grid-cols-7 gap-1">{TRAJECTORY_DAYS.map((label, index) => <button key={label} type="button" onClick={() => toggleDay(index + 1)} className={`h-9 rounded-md text-xs font-semibold ${draft.days_of_week.includes(index + 1) ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}>{label}</button>)}</div></div>
-    <div className="grid grid-cols-2 gap-2"><Field label={tx('Басталу уақыты')} hint={tx('Формат: 09:00')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.start_time ?? ''} onChange={(e) => update({ start_time: e.target.value || null })} />}</Field><Field label={tx('Аяқталу уақыты')} hint={tx('Мысалы: 10:30')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.end_time ?? ''} onChange={(e) => update({ end_time: e.target.value || null })} />}</Field></div>
+    {period ? <div className="grid gap-3 rounded-lg bg-surface-2 p-3"><p className="text-sm font-semibold">{tx('Қатысу кезеңі')}</p><div className="grid grid-cols-2 gap-2"><Field label={tx('Қатыса бастаған күні')} hint={tx('Формат: YYYY-MM-DD')}>{(id) => <input id={id} type="date" className={inputCls} value={draft.started_on ?? ''} onChange={(e) => update({ started_on: e.target.value || null })} />}</Field>{current ? <div className="grid content-start gap-1"><span className="text-sm font-semibold">{tx('Аяқталған күні')}</span><span className="h-12 rounded-md bg-surface px-3 flex items-center text-sm text-muted">{tx('Бүгінге дейін')}</span></div> : <Field label={tx('Қатысу аяқталған күні')} hint={tx('Формат: YYYY-MM-DD')}>{(id) => <input id={id} type="date" className={inputCls} value={draft.ended_on ?? ''} onChange={(e) => update({ ended_on: e.target.value || null })} />}</Field>}</div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={current} onChange={(e) => update({ ended_on: e.target.checked ? null : today() })} />{tx('Қазір қатысып келеді')}</label><p className="text-xs text-muted">{tx('Қатысу ұзақтығы автоматты есептеледі.')}</p></div> : <><div className="grid gap-2"><p className="text-sm font-semibold">{tx('Апта күндері')}</p><div className="grid grid-cols-7 gap-1">{TRAJECTORY_DAYS.map((label, index) => <button key={label} type="button" onClick={() => toggleDay(index + 1)} className={`h-9 rounded-md text-xs font-semibold ${draft.days_of_week.includes(index + 1) ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}>{label}</button>)}</div></div><div className="grid grid-cols-2 gap-2"><Field label={tx('Басталу уақыты')} hint={tx('Формат: 09:00')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.start_time ?? ''} onChange={(e) => update({ start_time: e.target.value || null })} />}</Field><Field label={tx('Аяқталу уақыты')} hint={tx('Мысалы: 10:30')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.end_time ?? ''} onChange={(e) => update({ end_time: e.target.value || null })} />}</Field></div></>}
     <Field label={tx('Жетекші немесе орын')} hint={tx('Мысалы: спортзал, Айбек ағай')}>{(id) => <input id={id} className={inputCls} value={draft.coach_or_place ?? ''} onChange={(e) => update({ coach_or_place: e.target.value })} />}</Field>
     <Field label={tx('Қысқаша түсініктеме')} hint={tx('Міндетті емес')}>{(id) => <textarea id={id} className={`${inputCls} h-24 py-2`} value={draft.note ?? ''} onChange={(e) => update({ note: e.target.value })} />}</Field>
     <Button block loading={busy} onClick={save}><Icon n="check" size={16} />{tx('Сақтау')}</Button>
@@ -1459,8 +1480,8 @@ function RoadmapSection({
         {onOpenAdd && (
           <div className="flex flex-wrap items-center gap-1.5">
             <Button kind="secondary" onClick={() => onOpenAdd()}><Icon n="plus" size={16} />{tx('Жоспар құру')}</Button>
-            <button type="button" onClick={() => onOpenAdd('goal')} className="h-9 px-2.5 rounded-md bg-accent-soft text-accent text-xs font-semibold">🎯 {tx('Мақсат')}</button>
-            <button type="button" onClick={() => onOpenAdd('habit')} className="h-9 px-2.5 rounded-md bg-success-soft text-success text-xs font-semibold">🔄 {tx('Әдет')}</button>
+            <button type="button" onClick={() => onOpenAdd('goal')} className="h-9 px-2.5 rounded-md bg-accent-soft text-accent text-xs font-semibold inline-flex items-center gap-1.5"><Icon n="target" size={14} />{tx('Мақсат')}</button>
+            <button type="button" onClick={() => onOpenAdd('habit')} className="h-9 px-2.5 rounded-md bg-success-soft text-success text-xs font-semibold inline-flex items-center gap-1.5"><Icon n="repeat" size={14} />{tx('Әдет')}</button>
           </div>
         )}
       </div>
@@ -1498,7 +1519,7 @@ function RoadmapSection({
           onClick={() => setTab('today')}
           className={`px-3 py-1.5 rounded-full font-semibold transition ${tab === 'today' ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}
         >
-          ☀️ {tx('Бүгін')}
+          <Icon n="sun" size={14} /> {tx('Бүгін')}
         </button>
         <button
           type="button"
@@ -1512,21 +1533,21 @@ function RoadmapSection({
           onClick={() => setTab('goals')}
           className={`px-3 py-1.5 rounded-full font-semibold transition ${tab === 'goals' ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}
         >
-          🎯 {tx('Мақсаттар ({0})', goals.length)}
+          <Icon n="target" size={14} /> {tx('Мақсаттар ({0})', goals.length)}
         </button>
         <button
           type="button"
           onClick={() => setTab('habits')}
           className={`px-3 py-1.5 rounded-full font-semibold transition ${tab === 'habits' ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}
         >
-          🔄 {tx('Әдеттер ({0})', habits.length)}
+          <Icon n="repeat" size={14} /> {tx('Әдеттер ({0})', habits.length)}
         </button>
         <button
           type="button"
           onClick={() => setTab('tasks')}
           className={`px-3 py-1.5 rounded-full font-semibold transition ${tab === 'tasks' ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}
         >
-          ✅ {tx('Тапсырмалар ({0})', tasks.length)}
+          <Icon n="check" size={14} /> {tx('Тапсырмалар ({0})', tasks.length)}
         </button>
       </div>
 
@@ -1584,7 +1605,7 @@ function RoadmapSection({
       {/* 1. Мақсаттар (Goals) */}
       {(tab === 'today' || tab === 'all' || tab === 'goals') && filteredGoals.length > 0 && (
         <div className="grid gap-2">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">🎯 {tx('Мақсаттар мен қадамдар')}</p>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5"><Icon n="target" size={13} />{tx('Мақсаттар мен қадамдар')}</p>
           {filteredGoals.map((g) => {
             const cat = getCategoryMeta(g.category)
             const prog = calcGoalProgress(g, tasks)
@@ -1649,7 +1670,7 @@ function RoadmapSection({
                     </p>
                     {g.metric && (
                       <p className="text-xs text-accent mt-1 flex items-center gap-1 font-medium">
-                        🎯 {tx('Нәтиже:')} {g.metric}
+                        <Icon n="target" size={12} /> {tx('Нәтиже:')} {g.metric}
                       </p>
                     )}
                     {g.why && <p className="text-xs text-muted mt-1">💡 {g.why}</p>}
@@ -1714,12 +1735,12 @@ function RoadmapSection({
                   <div className="flex gap-1 flex-wrap pt-1 border-t border-line/50 text-[11px]">
                     {linkedH.map((lh) => (
                       <span key={lh.id} className="px-2 py-0.5 rounded bg-surface-2 text-muted flex items-center gap-1">
-                        🔄 {lh.title}
+                        <Icon n="repeat" size={12} /> {lh.title}
                       </span>
                     ))}
                     {linkedT.map((lt) => (
                       <span key={lt.id} className="px-2 py-0.5 rounded bg-surface-2 text-muted flex items-center gap-1">
-                        ✅ {lt.title}
+                        <Icon n="check" size={12} /> {lt.title}
                       </span>
                     ))}
                   </div>
@@ -1733,7 +1754,7 @@ function RoadmapSection({
       {/* 2. Әдеттер (Habits) */}
       {(tab === 'today' || tab === 'all' || tab === 'habits') && filteredHabits.length > 0 && (
         <div className="grid gap-2">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">🔄 {tx('Күнделікті әдеттер трекері')}</p>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5"><Icon n="repeat" size={13} />{tx('Күнделікті әдеттер трекері')}</p>
           {filteredHabits.map((h) => {
             const cat = getCategoryMeta(h.category)
             const checks = new Set(h.checks ?? [])
@@ -1753,7 +1774,7 @@ function RoadmapSection({
                       {cat.label}
                     </span>
                     <span className="px-2 py-0.5 rounded-full bg-surface-2 text-muted font-medium text-[11px]">
-                      {timeLabel.icon} {timeLabel.label}
+                      <Icon n={timeLabel.icon} size={12} /> {timeLabel.label}
                     </span>
                     <span className="text-muted text-[11px]">
                       {freqLabel}
@@ -1785,7 +1806,7 @@ function RoadmapSection({
                   </p>
                   {h.target_val && (
                     <span className="shrink-0 px-2 py-0.5 rounded bg-accent-soft text-accent font-bold text-xs">
-                      ⚡ {h.target_val}
+                      <Icon n="flash" size={12} /> {h.target_val}
                     </span>
                   )}
                 </div>
@@ -1798,8 +1819,8 @@ function RoadmapSection({
 
                 <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
                   <span>{tx('Осы апта')}: <b className="text-fg">{habitWeekProgress(h, t).done}/{habitWeekProgress(h, t).total}</b></span>
-                  <span>🔥 {habitCurrentStreak(h, t)} {tx('күндік серия')}</span>
-                  {h.reminder_time && <span>⏰ {h.reminder_time.slice(0, 5)}</span>}
+                  <span className="inline-flex items-center gap-1"><Icon n="fire" size={12} />{habitCurrentStreak(h, t)} {tx('күндік серия')}</span>
+                  {h.reminder_time && <span className="inline-flex items-center gap-1"><Icon n="clock" size={12} />{h.reminder_time.slice(0, 5)}</span>}
                 </div>
 
                 {/* 7 күндік визуалды трекер */}
@@ -1847,7 +1868,7 @@ function RoadmapSection({
       {/* 3. Тапсырмалар (Tasks) */}
       {(tab === 'today' || tab === 'all' || tab === 'tasks') && filteredTasks.length > 0 && (
         <div className="grid gap-2">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">✅ {tx('Нақты тапсырмалар')}</p>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5"><Icon n="check" size={13} />{tx('Нақты тапсырмалар')}</p>
           {filteredTasks.map((tk) => {
             const cat = getCategoryMeta(tk.category)
             const prio = PRIORITY_LABELS[tk.priority ?? 'normal']
@@ -1867,7 +1888,7 @@ function RoadmapSection({
                     </span>
                     {tk.priority === 'high' && (
                       <span className={`px-2 py-0.5 rounded-full font-medium text-[11px] ${prio.badge}`}>
-                        ⚡ {prio.label}
+                        <Icon n="flash" size={12} /> {prio.label}
                       </span>
                     )}
                     {tk.due_on && (
@@ -1907,7 +1928,7 @@ function RoadmapSection({
                     )}
                     {linkedG && (
                       <p className="text-[11px] text-accent mt-1 flex items-center gap-1">
-                        🎯 {linkedG.title}
+                        <Icon n="target" size={12} /> {linkedG.title}
                       </p>
                     )}
                   </div>
@@ -2414,28 +2435,28 @@ function RoadmapBuilderSheet({
             onClick={() => { setTab('presets'); setSelectedPreset(null) }}
             className={`min-w-[8.5rem] py-2 px-2 rounded-md transition ${tab === 'presets' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
           >
-            🌟 {tx('Дайын үлгілер')}
+            <Icon n="star" size={14} /> {tx('Дайын үлгілер')}
           </button>
           <button
             type="button"
             onClick={() => setTab('goal')}
             className={`min-w-[5rem] py-2 px-2 rounded-md transition ${tab === 'goal' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
           >
-            🎯 {tx('Мақсат')}
+            <Icon n="target" size={14} /> {tx('Мақсат')}
           </button>
           <button
             type="button"
             onClick={() => setTab('habit')}
             className={`min-w-[5rem] py-2 px-2 rounded-md transition ${tab === 'habit' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
           >
-            🔄 {tx('Әдет')}
+            <Icon n="repeat" size={14} /> {tx('Әдет')}
           </button>
           <button
             type="button"
             onClick={() => setTab('task')}
             className={`min-w-[6rem] py-2 px-2 rounded-md transition ${tab === 'task' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
           >
-            ✅ {tx('Тапсырма')}
+            <Icon n="check" size={14} /> {tx('Тапсырма')}
           </button>
         </div>
 
@@ -2483,17 +2504,17 @@ function RoadmapBuilderSheet({
                     </div>
 
                     <div className="rounded-md bg-surface-2/70 p-2.5 grid gap-1.5 text-xs">
-                      <p className="font-semibold text-foreground">🎯 {p.goal.title}</p>
-                      <p className="text-accent text-[11px] font-medium">✨ {tx('Нәтиже:')} {p.goal.metric}</p>
+                      <p className="font-semibold text-foreground flex items-center gap-1.5"><Icon n="target" size={13} />{p.goal.title}</p>
+                      <p className="text-accent text-[11px] font-medium flex items-center gap-1.5"><Icon n="check" size={12} />{tx('Нәтиже:')} {p.goal.metric}</p>
                       <div className="flex gap-1 flex-wrap mt-1">
                         {p.habits.map((h, i) => (
                           <span key={i} className="px-2 py-0.5 rounded bg-surface text-muted text-[11px]">
-                            🔄 {h.title} ({h.target_val})
+                            <Icon n="repeat" size={11} /> {h.title} ({h.target_val})
                           </span>
                         ))}
                         {p.tasks.map((tk, i) => (
                           <span key={i} className="px-2 py-0.5 rounded bg-surface text-muted text-[11px]">
-                            ✅ {tk.title}
+                            <Icon n="check" size={11} /> {tk.title}
                           </span>
                         ))}
                       </div>
@@ -2763,9 +2784,9 @@ function RoadmapBuilderSheet({
                     value={habitTime}
                     onChange={(v) => setHabitTime(v as 'morning' | 'afternoon' | 'evening' | 'any')}
                     items={[
-                      ['morning', '🌅 ' + tx('Таңертең')],
-                      ['evening', '🌙 ' + tx('Кешке')],
-                      ['any', '⏱️ ' + tx('Кез келген')],
+                      ['morning', tx('Таңертең')],
+                      ['evening', tx('Кешке')],
+                      ['any', tx('Кез келген')],
                     ]}
                   />
                 )}
@@ -2837,7 +2858,7 @@ function RoadmapBuilderSheet({
                   >
                     <option value="">{tx('Жеке әдет (мақсатпен байланыссыз)')}</option>
                     {existingGoals.map((g) => (
-                      <option key={g.id} value={g.id}>🎯 {g.title}</option>
+                      <option key={g.id} value={g.id}>{g.title}</option>
                     ))}
                   </select>
                 )}
@@ -2906,7 +2927,7 @@ function RoadmapBuilderSheet({
                     value={taskPriority}
                     onChange={(v) => setTaskPriority(v as 'high' | 'normal')}
                     items={[
-                      ['high', '⚡ ' + tx('Шұғыл')],
+                      ['high', tx('Шұғыл')],
                       ['normal', tx('Қалыпты')],
                     ]}
                   />
@@ -2938,7 +2959,7 @@ function RoadmapBuilderSheet({
                   >
                     <option value="">{tx('Жеке тапсырма (мақсатпен байланыссыз)')}</option>
                     {existingGoals.map((g) => (
-                      <option key={g.id} value={g.id}>🎯 {g.title}</option>
+                      <option key={g.id} value={g.id}>{g.title}</option>
                     ))}
                   </select>
                 )}

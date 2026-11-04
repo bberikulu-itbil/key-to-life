@@ -149,10 +149,10 @@ export const getCategoryMeta = (cat?: PlanCategory) =>
   PLAN_CATEGORIES.find((c) => c.id === cat) ?? PLAN_CATEGORIES[7]
 
 export const TIME_OF_DAY_LABELS: Record<'morning' | 'afternoon' | 'evening' | 'any', { label: string; icon: string }> = {
-  morning: { label: tx('Таңертең'), icon: '🌅' },
-  afternoon: { label: tx('Күндіз'), icon: '☀️' },
-  evening: { label: tx('Кешке'), icon: '🌙' },
-  any: { label: tx('Кез келген уақытта'), icon: '⏱️' },
+  morning: { label: tx('Таңертең'), icon: 'sun' },
+  afternoon: { label: tx('Күндіз'), icon: 'sun' },
+  evening: { label: tx('Кешке'), icon: 'clock' },
+  any: { label: tx('Кез келген уақытта'), icon: 'clock' },
 }
 
 export const FREQUENCY_LABELS: Record<HabitFrequency, string> = {
