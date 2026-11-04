@@ -1,4 +1,5 @@
 import { lang, tx } from './i18n'
+import { addDays, isoDow } from './time'
 
 /** The student's own questionnaire: the questions, in the order shown. */
 export const FORM: [string, string, string][] = [
@@ -88,6 +89,7 @@ export type RoadmapGoal = {
   title: string
   category: PlanCategory
   metric?: string
+  why?: string
   priority?: 'high' | 'medium' | 'normal'
   due_on?: string | null
   done: boolean
@@ -95,13 +97,18 @@ export type RoadmapGoal = {
   created_at: string
 }
 
+export type HabitFrequency = 'daily' | 'weekdays' | '3x_week' | 'custom'
+
 export type RoadmapHabit = {
   id: string
   title: string
   category: PlanCategory
   target_val?: string // e.g. '20 бет', '30 мин'
   time_of_day?: 'morning' | 'afternoon' | 'evening' | 'any'
-  frequency?: 'daily' | 'weekdays' | '3x_week'
+  frequency?: HabitFrequency
+  days_of_week?: number[] // ISO weekdays: 1 = Monday … 7 = Sunday
+  target_per_week?: number
+  reminder_time?: string | null
   motivation?: string
   goal_id?: string | null
   archived: boolean
@@ -148,10 +155,55 @@ export const TIME_OF_DAY_LABELS: Record<'morning' | 'afternoon' | 'evening' | 'a
   any: { label: tx('Кез келген уақытта'), icon: '⏱️' },
 }
 
-export const FREQUENCY_LABELS: Record<'daily' | 'weekdays' | '3x_week', string> = {
+export const FREQUENCY_LABELS: Record<HabitFrequency, string> = {
   daily: tx('Күн сайын'),
   weekdays: tx('Жұмыс күндері (Дс-Жм)'),
   '3x_week': tx('Аптасына 3 рет'),
+  custom: tx('Өзім таңдаған күндер'),
+}
+
+const defaultHabitDays = (habit: RoadmapHabit) => {
+  if (habit.days_of_week?.length) return habit.days_of_week
+  if (habit.frequency === 'weekdays') return [1, 2, 3, 4, 5]
+  if (habit.frequency === '3x_week') return [1, 3, 5]
+  return []
+}
+
+/** Whether this habit is expected on a particular local school date. */
+export const habitDueOn = (habit: RoadmapHabit, date: string) => {
+  if (habit.archived) return false
+  if (habit.frequency === 'daily' || !habit.frequency) return true
+  return defaultHabitDays(habit).includes(isoDow(date))
+}
+
+/** Number of completed occurrences in the Monday–Sunday week containing `date`. */
+export const habitWeekProgress = (habit: RoadmapHabit, date: string) => {
+  const start = addDays(date, 1 - isoDow(date))
+  const checks = new Set(habit.checks ?? [])
+  const total = habit.frequency === 'daily' || !habit.frequency
+    ? 7
+    : habit.frequency === 'custom'
+      ? Math.max(1, habit.target_per_week ?? defaultHabitDays(habit).length)
+      : habit.frequency === '3x_week'
+        ? habit.target_per_week ?? 3
+        : 5
+  const done = Array.from({ length: 7 }, (_, i) => addDays(start, i)).filter((d) => checks.has(d)).length
+  return { done, total }
+}
+
+/** Consecutive completed due days; for weekly habits, non-due days do not break the streak. */
+export const habitCurrentStreak = (habit: RoadmapHabit, from: string) => {
+  const checks = new Set(habit.checks ?? [])
+  let cursor = from
+  let streak = 0
+  for (let i = 0; i < 90; i += 1) {
+    if (habitDueOn(habit, cursor)) {
+      if (!checks.has(cursor)) break
+      streak += 1
+    }
+    cursor = addDays(cursor, -1)
+  }
+  return streak
 }
 
 export const PRIORITY_LABELS: Record<'high' | 'medium' | 'normal', { label: string; color: string; badge: string }> = {
