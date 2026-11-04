@@ -822,7 +822,7 @@ export const patchStudentRoadmap = async (
     return
   } catch (e) {
     const message = String((e as { message?: string })?.message ?? e)
-    if (!message.includes('patch_student_roadmap') && !message.includes('42883')) throw e
+    if (!message.includes('patch_student_roadmap') && !message.includes('42883') && !message.includes('student_roadmaps')) throw e
   }
 
   // Backward-compatible fallback for environments where migration 0071 is not installed yet.
@@ -919,7 +919,7 @@ export const studentMentor = async (id: string) => {
     } satisfies StudentDossier
   } catch (e) {
     const message = String((e as { message?: string })?.message ?? e)
-    if (!message.includes('student_dossier') && !message.includes('42883')) throw e
+    if (!message.includes('student_dossier') && !message.includes('42883') && !message.includes('student_roadmaps')) throw e
     return legacyStudentMentor(id)
   }
 }
