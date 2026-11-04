@@ -1028,14 +1028,35 @@ export type StudentTrajectoryItem = {
   days_of_week: number[]
   start_time: string | null
   end_time: string | null
+  started_on: string | null
+  ended_on: string | null
   coach_or_place: string | null
   note: string | null
 }
 export type StudentTrajectoryDraft = Omit<StudentTrajectoryItem, 'id' | 'student_id'> & { id?: string }
-export const listStudentTrajectory = (student_id: string) =>
-  ok(supabase.from('student_trajectory_items').select('id, student_id, kind, title, days_of_week, start_time, end_time, coach_or_place, note').eq('student_id', student_id).order('kind').order('title')) as Promise<StudentTrajectoryItem[]>
-export const saveStudentTrajectory = (student_id: string, item: StudentTrajectoryDraft) =>
-  ok(supabase.from('student_trajectory_items').upsert({ ...item, student_id, id: item.id ?? undefined, updated_at: new Date().toISOString() }))
+export const listStudentTrajectory = async (student_id: string): Promise<StudentTrajectoryItem[]> => {
+  try {
+    return await ok(supabase.from('student_trajectory_items').select('id, student_id, kind, title, days_of_week, start_time, end_time, started_on, ended_on, coach_or_place, note').eq('student_id', student_id).order('kind').order('title')) as StudentTrajectoryItem[]
+  } catch (e) {
+    const message = String((e as { message?: string })?.message ?? e)
+    if (!message.includes('started_on') && !message.includes('ended_on') && !message.includes('42703')) throw e
+    const legacy = await ok(supabase.from('student_trajectory_items').select('id, student_id, kind, title, days_of_week, start_time, end_time, coach_or_place, note').eq('student_id', student_id).order('kind').order('title')) as Omit<StudentTrajectoryItem, 'started_on' | 'ended_on'>[]
+    return legacy.map((item) => ({ ...item, started_on: null, ended_on: null }))
+  }
+}
+export const saveStudentTrajectory = async (student_id: string, item: StudentTrajectoryDraft) => {
+  const row = { ...item, student_id, id: item.id ?? undefined, updated_at: new Date().toISOString() }
+  try {
+    await ok(supabase.from('student_trajectory_items').upsert(row))
+  } catch (e) {
+    const message = String((e as { message?: string })?.message ?? e)
+    if (!message.includes('started_on') && !message.includes('ended_on') && !message.includes('42703')) throw e
+    const legacyRow = { ...row }
+    delete (legacyRow as { started_on?: unknown }).started_on
+    delete (legacyRow as { ended_on?: unknown }).ended_on
+    await ok(supabase.from('student_trajectory_items').upsert(legacyRow))
+  }
+}
 export const removeStudentTrajectory = (id: string) => ok(supabase.from('student_trajectory_items').delete().eq('id', id))
 
 export const mentorEvery = async (classId: string) =>
