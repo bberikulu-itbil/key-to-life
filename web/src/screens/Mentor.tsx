@@ -326,6 +326,7 @@ function StudentDossierView({
   const [dotsMenuOpen, setDotsMenuOpen] = useState(false)
   const [gallupPicker, setGallupPicker] = useState<'top' | 'low' | null>(null)
   const [addPlan, setAddPlan] = useState(false)
+  const [addPlanTab, setAddPlanTab] = useState<'presets' | 'goal' | 'habit' | 'task'>('presets')
   const [addMeeting, setAddMeeting] = useState(false)
   const [finishMeeting, setFinishMeeting] = useState<MentorMeeting | null>(null)
   const [questionsOpen, setQuestionsOpen] = useState(true)
@@ -890,7 +891,10 @@ function StudentDossierView({
             studentId={student.id}
             roadmap={roadmap}
             onUpdate={setRoadmap}
-            onOpenAdd={() => setAddPlan(true)}
+            onOpenAdd={(kind) => {
+              setAddPlanTab(kind ?? 'presets')
+              setAddPlan(true)
+            }}
           />
         </div>
       )}
@@ -1025,6 +1029,7 @@ function StudentDossierView({
           student={{ id: student.id, class_id: classId ?? student.class_id ?? '', full_name: student.full_name }}
           currentRoadmap={roadmap}
           meetings={d.meetings}
+          initialTab={addPlanTab}
           onClose={() => setAddPlan(false)}
           onDone={(newR) => {
             setRoadmap(newR)
@@ -1245,7 +1250,7 @@ function RoadmapSection({
   studentId: string
   roadmap: StudentRoadmap
   onUpdate: (r: StudentRoadmap) => void
-  onOpenAdd?: () => void
+  onOpenAdd?: (kind?: 'goal' | 'habit' | 'task') => void
 }) {
   const [tab, setTab] = useState<'today' | 'all' | 'goals' | 'habits' | 'tasks'>('today')
   const [catFilter, setCatFilter] = useState<string>('all')
@@ -1381,10 +1386,11 @@ function RoadmapSection({
           </p>
         </div>
         {onOpenAdd && (
-          <Button kind="secondary" onClick={onOpenAdd}>
-            <Icon n="plus" size={16} />
-            {tx('Жоспар құру')}
-          </Button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button kind="secondary" onClick={() => onOpenAdd()}><Icon n="plus" size={16} />{tx('Жоспар құру')}</Button>
+            <button type="button" onClick={() => onOpenAdd('goal')} className="h-9 px-2.5 rounded-md bg-accent-soft text-accent text-xs font-semibold">🎯 {tx('Мақсат')}</button>
+            <button type="button" onClick={() => onOpenAdd('habit')} className="h-9 px-2.5 rounded-md bg-success-soft text-success text-xs font-semibold">🔄 {tx('Әдет')}</button>
+          </div>
         )}
       </div>
 
@@ -2042,16 +2048,18 @@ function RoadmapBuilderSheet({
   student,
   currentRoadmap,
   meetings,
+  initialTab = 'presets',
   onClose,
   onDone,
 }: {
   student: { id: string; class_id: string; full_name: string }
   currentRoadmap: StudentRoadmap
   meetings: MentorMeeting[]
+  initialTab?: 'presets' | 'goal' | 'habit' | 'task'
   onClose: () => void
   onDone: (r: StudentRoadmap) => void
 }) {
-  const [tab, setTab] = useState<'presets' | 'goal' | 'habit' | 'task'>('presets')
+  const [tab, setTab] = useState<'presets' | 'goal' | 'habit' | 'task'>(initialTab)
   const [presetCat, setPresetCat] = useState<string>('all')
   const [selectedPreset, setSelectedPreset] = useState<PlanPreset | null>(null)
 
@@ -2329,32 +2337,32 @@ function RoadmapBuilderSheet({
         </p>
 
         {/* Режим таңдау */}
-        <div className="grid grid-cols-4 gap-1 rounded-lg bg-surface-2 p-1 text-xs text-center font-semibold">
+        <div className="flex gap-1 overflow-x-auto rounded-lg bg-surface-2 p-1 text-xs text-center font-semibold [scrollbar-width:none]">
           <button
             type="button"
             onClick={() => { setTab('presets'); setSelectedPreset(null) }}
-            className={`py-2 px-1 rounded-md transition ${tab === 'presets' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
+            className={`min-w-[8.5rem] py-2 px-2 rounded-md transition ${tab === 'presets' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
           >
             🌟 {tx('Дайын үлгілер')}
           </button>
           <button
             type="button"
             onClick={() => setTab('goal')}
-            className={`py-2 px-1 rounded-md transition ${tab === 'goal' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
+            className={`min-w-[5rem] py-2 px-2 rounded-md transition ${tab === 'goal' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
           >
             🎯 {tx('Мақсат')}
           </button>
           <button
             type="button"
             onClick={() => setTab('habit')}
-            className={`py-2 px-1 rounded-md transition ${tab === 'habit' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
+            className={`min-w-[5rem] py-2 px-2 rounded-md transition ${tab === 'habit' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
           >
             🔄 {tx('Әдет')}
           </button>
           <button
             type="button"
             onClick={() => setTab('task')}
-            className={`py-2 px-1 rounded-md transition ${tab === 'task' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
+            className={`min-w-[6rem] py-2 px-2 rounded-md transition ${tab === 'task' ? 'bg-surface shadow text-accent' : 'text-muted'}`}
           >
             ✅ {tx('Тапсырма')}
           </button>
