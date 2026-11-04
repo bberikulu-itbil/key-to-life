@@ -810,20 +810,89 @@ export const saveStudentRoadmap = async (studentId: string, roadmap: StudentRoad
   }
 }
 
-export const studentMentor = async (id: string) => {
-  const [student, meetings, tests, notes, contacts, form, items, roadmap] = await Promise.all([
-    ok(supabase.from('profiles').select('id, full_name, photo, class_id, olympiad, club').eq('id', id).single()) as Promise<{ id: string; full_name: string; photo: string | null; class_id: string; olympiad: string | null; club: string | null }>,
-    ok(supabase.from('mentor_meetings').select(MM).eq('student_id', id).order('starts_at', { ascending: false })) as Promise<MentorMeeting[]>,
-    rpc<{ type: 'mbti' | 'mi' | 'holland'; answers: number[]; answered_at: string }[]>('student_tests', { p_student: id }),
-    ok(supabase.from('council_notes').select('id, author_id, body, student_ids, meeting_id, resolved_at, created_at, tags, urgent, photo').contains('student_ids', [id]).order('created_at', { ascending: false })) as Promise<CouncilNote[]>,
-    ok(supabase.from('parent_contacts').select('id, student_id, staff_id, on_date, channel, summary').eq('student_id', id).order('on_date', { ascending: false })) as Promise<ParentContact[]>,
-    studentForm(id),
-    mentorItems(id),
-    loadStudentRoadmap(id),
-  ])
-  return { student, meetings, tests, notes, contacts, form, items, roadmap }
+
+export type StudentProfileDetails = {
+  student_id: string
+  birthday?: string | null
+  iin?: string | null
+  document_number?: string | null
+  nation?: string | null
+  city?: string | null
+  address?: string | null
+  phone?: string | null
+  tribe?: string | null
+  dorm_room?: string | null
+  dorm_bed?: string | null
+}
+export type StudentHealthProfile = {
+  student_id: string
+  chronic_conditions?: string | null
+  allergies?: string | null
+  diet?: string | null
+  needs_attention?: boolean
+  extra_notes?: string | null
+}
+export type StudentHealthEvent = {
+  id: string
+  student_id: string
+  on_date: string
+  illness_kind: string
+  started_on: string | null
+  ended_on: string | null
+  impact: string | null
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+export type StudentFamilyContact = {
+  id?: string
+  student_id: string
+  relationship: 'father' | 'mother' | 'guardian'
+  full_name?: string | null
+  workplace?: string | null
+  position?: string | null
+  phone?: string | null
+  telegram?: string | null
+  whatsapp?: string | null
+}
+export type StudentDossier = {
+  student: { id: string; full_name: string; photo: string | null; class_id?: string; olympiad: string | null; club: string | null }
+  meetings: MentorMeeting[]
+  tests: { type: 'mbti' | 'mi' | 'holland'; answers: number[]; answered_at: string }[]
+  notes: CouncilNote[]
+  contacts: ParentContact[]
+  form: { answers: Record<string, string>; updated_at: string } | null
+  items: MentorItem[]
+  roadmap: StudentRoadmap
+  profileDetails: StudentProfileDetails | null
+  health: StudentHealthProfile | null
+  healthEvents: StudentHealthEvent[]
+  familyContacts: StudentFamilyContact[]
+}
+type StudentDossierRpc = Omit<StudentDossier, 'profileDetails' | 'health' | 'healthEvents' | 'familyContacts'> & {
+  profile_details: StudentProfileDetails | null
+  health: StudentHealthProfile | null
+  health_events: StudentHealthEvent[]
+  family_contacts: StudentFamilyContact[]
 }
 
+export const studentMentor = async (id: string) => {
+  const payload = await rpc<StudentDossierRpc>('student_dossier', { p_student: id })
+  return {
+    student: payload.student,
+    meetings: payload.meetings ?? [],
+    tests: payload.tests ?? [],
+    notes: payload.notes ?? [],
+    contacts: payload.contacts ?? [],
+    form: payload.form ?? null,
+    items: payload.items ?? [],
+    roadmap: payload.roadmap ?? { goals: [], habits: [], tasks: [] },
+    profileDetails: payload.profile_details ?? null,
+    health: payload.health ?? null,
+    healthEvents: payload.health_events ?? [],
+    familyContacts: payload.family_contacts ?? [],
+  } satisfies StudentDossier
+}
 export const addMentorMeeting = (row: { class_id: string; student_id: string; starts_at: string; topic: string; visible: boolean; place?: string | null }) => ok(supabase.from('mentor_meetings').insert(row))
 export const finishMentorMeeting = (id: string, actions: string, notes: string) =>
   ok(supabase.from('mentor_meetings').update({ actions: actions || null, notes: notes || null, done_at: new Date().toISOString() }).eq('id', id))
@@ -855,6 +924,22 @@ export const saveStudentForm = async (student_id: string, answers: Record<string
   }
 }
 export const saveMyForm = saveStudentForm
+
+export const patchStudentForm = (student_id: string, patch: Record<string, string>) =>
+  rpc('patch_student_form', { p_student_id: student_id, p_patch: patch })
+
+export const saveStudentProfileDetails = (student_id: string, data: object) =>
+  rpc('save_student_profile_details', { p_student_id: student_id, p_data: data })
+
+export const saveStudentHealthProfile = (student_id: string, data: object) =>
+  rpc('save_student_health_profile', { p_student_id: student_id, p_data: data })
+
+export const saveStudentFamilyContact = (student_id: string, relationship: StudentFamilyContact['relationship'], data: object) =>
+  rpc<string>('save_student_family_contact', { p_student_id: student_id, p_relationship: relationship, p_data: data })
+
+export const saveStudentHealthEvent = (student_id: string, event_id: string | null, data: object) =>
+  rpc<string>('save_student_health_event', { p_student_id: student_id, p_event_id: event_id, p_data: data })
+
 export const mentorEvery = async (classId: string) =>
   ((await ok(supabase.from('mentor_settings').select('every_days').eq('class_id', classId).maybeSingle())) as { every_days: number } | null)?.every_days ?? 30
 export const setMentorEvery = (class_id: string, every_days: number) => ok(supabase.from('mentor_settings').upsert({ class_id, every_days }))
