@@ -5,11 +5,13 @@ import {
   saveStudentHealthEvent,
   saveStudentHealthProfile,
   saveStudentProfileDetails,
+  saveStudentSiblings,
   type ParentContact,
   type StudentFamilyContact,
   type StudentHealthEvent,
   type StudentHealthProfile,
   type StudentProfileDetails,
+  type StudentSibling,
 } from '../lib/api'
 import { Button, Card, Icon, inputCls, toast } from './ui'
 import { tx } from '../lib/i18n'
@@ -100,6 +102,7 @@ export default function StudentDossierStructured({
   const [profileState, setProfileState] = useState<StudentProfileDetails>(profile ?? { student_id: studentId })
   const [healthState, setHealthState] = useState<StudentHealthProfile>(health ?? { student_id: studentId, needs_attention: false })
   const [familyState, setFamilyState] = useState<StudentFamilyContact[]>(familyContacts)
+  const [siblings, setSiblings] = useState<StudentSibling[]>(profile?.siblings ?? [])
   const [events, setEvents] = useState<StudentHealthEvent[]>(healthEvents)
   const [eventDraft, setEventDraft] = useState({ on_date: '', illness_kind: '', started_on: '', ended_on: '', impact: '', note: '' })
   const [busy, setBusy] = useState<string | null>(null)
@@ -107,6 +110,7 @@ export default function StudentDossierStructured({
   useEffect(() => { setProfileState(profile ?? { student_id: studentId }) }, [profile, studentId])
   useEffect(() => { setHealthState(health ?? { student_id: studentId, needs_attention: false }) }, [health, studentId])
   useEffect(() => { setFamilyState(familyContacts) }, [familyContacts])
+  useEffect(() => { setSiblings(profile?.siblings ?? []) }, [profile?.siblings])
   useEffect(() => { setEvents(healthEvents) }, [healthEvents])
 
   const saveProfile = async (patch: Partial<StudentProfileDetails>) => {
@@ -129,6 +133,11 @@ export default function StudentDossierStructured({
     setBusy(relationship)
     try { await saveStudentFamilyContact(studentId, relationship, patch) } catch (e) { toast(errText(e)) } finally { setBusy(null) }
   }
+  const saveSiblings = async (next: StudentSibling[]) => {
+    setSiblings(next)
+    setBusy('siblings')
+    try { await saveStudentSiblings(studentId, next) } catch (e) { toast(errText(e)) } finally { setBusy(null) }
+  }
   const addEvent = async () => {
     if (eventDraft.illness_kind.trim().length < 2) return
     setBusy('event')
@@ -143,6 +152,13 @@ export default function StudentDossierStructured({
     <label className="grid gap-1">
       <span className="text-xs font-semibold text-muted">{label}</span>
       <input className={input} value={value ?? ''} readOnly={readOnly} onChange={e => !readOnly && onSave(e.target.value)} onBlur={e => !readOnly && onSave(e.target.value)} />
+    </label>
+  )
+  const renderDate = (label: string, value: string | null | undefined, onSave: (value: string) => void, readOnly = false) => (
+    <label className="grid gap-1">
+      <span className="text-xs font-semibold text-muted">{label}</span>
+      <input className={input} type="date" value={value ?? ''} readOnly={readOnly} onChange={e => !readOnly && onSave(e.target.value)} onBlur={e => !readOnly && onSave(e.target.value)} />
+      <span className="text-[11px] text-muted">{tx('Формат: YYYY-MM-DD, мысалы 2010-05-21')}</span>
     </label>
   )
 
@@ -160,7 +176,7 @@ export default function StudentDossierStructured({
         <Card className="p-3 grid gap-3">
           <div><p className="font-bold">{tx('Жеке мәліметтер')}</p><p className="text-xs text-muted">{tx('Негізгі және жатақхана деректері')}</p></div>
           <div className="grid sm:grid-cols-2 gap-2">
-            {renderText(tx('Туған күні'), profileState.birthday, v => saveProfile({ birthday: v || null }), isStudent)}
+            {renderDate(tx('Туған күні'), profileState.birthday, v => saveProfile({ birthday: v || null }), isStudent)}
             {renderText(tx('ЖСН'), profileState.iin, v => saveProfile({ iin: v || null }), isStudent)}
             {renderText(tx('Құжат нөмірі'), profileState.document_number, v => saveProfile({ document_number: v || null }), isStudent)}
             {renderText(tx('Ұлты'), profileState.nation, v => saveProfile({ nation: v || null }))}
@@ -202,6 +218,27 @@ export default function StudentDossierStructured({
             </div>
           })}
         </div>
+        <div className="border-t border-line pt-3 grid gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <div><p className="font-semibold text-sm flex items-center gap-2"><Icon n="users" size={15} />{tx('Бауырлары')}</p><p className="text-xs text-muted">{tx('Әр бауырды жеке жолмен енгізіңіз. Туған күн форматы: YYYY-MM-DD.')}</p></div>
+            <Button kind="secondary" onClick={() => saveSiblings([...siblings, { full_name: '', relationship: 'other', birthday: null, school_or_work: '' }])}><Icon n="plus" size={15} />{tx('Бауыр қосу')}</Button>
+          </div>
+          {siblings.length === 0 && <p className="text-sm text-muted rounded-lg bg-surface-2 p-3">{tx('Бауыр туралы ақпарат әлі енгізілмеген.')}</p>}
+          {siblings.map((sibling, index) => {
+            const updateSibling = (patch: Partial<StudentSibling>) => setSiblings(prev => prev.map((item, i) => i === index ? { ...item, ...patch } : item))
+            return <div key={index} className="grid gap-2 rounded-lg bg-surface-2 p-3">
+              <div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold text-muted">{tx('Бауыр {0}', index + 1)}</p><button type="button" className="size-8 rounded-md grid place-items-center text-muted hover:bg-surface hover:text-danger" aria-label={tx('Өшіру')} onClick={() => saveSiblings(siblings.filter((_, i) => i !== index))}><Icon n="x" size={15} /></button></div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {renderText(tx('Аты-жөні'), sibling.full_name, value => updateSibling({ full_name: value }))}
+                <label className="grid gap-1"><span className="text-xs font-semibold text-muted">{tx('Туыстық түрі')}</span><select className={input} value={sibling.relationship} onChange={e => updateSibling({ relationship: e.target.value as StudentSibling['relationship'] })} onBlur={() => saveSiblings(siblings)}><option value="brother">{tx('Ағасы/інісі')}</option><option value="sister">{tx('Әпкесі/қарындасы')}</option><option value="other">{tx('Басқа')}</option></select></label>
+                {renderDate(tx('Туған күні'), sibling.birthday, value => updateSibling({ birthday: value || null }))}
+                {renderText(tx('Оқу/жұмыс орны'), sibling.school_or_work, value => updateSibling({ school_or_work: value }))}
+              </div>
+              <button type="button" className="justify-self-end text-xs font-semibold text-accent hover:underline" onClick={() => saveSiblings(siblings)}>{tx('Сақтау')}</button>
+            </div>
+          })}
+          {busy === 'siblings' && <span className="text-xs text-muted">{tx('Сақталуда...')}</span>}
+        </div>
         {parentContacts.length > 0 && <div className="border-t border-line pt-3 grid gap-2">
           <p className="text-xs font-bold uppercase text-muted">{tx('Ата-анамен байланыс тарихы')}</p>
           {parentContacts.slice(0, 5).map(c => <div key={c.id} className="text-sm rounded-lg bg-surface-2 p-2"><span className="text-xs text-muted">{shortDate(c.on_date)} · {c.channel}</span><p>{c.summary}</p></div>)}
@@ -209,7 +246,7 @@ export default function StudentDossierStructured({
       </Card>
 
       <Card className="p-3 grid gap-3">
-        <div className="flex items-center justify-between gap-2"><div><p className="font-bold">{tx('Ауырған кезеңдер')}</p><p className="text-xs text-muted">{tx('Аурудың басталуы, аяқталуы және үлгерімге әсерін тіркеңіз.')}</p></div><span className="text-xs text-muted">{events.length}</span></div>
+        <div className="flex items-center justify-between gap-2"><div><p className="font-bold">{tx('Ауырған кезеңдер')}</p><p className="text-xs text-muted">{tx('Аурудың басталуы, аяқталуы және үлгерімге әсерін тіркеңіз.')} {tx('Күн форматы: YYYY-MM-DD')}</p></div><span className="text-xs text-muted">{events.length}</span></div>
         <div className="grid md:grid-cols-3 gap-2">
           <input className={input} type="date" value={eventDraft.on_date} onChange={e => setEventDraft({ ...eventDraft, on_date: e.target.value })} />
           <input className={input} placeholder={tx('Ауру түрі')} value={eventDraft.illness_kind} onChange={e => setEventDraft({ ...eventDraft, illness_kind: e.target.value })} />

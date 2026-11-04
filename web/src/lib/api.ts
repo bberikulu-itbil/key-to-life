@@ -462,8 +462,13 @@ export const addClassHubResource = (row: { class_id: string; kind: ClassResource
   duration_minutes?: number | null; pages?: number | null; volumes?: number; servings?: number | null; prep_minutes?: number | null; description?: string | null
   ingredients?: ClassIngredient[]; steps?: string[] }) =>
   ok(supabase.from('class_hub_resources').insert(row).select('id').single()) as unknown as Promise<{ id: string }>
-export const setClassHubResourceProgress = (resourceId: string, userId: string, volume: number, status: ClassResourceProgress['status'], rating: number | null) =>
-  ok(supabase.from('class_hub_progress').upsert({ resource_id: resourceId, user_id: userId, volume, status, rating, updated_at: new Date().toISOString() }))
+export const setClassHubResourceProgress = async (resourceId: string, userId: string, volume: number, status: ClassResourceProgress['status'] | null, rating: number | null) => {
+  if (!status) {
+    await ok(supabase.from('class_hub_progress').delete().eq('resource_id', resourceId).eq('user_id', userId).eq('volume', volume))
+    return
+  }
+  await ok(supabase.from('class_hub_progress').upsert({ resource_id: resourceId, user_id: userId, volume, status, rating, updated_at: new Date().toISOString() }))
+}
 export const removeClassHubResource = (id: string) => ok(supabase.from('class_hub_resources').delete().eq('id', id))
 /** Admin only: hides the student, bans the account, takes them out of the class (history stays). */
 export const removeStudent = (id: string) => rpc('remove_student', { p_id: id })
@@ -847,7 +852,9 @@ export type StudentProfileDetails = {
   tribe?: string | null
   dorm_room?: string | null
   dorm_bed?: string | null
+  siblings?: StudentSibling[]
 }
+export type StudentSibling = { full_name: string; relationship: 'brother' | 'sister' | 'other'; birthday?: string | null; school_or_work?: string | null }
 export type StudentHealthProfile = {
   student_id: string
   chronic_conditions?: string | null
@@ -947,9 +954,12 @@ const legacyStudentMentor = async (id: string): Promise<StudentDossier> => {
     optionalQuery(() => ok(supabase.from('student_health_events').select('*').eq('student_id', id).order('started_on', { ascending: false }).limit(100)) as Promise<StudentHealthEvent[]>, []),
     optionalQuery(() => ok(supabase.from('student_family_contacts').select('*').eq('student_id', id).order('relationship')) as Promise<StudentFamilyContact[]>, []),
   ])
+  let legacySiblings: StudentSibling[] = []
+  try { legacySiblings = form?.answers?.siblings ? JSON.parse(form.answers.siblings) : [] } catch { legacySiblings = [] }
+  const profileWithLegacySiblings = profileDetails ?? (legacySiblings.length ? { student_id: id, siblings: legacySiblings } : null)
   return {
     student: { id: base.id, full_name: base.full_name, photo: base.photo, class_id: base.class_id ?? undefined, olympiad: null, club: null },
-    meetings, tests: [], notes, contacts, form, items, roadmap, profileDetails, health, healthEvents, familyContacts,
+    meetings, tests: [], notes, contacts, form, items, roadmap, profileDetails: profileWithLegacySiblings, health, healthEvents, familyContacts,
   }
 }
 export const addMentorMeeting = (row: { class_id: string; student_id: string; starts_at: string; topic: string; visible: boolean; place?: string | null }) => ok(supabase.from('mentor_meetings').insert(row))
@@ -996,8 +1006,37 @@ export const saveStudentHealthProfile = (student_id: string, data: object) =>
 export const saveStudentFamilyContact = (student_id: string, relationship: StudentFamilyContact['relationship'], data: object) =>
   rpc<string>('save_student_family_contact', { p_student_id: student_id, p_relationship: relationship, p_data: data })
 
+export const saveStudentSiblings = async (student_id: string, siblings: StudentSibling[]) => {
+  try {
+    await rpc('save_student_siblings', { p_student_id: student_id, p_siblings: siblings })
+  } catch (e) {
+    const message = String((e as { message?: string })?.message ?? e)
+    if (!message.includes('save_student_siblings') && !message.includes('student_profile_details') && !message.includes('42883')) throw e
+    await patchStudentForm(student_id, { siblings: JSON.stringify(siblings) })
+  }
+}
+
 export const saveStudentHealthEvent = (student_id: string, event_id: string | null, data: object) =>
   rpc<string>('save_student_health_event', { p_student_id: student_id, p_event_id: event_id, p_data: data })
+
+export type StudentTrajectoryKind = 'hobby' | 'sport' | 'olympiad' | 'club'
+export type StudentTrajectoryItem = {
+  id: string
+  student_id: string
+  kind: StudentTrajectoryKind
+  title: string
+  days_of_week: number[]
+  start_time: string | null
+  end_time: string | null
+  coach_or_place: string | null
+  note: string | null
+}
+export type StudentTrajectoryDraft = Omit<StudentTrajectoryItem, 'id' | 'student_id'> & { id?: string }
+export const listStudentTrajectory = (student_id: string) =>
+  ok(supabase.from('student_trajectory_items').select('id, student_id, kind, title, days_of_week, start_time, end_time, coach_or_place, note').eq('student_id', student_id).order('kind').order('title')) as Promise<StudentTrajectoryItem[]>
+export const saveStudentTrajectory = (student_id: string, item: StudentTrajectoryDraft) =>
+  ok(supabase.from('student_trajectory_items').upsert({ ...item, student_id, id: item.id ?? undefined, updated_at: new Date().toISOString() }))
+export const removeStudentTrajectory = (id: string) => ok(supabase.from('student_trajectory_items').delete().eq('id', id))
 
 export const mentorEvery = async (classId: string) =>
   ((await ok(supabase.from('mentor_settings').select('every_days').eq('class_id', classId).maybeSingle())) as { every_days: number } | null)?.every_days ?? 30

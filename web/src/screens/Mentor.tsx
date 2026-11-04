@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
   mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting,
-  saveStudentRoadmap, studentMentor, type MentorMeeting,
+  listStudentTrajectory, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
@@ -702,6 +702,7 @@ function StudentDossierView({
           ==================================================================== */}
       {tab === 'tests' && (
         <div className="grid gap-5">
+          <StudentTrajectory studentId={student.id} />
           {/* 1. MBTI Card */}
           <Card className="grid gap-3">
             <div className="flex items-center justify-between">
@@ -1240,6 +1241,76 @@ function GallupPickerSheet({
 /* ==========================================================================
    Күрделендірілген Даму Жоспары бөлімі (RoadmapSection)
    ========================================================================== */
+
+const TRAJECTORY_META: Record<StudentTrajectoryKind, { label: string; icon: string }> = {
+  hobby: { label: tx('Хобби'), icon: 'heart' },
+  sport: { label: tx('Спорт'), icon: 'ball' },
+  olympiad: { label: tx('Олимпиада'), icon: 'trophy' },
+  club: { label: tx('Үйірме'), icon: 'users' },
+}
+const TRAJECTORY_DAYS = ['Дс', 'Сс', 'Ср', 'Бс', 'Жм', 'Сн', 'Жс']
+
+function StudentTrajectory({ studentId }: { studentId: string }) {
+  const data = useLoad(() => listStudentTrajectory(studentId), [studentId])
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editing, setEditing] = useState<StudentTrajectoryItem | null>(null)
+  const rows = data.data ?? []
+
+  const openAdd = () => { setEditing(null); setSheetOpen(true) }
+  const remove = async (item: StudentTrajectoryItem) => {
+    if (!confirm(tx('«{0}» жазбасын өшіресіз бе?', item.title))) return
+    try { await removeStudentTrajectory(item.id); data.reload() } catch (e) { toast(errText(e)) }
+  }
+
+  return (
+    <Card className="grid gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-bold text-base flex items-center gap-2"><Icon n="list" size={17} className="text-accent" />{tx('Қызығушылықтар және бағыттар')}</p>
+          <p className="text-xs text-muted">{tx('Хобби, спорт, олимпиада және үйірмені апталық уақытымен бірге сақтаңыз.')}</p>
+        </div>
+        <Button kind="secondary" onClick={openAdd}><Icon n="plus" size={15} />{tx('Қосу')}</Button>
+      </div>
+      {data.loading && !data.data ? <p className="text-sm text-muted">{tx('Жүктелуде...')}</p> : !rows.length ? <Empty icon="list" title={tx('Бағыттар әлі қосылмаған')} text={tx('Оқушының хоббиін, спортын немесе үйірмесін уақыт кестесімен қосыңыз.')} /> : (
+        <div className="grid gap-2">
+          {rows.map((item) => {
+            const meta = TRAJECTORY_META[item.kind]
+            const days = item.days_of_week.map((day) => TRAJECTORY_DAYS[day - 1]).filter(Boolean).join(' · ')
+            const time = item.start_time || item.end_time ? `${item.start_time?.slice(0, 5) ?? '—'}–${item.end_time?.slice(0, 5) ?? '—'}` : tx('Уақыты белгіленбеген')
+            return <div key={item.id} className="flex items-start gap-3 rounded-lg bg-surface-2 p-3">
+              <span className="size-9 rounded-md bg-accent-soft text-accent grid place-items-center shrink-0"><Icon n={meta.icon} size={17} /></span>
+              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-sm break-words">{item.title}</p><span className="text-[11px] rounded-full bg-surface px-2 py-0.5 text-muted">{meta.label}</span></div><p className="text-xs text-muted mt-1">{days || tx('Апта күні белгіленбеген')} · {time}{item.coach_or_place ? ` · ${item.coach_or_place}` : ''}</p>{item.note && <p className="text-xs text-muted mt-1 whitespace-pre-line">{item.note}</p>}</div>
+              <div className="flex gap-1 shrink-0"><button type="button" className="size-8 rounded-md grid place-items-center text-muted hover:bg-surface hover:text-accent" aria-label={tx('Өзгерту')} onClick={() => { setEditing(item); setSheetOpen(true) }}><Icon n="compose" size={15} /></button><button type="button" className="size-8 rounded-md grid place-items-center text-muted hover:bg-surface hover:text-danger" aria-label={tx('Өшіру')} onClick={() => remove(item)}><Icon n="x" size={15} /></button></div>
+            </div>
+          })}
+        </div>
+      )}
+      {sheetOpen && <Sheet title={editing ? tx('Бағытты өзгерту') : tx('Бағыт қосу')} onClose={() => setSheetOpen(false)}><TrajectoryForm studentId={studentId} item={editing} onDone={() => { setSheetOpen(false); data.reload() }} /></Sheet>}
+    </Card>
+  )
+}
+
+function TrajectoryForm({ studentId, item, onDone }: { studentId: string; item: StudentTrajectoryItem | null; onDone: () => void }) {
+  const [draft, setDraft] = useState<StudentTrajectoryDraft>(item ?? { kind: 'hobby', title: '', days_of_week: [], start_time: null, end_time: null, coach_or_place: '', note: '' })
+  const [busy, setBusy] = useState(false)
+  const update = (patch: Partial<StudentTrajectoryDraft>) => setDraft((prev) => ({ ...prev, ...patch }))
+  const toggleDay = (day: number) => update({ days_of_week: draft.days_of_week.includes(day) ? draft.days_of_week.filter((x) => x !== day) : [...draft.days_of_week, day].sort((a, b) => a - b) })
+  const save = async () => {
+    if (draft.title.trim().length < 2) return toast(tx('Атауын жазыңыз'))
+    if (draft.start_time && draft.end_time && draft.end_time < draft.start_time) return toast(tx('Аяқталу уақыты басталу уақытынан кейін болуы керек'))
+    setBusy(true)
+    try { await saveStudentTrajectory(studentId, { ...draft, title: draft.title.trim(), coach_or_place: draft.coach_or_place?.trim() || null, note: draft.note?.trim() || null, start_time: draft.start_time || null, end_time: draft.end_time || null }); toast(tx('Сақталды')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return <div className="grid gap-4">
+    <Field label={tx('Бағыт түрі')}>{(id) => <select id={id} className={inputCls} value={draft.kind} onChange={(e) => update({ kind: e.target.value as StudentTrajectoryKind })}>{(Object.keys(TRAJECTORY_META) as StudentTrajectoryKind[]).map((kind) => <option key={kind} value={kind}>{TRAJECTORY_META[kind].label}</option>)}</select>}</Field>
+    <Field label={tx('Атауы')} hint={tx('Мысалы: футбол, робототехника, математика олимпиадасы')}>{(id) => <input id={id} className={inputCls} value={draft.title} onChange={(e) => update({ title: e.target.value })} />}</Field>
+    <div className="grid gap-2"><p className="text-sm font-semibold">{tx('Апта күндері')}</p><div className="grid grid-cols-7 gap-1">{TRAJECTORY_DAYS.map((label, index) => <button key={label} type="button" onClick={() => toggleDay(index + 1)} className={`h-9 rounded-md text-xs font-semibold ${draft.days_of_week.includes(index + 1) ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}>{label}</button>)}</div></div>
+    <div className="grid grid-cols-2 gap-2"><Field label={tx('Басталу уақыты')} hint={tx('Формат: 09:00')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.start_time ?? ''} onChange={(e) => update({ start_time: e.target.value || null })} />}</Field><Field label={tx('Аяқталу уақыты')} hint={tx('Мысалы: 10:30')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.end_time ?? ''} onChange={(e) => update({ end_time: e.target.value || null })} />}</Field></div>
+    <Field label={tx('Жетекші немесе орын')} hint={tx('Мысалы: спортзал, Айбек ағай')}>{(id) => <input id={id} className={inputCls} value={draft.coach_or_place ?? ''} onChange={(e) => update({ coach_or_place: e.target.value })} />}</Field>
+    <Field label={tx('Қысқаша түсініктеме')} hint={tx('Міндетті емес')}>{(id) => <textarea id={id} className={`${inputCls} h-24 py-2`} value={draft.note ?? ''} onChange={(e) => update({ note: e.target.value })} />}</Field>
+    <Button block loading={busy} onClick={save}><Icon n="check" size={16} />{tx('Сақтау')}</Button>
+  </div>
+}
 
 function RoadmapSection({
   studentId,
