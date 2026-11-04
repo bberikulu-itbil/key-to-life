@@ -443,9 +443,57 @@ export const tgUnlinkGroup = (activity: string) => rpc('unlink_telegram_group', 
 export const tgSendRollcall = (activity: string, date: string) => tgCall<{ ok: boolean }>({ action: 'rollcall', activity, date })
 
 /* ---------- my class ---------- */
-export type Student = { id: string; full_name: string; olympiad: string | null; club: string | null; parliament: boolean; photo: string | null }
-export const classStudents = (classId: string) =>
-  ok(supabase.from('profiles').select('id, full_name, olympiad, club, parliament, photo').eq('class_id', classId).eq('role', 'student').is('removed_at', null).order('full_name')) as Promise<Student[]>
+export type StudentTrajectoryKind = 'hobby' | 'sport' | 'olympiad' | 'club'
+export type StudentTrajectorySummary = {
+  student_id: string
+  kind: StudentTrajectoryKind
+  title: string
+  started_on: string | null
+  ended_on: string | null
+}
+export type Student = {
+  id: string
+  full_name: string
+  /** Derived from student_trajectory_items; kept as a display compatibility field. */
+  olympiad: string | null
+  club: string | null
+  trajectory: StudentTrajectorySummary[]
+  parliament: boolean
+  photo: string | null
+}
+
+const trajectorySummaryQuery = 'student_id, kind, title, started_on, ended_on'
+export const classStudentTrajectories = async (studentIds: string[]): Promise<StudentTrajectorySummary[]> => {
+  if (!studentIds.length) return []
+  try {
+    return await ok(supabase.from('student_trajectory_items').select(trajectorySummaryQuery).in('student_id', studentIds).order('kind').order('title')) as StudentTrajectorySummary[]
+  } catch (e) {
+    const message = String((e as { message?: string })?.message ?? e)
+    if (!message.includes('started_on') && !message.includes('ended_on') && !message.includes('42703')) throw e
+    const legacy = await ok(supabase.from('student_trajectory_items').select('student_id, kind, title').in('student_id', studentIds).order('kind').order('title')) as { student_id: string; kind: StudentTrajectoryKind; title: string }[]
+    return legacy.map((item) => ({ ...item, started_on: null, ended_on: null }))
+  }
+}
+
+const trajectoryTitles = (rows: StudentTrajectorySummary[], kind: StudentTrajectoryKind) => [...new Set(rows.filter((row) => row.kind === kind).map((row) => row.title.trim()).filter(Boolean))].join(' · ') || null
+
+export const classStudents = async (classId: string): Promise<Student[]> => {
+  const profiles = await ok(supabase.from('profiles').select('id, full_name, parliament, photo').eq('class_id', classId).eq('role', 'student').is('removed_at', null).order('full_name')) as Omit<Student, 'olympiad' | 'club' | 'trajectory'>[]
+  const trajectory = await classStudentTrajectories(profiles.map((student) => student.id))
+  const byStudent = new Map<string, StudentTrajectorySummary[]>()
+  for (const item of trajectory) byStudent.set(item.student_id, [...(byStudent.get(item.student_id) ?? []), item])
+  return profiles.map((student) => {
+    const rows = byStudent.get(student.id) ?? []
+    return { ...student, trajectory: rows, olympiad: trajectoryTitles(rows, 'olympiad'), club: trajectoryTitles(rows, 'club') }
+  })
+}
+
+export type StudentSearchDetails = { student_id: string; iin: string | null; birthday: string | null }
+export const classStudentProfileDetails = async (studentIds: string[]): Promise<Record<string, StudentSearchDetails>> => {
+  if (!studentIds.length) return {}
+  const rows = await ok(supabase.from('student_profile_details').select('student_id, iin, birthday').in('student_id', studentIds)) as StudentSearchDetails[]
+  return Object.fromEntries(rows.map((row) => [row.student_id, row]))
+}
 
 /* ---------- class hub: recipes and class plans ---------- */
 export type ClassResourceKind = 'book' | 'movie' | 'recipe'
@@ -511,8 +559,8 @@ export async function uploadStudentPhoto(studentId: string, file: File) {
 
 export const setClassTeacher = (classId: string, teacher: string | null) => rpc('set_class_teacher', { p_class: classId, p_teacher: teacher })
 export const updateStaff = (id: string, fullName: string, title: string) => rpc('update_staff', { p_user: id, p_full_name: fullName, p_title: title })
-export const updateStudent = (id: string, v: { full_name: string; olympiad: string; club: string }) =>
-  rpc('update_student', { p_student: id, p_full_name: v.full_name, p_olympiad: v.olympiad, p_club: v.club })
+export const updateStudentName = (id: string, fullName: string) =>
+  rpc('update_student_name', { p_student: id, p_full_name: fullName })
 
 type SessionRow = { activity_id: string; on_date: string; start_time: string; end_time: string; note: string | null; type_id: string | null; series_id?: string | null }
 // a date already holding a session at that start time is skipped, not an error
@@ -909,9 +957,16 @@ type StudentDossierRpc = Omit<StudentDossier, 'profileDetails' | 'health' | 'hea
 
 export const studentMentor = async (id: string) => {
   try {
-    const payload = await rpc<StudentDossierRpc>('student_dossier', { p_student: id })
+    const [payload, trajectory] = await Promise.all([
+      rpc<StudentDossierRpc>('student_dossier', { p_student: id }),
+      listStudentTrajectory(id),
+    ])
     return {
-      student: payload.student,
+      student: {
+        ...payload.student,
+        olympiad: trajectoryTitles(trajectory, 'olympiad'),
+        club: trajectoryTitles(trajectory, 'club'),
+      },
       meetings: payload.meetings ?? [],
       tests: payload.tests ?? [],
       notes: payload.notes ?? [],
@@ -939,7 +994,7 @@ const optionalQuery = async <T,>(query: () => Promise<T>, fallback: T): Promise<
 const legacyStudentMentor = async (id: string): Promise<StudentDossier> => {
   const base = (await ok(supabase.from('profiles').select('id, full_name, photo, class_id').eq('id', id).single())) as { id: string; full_name: string; photo: string | null; class_id: string | null }
   const form = await studentForm(id)
-  const [meetings, items, roadmap, notes, contacts, profileDetails, health, healthEvents, familyContacts] = await Promise.all([
+  const [meetings, items, roadmap, notes, contacts, profileDetails, health, healthEvents, familyContacts, trajectory] = await Promise.all([
     optionalQuery(() => ok(supabase.from('mentor_meetings').select(MM).eq('student_id', id).order('starts_at', { ascending: false }).limit(300)) as Promise<MentorMeeting[]>, []),
     optionalQuery(() => mentorItems(id), []),
     loadStudentRoadmap(id),
@@ -953,12 +1008,13 @@ const legacyStudentMentor = async (id: string): Promise<StudentDossier> => {
     optionalQuery(() => ok(supabase.from('student_health_profiles').select('*').eq('student_id', id).maybeSingle()) as Promise<StudentHealthProfile | null>, null),
     optionalQuery(() => ok(supabase.from('student_health_events').select('*').eq('student_id', id).order('started_on', { ascending: false }).limit(100)) as Promise<StudentHealthEvent[]>, []),
     optionalQuery(() => ok(supabase.from('student_family_contacts').select('*').eq('student_id', id).order('relationship')) as Promise<StudentFamilyContact[]>, []),
+    optionalQuery(() => listStudentTrajectory(id), []),
   ])
   let legacySiblings: StudentSibling[] = []
   try { legacySiblings = form?.answers?.siblings ? JSON.parse(form.answers.siblings) : [] } catch { legacySiblings = [] }
   const profileWithLegacySiblings = profileDetails ?? (legacySiblings.length ? { student_id: id, siblings: legacySiblings } : null)
   return {
-    student: { id: base.id, full_name: base.full_name, photo: base.photo, class_id: base.class_id ?? undefined, olympiad: null, club: null },
+    student: { id: base.id, full_name: base.full_name, photo: base.photo, class_id: base.class_id ?? undefined, olympiad: trajectoryTitles(trajectory, 'olympiad'), club: trajectoryTitles(trajectory, 'club') },
     meetings, tests: [], notes, contacts, form, items, roadmap, profileDetails: profileWithLegacySiblings, health, healthEvents, familyContacts,
   }
 }
@@ -1019,7 +1075,6 @@ export const saveStudentSiblings = async (student_id: string, siblings: StudentS
 export const saveStudentHealthEvent = (student_id: string, event_id: string | null, data: object) =>
   rpc<string>('save_student_health_event', { p_student_id: student_id, p_event_id: event_id, p_data: data })
 
-export type StudentTrajectoryKind = 'hobby' | 'sport' | 'olympiad' | 'club'
 export type StudentTrajectoryItem = {
   id: string
   student_id: string

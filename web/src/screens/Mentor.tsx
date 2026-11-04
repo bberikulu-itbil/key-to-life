@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  addMentorMeeting, classMentorMeetings, classStudentForms, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
+  addMentorMeeting, classMentorMeetings, classStudentForms, classStudentProfileDetails, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
   mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting,
   listStudentTrajectory, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
 } from '../lib/api'
@@ -52,8 +52,8 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
       mentorEvery(cls.id),
     ])
     const sids = students.map((s) => s.id)
-    const formsMap = await classStudentForms(sids)
-    return { students, meetings, every, formsMap }
+    const [formsMap, detailsMap] = await Promise.all([classStudentForms(sids), classStudentProfileDetails(sids)])
+    return { students, meetings, every, formsMap, detailsMap }
   }, [cls?.id])
 
   const [selectedId, setSelectedId] = useState<string | null>(initialStudentId ?? null)
@@ -114,12 +114,13 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
     const q = search.trim().toLowerCase()
     if (!q) return true
     const matchName = s.full_name.toLowerCase().includes(q)
-    const matchIin = (form.iin ?? '').toLowerCase().includes(q)
-    const matchBday = (form.birthday ?? '').toLowerCase().includes(q)
-    const matchHobby = (form.hobby ?? '').toLowerCase().includes(q)
-    const matchSport = (form.sport ?? '').toLowerCase().includes(q)
+    const details = data.data?.detailsMap[s.id]
+    const trajectoryText = s.trajectory.map((item) => item.title).join(' ').toLowerCase()
+    const matchIin = (details?.iin ?? '').toLowerCase().includes(q)
+    const matchBday = (details?.birthday ?? '').toLowerCase().includes(q)
+    const matchTrajectory = trajectoryText.includes(q)
     const matchNation = (form.nation ?? '').toLowerCase().includes(q)
-    return matchName || matchIin || matchBday || matchHobby || matchSport || matchNation
+    return matchName || matchIin || matchBday || matchTrajectory || matchNation
   })
 
   return (
@@ -203,15 +204,15 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
                   {tx('Оқушы табылмады')}
                 </div>
               ) : (
-                filtered.map(({ s, st, form }) => {
+                filtered.map(({ s, st }) => {
                   const isSelected = s.id === selectedId
-                  const bdayDisplay = form.birthday
-                    ? fmtBirthday(form.birthday)
-                    : form.iin
-                    ? `ЖСН: ${form.iin}`
-                    : form.hobby
-                    ? form.hobby
-                    : [s.olympiad, s.club].filter(Boolean).join(' · ') || '—'
+                  const details = data.data?.detailsMap[s.id]
+                  const trajectoryDisplay = s.trajectory.map((item) => item.title).filter(Boolean).join(' · ')
+                  const bdayDisplay = details?.birthday
+                    ? fmtBirthday(details.birthday)
+                    : details?.iin
+                    ? `ЖСН: ${details.iin}`
+                    : trajectoryDisplay || '—'
 
                   return (
                     <button
@@ -375,6 +376,7 @@ function StudentDossierView({
   if (data.loading && !data.data) return <Skeleton />
   if (data.error || !d) return <ErrorBox text={data.error ?? tx('Табылмады')} retry={data.reload} />
 
+  const displayStudent = { ...student, ...d.student }
   const staffName = (sid: string | null) =>
     staff.find((x) => x.id === sid)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
   const nextMeetings = d.meetings.filter((m) => !m.done_at).sort((a, b) => a.starts_at.localeCompare(b.starts_at))
@@ -558,15 +560,15 @@ function StudentDossierView({
       {/* Student Name Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <Avatar name={student.full_name} photo={student.photo} size={48} />
+          <Avatar name={displayStudent.full_name} photo={displayStudent.photo} size={48} />
           <div>
             <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight text-fg">
-              {student.full_name}
+              {displayStudent.full_name}
             </h1>
             <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted">
               {classNameStr && <span className="font-semibold text-accent">{classNameStr}</span>}
-              {student.olympiad && <span>· 🏆 {student.olympiad}</span>}
-              {student.club && <span>· 🎭 {student.club}</span>}
+              {displayStudent.olympiad && <span>· {displayStudent.olympiad}</span>}
+              {displayStudent.club && <span>· {displayStudent.club}</span>}
               {saving && (
                 <span className="text-muted italic animate-pulse">
                   {tx('Сақталуда...')}
@@ -586,7 +588,7 @@ function StudentDossierView({
           TAB 1: INFO (2-Column Property Grid matching screenshot)
           ==================================================================== */}
       <StudentDossierOverview
-        student={student}
+        student={displayStudent}
         classNameStr={classNameStr}
         meetings={d.meetings}
         roadmap={roadmap}
@@ -606,31 +608,6 @@ function StudentDossierView({
             parentContacts={d.contacts}
             isStudent={me.role === 'student'}
           />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="grid gap-1">
-              <span className="text-xs font-semibold text-muted">{tx('Хобби')}</span>
-              <input
-                type="text"
-                value={answers.hobby ?? ''}
-                onChange={(e) => setAnswers({ ...answers, hobby: e.target.value })}
-                onBlur={(e) => saveField('hobby', e.target.value)}
-                className={inputCls}
-                placeholder={tx('Робототехника, кітап, сурет...')}
-              />
-            </label>
-            <label className="grid gap-1">
-              <span className="text-xs font-semibold text-muted">{tx('Спорт')}</span>
-              <input
-                type="text"
-                value={answers.sport ?? ''}
-                onChange={(e) => setAnswers({ ...answers, sport: e.target.value })}
-                onBlur={(e) => saveField('sport', e.target.value)}
-                className={inputCls}
-                placeholder={tx('Футбол, үстел теннисі, шахмат...')}
-              />
-            </label>
-          </div>
 
           {/* Quick Previews of Low Gallup & MBTI (from bottom of screenshot) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-line">
