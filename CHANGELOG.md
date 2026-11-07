@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.17.8 — 2026-11-08
+
+- Removed «Сынып жобалары» (screen `ClassHub`, its route `#/hub`, the links in Менің сыныбым and Profile, and its API helpers). Books, films and recipes live in Сынып ресурстары. The `class_hub_*` tables and their data stay in the database.
+- Анкета on phones: the class list shows first; «Тізім» returns to it (before, the first student was reopened at once). Desktop still opens the first student.
+
 ## 1.17.7 — 2026-11-08
 
 - Student dossier on phones: the page no longer spills off the right edge (grids now use `grid-cols-1`, so long text cannot widen them); the outer card is dropped on phones so the content uses the full width; the tabs wrap onto two rows instead of hiding off-screen; MBTI/Gallup headers and plan category chips wrap or stay on one line.
