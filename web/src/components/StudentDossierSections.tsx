@@ -53,7 +53,7 @@ export function StudentDossierOverview({
   const lastParentContact = parentContacts[0]
 
   return (
-    <div className="grid gap-2">
+    <div className="grid grid-cols-1 gap-2">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
         <Card className="p-3">
           <p className="text-xs text-muted">{tx('Оқушы')}</p>
@@ -149,13 +149,13 @@ export default function StudentDossierStructured({
   }
 
   const renderText = (label: string, value: string | null | undefined, onSave: (value: string) => void, readOnly = false) => (
-    <label className="grid gap-1">
+    <label className="grid grid-cols-1 gap-1">
       <span className="text-xs font-semibold text-muted">{label}</span>
       <input className={input} value={value ?? ''} readOnly={readOnly} onChange={e => !readOnly && onSave(e.target.value)} onBlur={e => !readOnly && onSave(e.target.value)} />
     </label>
   )
   const renderDate = (label: string, value: string | null | undefined, onSave: (value: string) => void, readOnly = false) => (
-    <label className="grid gap-1">
+    <label className="grid grid-cols-1 gap-1">
       <span className="text-xs font-semibold text-muted">{label}</span>
       <input className={input} type="date" value={value ?? ''} readOnly={readOnly} onChange={e => !readOnly && onSave(e.target.value)} onBlur={e => !readOnly && onSave(e.target.value)} />
       <span className="text-[11px] text-muted">{tx('Формат: YYYY-MM-DD, мысалы 2010-05-21')}</span>
@@ -166,7 +166,7 @@ export default function StudentDossierStructured({
   const mother = contact('mother')
 
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-1 gap-3">
       <div className="rounded-xl border border-accent/20 bg-accent/5 p-3 text-sm">
         <div className="flex items-center gap-2 font-bold"><Icon n="shield" size={16} />{tx('Анкета бөлімдері')}</div>
         <p className="text-xs text-muted mt-1">{tx('Маңызды деректер бөлек сақталады. ЖСН мен құжат нөмірі оқушыға read-only көрсетіледі.')}</p>
@@ -186,7 +186,7 @@ export default function StudentDossierStructured({
             {renderText(tx('Жатақхана бөлмесі'), profileState.dorm_room, v => saveProfile({ dorm_room: v || null }))}
             {renderText(tx('Төсек орны'), profileState.dorm_bed, v => saveProfile({ dorm_bed: v || null }))}
           </div>
-          <label className="grid gap-1"><span className="text-xs font-semibold text-muted">{tx('Мекенжай')}</span><textarea className="min-h-20 rounded-md border border-input bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent" value={profileState.address ?? ''} onChange={e => setProfileState({ ...profileState, address: e.target.value })} onBlur={() => saveProfile({ address: profileState.address ?? '' })} /></label>
+          <label className="grid grid-cols-1 gap-1"><span className="text-xs font-semibold text-muted">{tx('Мекенжай')}</span><textarea className="min-h-20 rounded-md border border-input bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent" value={profileState.address ?? ''} onChange={e => setProfileState({ ...profileState, address: e.target.value })} onBlur={() => saveProfile({ address: profileState.address ?? '' })} /></label>
           {busy === 'profile' && <span className="text-xs text-muted">{tx('Сақталуда...')}</span>}
         </Card>
 
@@ -196,7 +196,7 @@ export default function StudentDossierStructured({
           {renderText(tx('Аллергия'), healthState.allergies, v => saveHealth({ allergies: v || null }))}
           {renderText(tx('Диета'), healthState.diet, v => saveHealth({ diet: v || null }))}
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(healthState.needs_attention)} onChange={e => saveHealth({ needs_attention: e.target.checked })} />{tx('Ерекше назар қажет')}</label>
-          <label className="grid gap-1"><span className="text-xs font-semibold text-muted">{tx('Қосымша түсініктеме')}</span><textarea className="min-h-20 rounded-md border border-input bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent" value={healthState.extra_notes ?? ''} onChange={e => setHealthState({ ...healthState, extra_notes: e.target.value })} onBlur={() => saveHealth({ extra_notes: healthState.extra_notes ?? '' })} /></label>
+          <label className="grid grid-cols-1 gap-1"><span className="text-xs font-semibold text-muted">{tx('Қосымша түсініктеме')}</span><textarea className="min-h-20 rounded-md border border-input bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent" value={healthState.extra_notes ?? ''} onChange={e => setHealthState({ ...healthState, extra_notes: e.target.value })} onBlur={() => saveHealth({ extra_notes: healthState.extra_notes ?? '' })} /></label>
           {busy === 'health' && <span className="text-xs text-muted">{tx('Сақталуда...')}</span>}
         </Card>
       </div>
@@ -230,7 +230,7 @@ export default function StudentDossierStructured({
               <div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold text-muted">{tx('Бауыр {0}', index + 1)}</p><button type="button" className="size-8 rounded-md grid place-items-center text-muted hover:bg-surface hover:text-danger" aria-label={tx('Өшіру')} onClick={() => saveSiblings(siblings.filter((_, i) => i !== index))}><Icon n="x" size={15} /></button></div>
               <div className="grid sm:grid-cols-2 gap-2">
                 {renderText(tx('Аты-жөні'), sibling.full_name, value => updateSibling({ full_name: value }))}
-                <label className="grid gap-1"><span className="text-xs font-semibold text-muted">{tx('Туыстық түрі')}</span><select className={input} value={sibling.relationship} onChange={e => updateSibling({ relationship: e.target.value as StudentSibling['relationship'] })} onBlur={() => saveSiblings(siblings)}><option value="brother">{tx('Ағасы/інісі')}</option><option value="sister">{tx('Әпкесі/қарындасы')}</option><option value="other">{tx('Басқа')}</option></select></label>
+                <label className="grid grid-cols-1 gap-1"><span className="text-xs font-semibold text-muted">{tx('Туыстық түрі')}</span><select className={input} value={sibling.relationship} onChange={e => updateSibling({ relationship: e.target.value as StudentSibling['relationship'] })} onBlur={() => saveSiblings(siblings)}><option value="brother">{tx('Ағасы/інісі')}</option><option value="sister">{tx('Әпкесі/қарындасы')}</option><option value="other">{tx('Басқа')}</option></select></label>
                 {renderDate(tx('Туған күні'), sibling.birthday, value => updateSibling({ birthday: value || null }))}
                 {renderText(tx('Оқу/жұмыс орны'), sibling.school_or_work, value => updateSibling({ school_or_work: value }))}
               </div>
