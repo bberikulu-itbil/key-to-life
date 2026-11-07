@@ -983,6 +983,7 @@ function WeekGrid({
               {dayItems.map((i) => {
                 const typeCode = (i.types ?? [])[0]
                 const emoji = typeCode ? TYPE_EMOJIS[typeCode] : null
+                if (i.reminder) return <ReminderRow key={i.key} i={i} emoji={emoji} onClick={() => { if (i.rawEvent) onEditEvent(i.rawEvent) }} />
                 return (
                   <button
                     key={i.key}
@@ -1104,6 +1105,7 @@ function DayView({
           {dayItems.map((i) => {
             const typeCode = (i.types ?? [])[0]
             const emoji = typeCode ? TYPE_EMOJIS[typeCode] : null
+            if (i.reminder) return <ReminderRow key={i.key} i={i} emoji={emoji} large onClick={() => { if (i.rawEvent) onEditEvent(i.rawEvent) }} />
             return (
               <div
                 key={i.key}
@@ -1424,5 +1426,17 @@ function MiniMonth({
         })}
       </div>
     </div>
+  )
+}
+
+/** Personal meeting, home visit, birthday: a light «dot · emoji · title» row instead of an event card. */
+function ReminderRow({ i, emoji, large, onClick }: { i: CalItem; emoji: string | null; large?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={`w-full text-left flex items-center gap-1.5 rounded hover:bg-surface-2 transition ${large ? 'px-2 py-1.5 text-sm' : 'px-1 py-0.5 text-xs'}`}>
+      <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: i.color ?? '#2563eb' }} />
+      {emoji && <span className="shrink-0">{emoji}</span>}
+      <span className="truncate font-medium text-ink">{i.title}</span>
+      {large && i.time && <span className="ml-auto text-xs text-muted tabular-nums">{i.time}</span>}
+    </button>
   )
 }

@@ -152,7 +152,7 @@ const eventItem = (e: ClassEvent, remove?: () => Promise<unknown>, edit?: () => 
     note: [e.place, e.note].filter(Boolean).join(' · ') || null,
     shown: e.visible,
     personal: eventPersonal(e),
-    reminder: (e.type_codes ?? []).some((x) => x === 'mentor' || x === 'birthday'),
+    reminder: (e.type_codes ?? []).some((x) => x === 'mentor' || x === 'birthday' || x === 'visit'),
     color: eventColor(e),
     status: e.status,
     types: e.type_codes ?? [],
