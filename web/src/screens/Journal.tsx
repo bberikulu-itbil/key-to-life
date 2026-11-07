@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  addClassEvent, addClassHour, addClassPhoto, addParentContact, classBirthdays, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
-  removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type FundRow, type Media, type MentorMeeting, type Resource, type Staff, type Student,
+  addClassEvent, addClassHour, addClassPhoto, addParentContact, classBirthdays, listRecipes, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
+  removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type FundRow, type Recipe, type Media, type MentorMeeting, type Resource, type Staff, type Student,
 } from '../lib/api'
 import { WD_SHORT, addDays, fmtDate, iso, isoDow, today } from '../lib/time'
 import { useMe } from '../App'
@@ -227,12 +227,12 @@ function StaffCalendar({ classId }: { classId?: string }) {
   const data = useLoad(async () => {
     if (isSchool) {
       const [j, staff, places] = await Promise.all([listJournal('school'), listStaff(), listResources()])
-      return { ...j, students: [] as Student[], staff, places, media: [] as Media[], fund: [] as FundRow[], wallets: [] as ClassWallet[], birthdays: [] as { student_id: string; birthday: string }[] }
+      return { ...j, students: [] as Student[], staff, places, media: [] as Media[], fund: [] as FundRow[], wallets: [] as ClassWallet[], birthdays: [] as { student_id: string; birthday: string }[], recipes: [] as Recipe[] }
     }
     if (!cls) return null
-    const [j, students, staff, places, resourceData, wallets] = await Promise.all([listJournal(cls.id), classStudents(cls.id), listStaff(), listResources(), listClassResources(cls.id), listClassWallets(cls.id)])
+    const [j, students, staff, places, resourceData, wallets, recipes] = await Promise.all([listJournal(cls.id), classStudents(cls.id), listStaff(), listResources(), listClassResources(cls.id), listClassWallets(cls.id), listRecipes(cls.id).catch(() => [] as Recipe[])])
     const birthdays = await classBirthdays(students.map((s) => s.id)).catch(() => [])
-    return { ...j, students, staff, places, media: resourceData.media, fund: resourceData.fund, wallets, birthdays }
+    return { ...j, students, staff, places, media: resourceData.media, fund: resourceData.fund, wallets, birthdays, recipes }
   }, [isSchool, cls?.id])
   const d = data.data
   const short = (id: string) => d?.students.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
@@ -412,6 +412,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
             meetings={d.meetings}
             hours={d.hours}
             wallets={d.wallets}
+            recipes={d.recipes}
             photos={editing ? d.photos.filter((p) => p.event_id === editing.id) : []}
             meId={me.id}
             onDone={() => {
@@ -440,7 +441,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
     </div>
   )
 }
-type D = Awaited<ReturnType<typeof listJournal>> & { students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; fund: FundRow[]; wallets: ClassWallet[]; birthdays: { student_id: string; birthday: string }[] }
+type D = Awaited<ReturnType<typeof listJournal>> & { students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; fund: FundRow[]; wallets: ClassWallet[]; birthdays: { student_id: string; birthday: string }[]; recipes: Recipe[] }
 
 /** Everything on the calendar, by date. */
 function journalItems(d: Pick<D, 'hours' | 'events' | 'meetings' | 'contacts'>, studentName: (id: string) => string, edit?: (e: ClassEvent) => void): Item[] {
@@ -490,7 +491,7 @@ const photoEventTitle = (p: ClassPhoto, events: ClassEvent[]) => p.event_id ? ev
 export function ClassHoursPanel({ cls }: { cls: { id: string; teacher_id: string | null; tutor_id: string | null } }) {
   const data = useLoad(async () => {
     const [j, students, staff] = await Promise.all([listJournal(cls.id), classStudents(cls.id), listStaff()])
-    return { ...j, students, staff, places: [] as Resource[], media: [] as Media[], fund: [] as FundRow[], wallets: [] as ClassWallet[], birthdays: [] }
+    return { ...j, students, staff, places: [] as Resource[], media: [] as Media[], fund: [] as FundRow[], wallets: [] as ClassWallet[], birthdays: [], recipes: [] as Recipe[] }
   }, [cls.id])
   const [add, setAdd] = useState(false)
   const d = data.data

@@ -5,6 +5,8 @@
 - Сынып күнтізбесі → «Белсенділік» tab: per-student stats for 7 days / this month / school year / a custom range — event participation, one-on-ones, tasks done/all, habit completion, goals done, parents (home visits / meetings / contacts) — plus summary tiles.
 - Class groups for a period (name, colour, start, optional end, members); filter the stats by group; group dots next to names.
 - Migration 0077_class_activity (`class_groups`, `class_group_members`, RPC `class_activity_stats`, staff only) — applied.
+- Сынып ресурстары: «Шараға тізім» replaced by «Рецепттер» — ingredients with amount, unit and price, scaled to any number of people with an approximate total and per-person cost; numbered steps; #hashtags with filter and search; photo. Old `class_lists` data is kept, only hidden. Migration 0078_class_recipes (applied).
+- Event form: for 🍕/☕/🎂 events a recipe can be linked, and its cost (for listed students or the whole class) added to the event's expenses, so it shows in the class fund.
 - From 1.16.x (not merged before): 5 event groups with emoji and colours; event photo remove/replace; month-cell photos split in two; fixed calendar photo URLs.
 
 ## 1.16.0 — 2026-11-07

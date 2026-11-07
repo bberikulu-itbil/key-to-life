@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import {
-  addClassEvent, addClassPhoto, addClassWallet, errText, photoUrl, removeClassPhoto, type ClassPhoto, setClassEventExpenses, setClassEventParticipants, updateClassEvent,
+  addClassEvent, addClassPhoto, addClassWallet, errText, photoUrl, removeClassPhoto, type ClassPhoto, type Recipe, setClassEventExpenses, setClassEventParticipants, updateClassEvent,
   type CalAudience, type ClassEvent, type ClassEventExpense, type ClassEventStatus, type ClassHour, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student, type ClassWallet,
 } from '../lib/api'
 import { Button, Field, inputCls, toast } from './ui'
 import LocationPicker from './LocationPicker'
 import { tx } from '../lib/i18n'
+import { money } from '../lib/money'
 import { FUN_TYPES, TYPE_GROUPS } from '../lib/eventTypes'
 
 const legacy = (codes: EventTypeCode[]): ClassEvent['kind'] => codes.some((x) => ['mentor', 'meeting'].includes(x)) ? 'school' : codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x)) ? 'parents' : codes.some((x) => FUN_TYPES.includes(x)) ? 'fun' : 'school'
@@ -13,8 +14,8 @@ const listText = (v: string) => v.split(/[\n,;]+/).map((x) => x.trim()).filter(B
 type ExpenseRow = { key: string; wallet: string; walletName: string; amount: string; note: string }
 const newExpenseRow = (e?: ClassEventExpense): ExpenseRow => ({ key: e?.id ?? `new-${Math.random().toString(36).slice(2)}`, wallet: e?.wallet_id ?? '', walletName: '', amount: e ? String(e.amount) : '', note: e?.note ?? '' })
 
-export default function ClassEventForm({ classId, date, existing, defaultTypes, defaultStudentId, students, staff, places, media, meetings, hours, wallets, photos = [], meId, onDone }: {
-  classId: string; date: string; existing?: ClassEvent; defaultTypes?: EventTypeCode[]; defaultStudentId?: string; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; photos?: ClassPhoto[]; meId: string; onDone: () => void
+export default function ClassEventForm({ classId, date, existing, defaultTypes, defaultStudentId, students, staff, places, media, meetings, hours, wallets, photos = [], recipes = [], meId, onDone }: {
+  classId: string; date: string; existing?: ClassEvent; defaultTypes?: EventTypeCode[]; defaultStudentId?: string; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; photos?: ClassPhoto[]; recipes?: Recipe[]; meId: string; onDone: () => void
 }) {
   const initialTypes: EventTypeCode[] = existing?.type_codes?.length ? existing.type_codes : defaultTypes?.length ? defaultTypes : existing?.kind === 'parents' ? ['visit'] : existing?.kind === 'fun' ? ['film'] : ['exam']
   const [title, setTitle] = useState(existing?.title ?? '')
@@ -90,7 +91,13 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
       toast(existing ? tx('Оқиға өзгертілді') : tx('Оқиға сақталды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
+  const linkedRecipe = link.startsWith('recipe:') ? recipes.find((r) => r.id === link.slice(7)) : undefined
+  // People = listed students, else the whole class; price lines are for the recipe's own servings.
+  const recipePeople = selected.length || students.length || linkedRecipe?.servings || 1
+  const recipeCost = linkedRecipe ? Math.round(linkedRecipe.items.reduce((a, x) => a + Number(x.price), 0) * recipePeople / linkedRecipe.servings) : 0
+  const addRecipeCost = () => { if (!linkedRecipe) return; setExpense(true); setExpenseRows([...expenseRows.filter((x) => x.amount.trim()), { ...newExpenseRow(), amount: String(recipeCost), note: linkedRecipe.title }]) }
   const linkOptions = [
+    ...types.some((x) => ['food', 'tea', 'birthday'].includes(x)) ? recipes.map((r) => [`recipe:${r.id}`, `${tx('Рецепт')}: ${r.title}`] as [string, string]) : [],
     ...types.includes('film') ? media.filter((m) => m.approved).map((m) => [`media:${m.id}`, `${tx('Фильм')}: ${m.title}`] as [string, string]) : [],
     ...types.includes('mentor') ? meetings.map((m) => [`mentor:${m.id}`, `${tx('Жеке кездесу')}: ${m.topic}`] as [string, string]) : [],
     ...types.some((x) => ['hour_lead', 'hour_parent'].includes(x)) ? hours.map((h) => [`hour:${h.id}`, `${tx('Тәрбие сағаты')}: ${h.topic}`] as [string, string]) : [],
@@ -133,6 +140,7 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
       {showPeople && <div className="px-3 pb-3"><><div className="flex flex-wrap gap-1.5"><button type="button" onClick={() => setParticipantType('student')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'student' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Оқушылар')}</button><button type="button" onClick={() => setParticipantType('group')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'group' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Топ')}</button><button type="button" onClick={() => setParticipantType('room')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'room' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Бөлме')}</button></div>{participantType === 'student' ? <div className="flex flex-wrap gap-1.5 mt-2">{students.map((s) => { const on = selected.includes(s.id); return <button key={s.id} type="button" aria-pressed={on} onClick={() => setSelected(on ? selected.filter((x) => x !== s.id) : [...selected, s.id])} className={`h-8 px-3 rounded-full text-xs ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{s.full_name.split(' ').slice(0, 2).join(' ')}</button> })}</div> : <input value={participantType === 'group' ? groups : rooms} onChange={(e) => participantType === 'group' ? setGroups(e.target.value) : setRooms(e.target.value)} className={`${inputCls} mt-2`} placeholder={participantType === 'group' ? tx('Мысалы: Топ 1, Топ 2') : tx('Мысалы: 209-бөлме')} />}</></div>}
     </div>
     {linkOptions.length > 0 && <Field label={tx('Ресурспен байланыстыру')}>{() => <select value={link} onChange={(e) => setLink(e.target.value)} className={inputCls}><option value="">{tx('Байланыстырмау')}</option>{linkOptions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>}</Field>}
+    {linkedRecipe && classId !== 'school' && <button type="button" onClick={addRecipeCost} className="h-10 rounded-md bg-surface-2 text-accent text-sm font-semibold">{tx('Рецепт құнын шығынға қосу ({0} адам · {1})', recipePeople, money(recipeCost))}</button>}
     <Field label={tx('Ескертпе')} hint={tx('Міндетті емес')}>{(id) => <textarea id={id} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} className={`${inputCls} h-20 py-2`} />}</Field>
     {existing && <Field label={tx('Статус')}>{() => <select value={status} onChange={(e) => setStatus(e.target.value as ClassEventStatus)} className={inputCls}><option value="planned">{tx('Жоспарланған')}</option><option value="passed">{tx('Өтті')}</option><option value="postponed">{tx('Кейінге қалдырылды')}</option><option value="archived">{tx('Мұрағаттау')}</option></select>}</Field>}
     <Field label={tx('Көрінетін аудитория')} hint={tx('Оқиға кімдерге көрінетінін таңдаңыз')}>

@@ -1191,6 +1191,17 @@ export async function saveClassGroup(g: { id?: string; class_id: string; name: s
 }
 export const removeClassGroup = (id: string) => ok(supabase.from('class_groups').delete().eq('id', id))
 export const classActivityStats = (classId: string, from: string, to: string) => ok<ActivityStat[]>(supabase.rpc('class_activity_stats', { p_class: classId, p_from: from, p_to: to }))
+export type RecipeItem = { id?: string; pos?: number; name: string; amount: number | null; unit: string | null; price: number }
+export type Recipe = { id: string; class_id: string; title: string; servings: number; steps: string; tags: string[]; photo: string | null; items: RecipeItem[] }
+export const listRecipes = async (classId: string) => ((await ok<Recipe[]>(supabase.from('class_recipes').select('*, items:class_recipe_items(id, pos, name, amount, unit, price)').eq('class_id', classId).order('title'))) ?? [])
+  .map((r) => ({ ...r, items: [...r.items].sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0)) }))
+export async function saveRecipe(r: { id?: string; class_id: string; title: string; servings: number; steps: string; tags: string[]; photo: string | null }, items: RecipeItem[]) {
+  const row = await ok<{ id: string }>(r.id ? supabase.from('class_recipes').update(r).eq('id', r.id).select('id').single() : supabase.from('class_recipes').insert(r).select('id').single())
+  await ok(supabase.from('class_recipe_items').delete().eq('recipe_id', row.id))
+  if (items.length) await ok(supabase.from('class_recipe_items').insert(items.map((x, pos) => ({ recipe_id: row.id, pos, name: x.name, amount: x.amount, unit: x.unit, price: x.price }))))
+  return row.id
+}
+export const removeRecipe = (id: string) => ok(supabase.from('class_recipes').delete().eq('id', id))
 export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok(supabase.from('class_hours').insert(row))
 export const removeClassHour = (id: string) => ok(supabase.from('class_hours').delete().eq('id', id))
 export const addClassEvent = async (row: ClassEventDraft) => {
