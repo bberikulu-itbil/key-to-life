@@ -963,7 +963,7 @@ function StudentDossierView({
           ==================================================================== */}
       {tab === 'resources' && (
         <div className="grid grid-cols-1 gap-4">
-          {student.class_id && <StudentMedia classId={student.class_id} studentId={student.id} />}
+          {(displayStudent.class_id ?? student.class_id) && <StudentMedia classId={(displayStudent.class_id ?? student.class_id)!} studentId={student.id} />}
           <Card className="grid grid-cols-1 gap-3">
             <p className="font-bold text-base">{tx('Оқушыға ұсынылған ресурстар')}</p>
             <p className="text-sm text-muted">
@@ -3062,7 +3062,8 @@ function StudentMedia({ classId, studentId }: { classId: string; studentId: stri
               {list.length ? list.map(({ m, p }) => (
                 <div key={m.id} className="rounded-md bg-surface p-2 text-sm">
                   <p className="font-semibold leading-tight">{m.title}</p>
-                  {(m.author || p.rating) && <p className="text-xs text-muted">{[m.author, p.rating ? '★'.repeat(p.rating) : ''].filter(Boolean).join(' · ')}</p>}
+                  {(m.author || p.rating || m.pages) && <p className="text-xs text-muted">{[m.author, m.pages ? (st === 'doing' && p.pages_read ? tx('{0} / {1} бет', p.pages_read, m.pages) : tx('{0} бет', m.pages)) : '', p.rating ? '★'.repeat(p.rating) : ''].filter(Boolean).join(' · ')}</p>}
+                  {st === 'doing' && m.pages && p.pages_read ? <div className="mt-1 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full bg-accent" style={{ width: `${Math.min(100, (100 * p.pages_read) / m.pages)}%` }} /></div> : null}
                   {p.review && <p className="text-xs mt-1 italic">«{p.review}»</p>}
                 </div>
               )) : <p className="text-xs text-muted">—</p>}
