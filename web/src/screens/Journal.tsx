@@ -408,6 +408,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
             meetings={d.meetings}
             hours={d.hours}
             wallets={d.wallets}
+            photos={editing ? d.photos.filter((p) => p.event_id === editing.id) : []}
             meId={me.id}
             onDone={() => {
               closeForm()

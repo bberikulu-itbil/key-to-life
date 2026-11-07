@@ -6,6 +6,7 @@ import { getKazakhstanHolidays } from '../lib/holidays'
 import { Icon, Sheet } from './ui'
 import { tx } from '../lib/i18n'
 import type { CalAudience, ClassEvent, ClassEventStatus, ClassPhoto, EventTypeCode } from '../lib/api'
+import { photoUrl } from '../lib/api'
 import { ALL_TYPES as ALL_TYPE_DEFS, TYPE_EMOJIS, TYPE_GROUPS as EVENT_GROUPS } from '../lib/eventTypes'
 
 export type CalItem = {
@@ -600,7 +601,7 @@ export default function ClassCalendarView({
                       className="group relative aspect-square rounded-lg overflow-hidden border border-line"
                     >
                       <img
-                        src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
+                        src={photoUrl(p.path)}
                         alt={p.caption ?? ''}
                         className="w-full h-full object-cover group-hover:scale-105 transition"
                       />
@@ -627,7 +628,7 @@ export default function ClassCalendarView({
           aria-label={tx('Сурет')}
         >
           <img
-            src={`https://itbil.kz/storage/v1/object/public/photos/${viewPhoto.path}`}
+            src={photoUrl(viewPhoto.path)}
             alt={viewPhoto.caption ?? ''}
             className="m-auto max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
           />
@@ -853,27 +854,20 @@ function MonthGrid({
 
             {/* Bottom thumbnail or photo badge if showPhotos is checked */}
             {showPhotos && dayPics.length > 0 && (
-              <div
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (onViewPhoto && dayPics[0]) onViewPhoto(dayPics[0])
-                  else onInspectDay(c)
-                }}
-                className="pt-1 flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/25 text-[10px] font-semibold hover:bg-pink-500/25 transition cursor-pointer mt-auto truncate"
-                title={tx('{0} фото', dayPics.length)}
-              >
-                <span className="text-[10px] shrink-0">📷</span>
-                <span className="truncate flex-1">{tx('{0} фото', dayPics.length)}</span>
-                <div className="flex -space-x-1 shrink-0">
-                  {dayPics.slice(0, 2).map((p) => (
-                    <img
-                      key={p.id}
-                      src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
-                      alt=""
-                      className="size-3.5 rounded-full object-cover ring-1 ring-white"
-                    />
-                  ))}
-                </div>
+              // 1 photo fills the strip, 2+ split it in half; the rest shows as «+N».
+              <div className={`mt-auto pt-1 grid gap-0.5 h-16 sm:h-20 ${dayPics.length > 1 ? 'grid-cols-2' : ''}`}>
+                {dayPics.slice(0, 2).map((p, k) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); if (onViewPhoto) onViewPhoto(p); else onInspectDay(c) }}
+                    aria-label={p.caption ?? tx('{0} фото', dayPics.length)}
+                    className="relative min-w-0 overflow-hidden rounded-md bg-surface-2"
+                  >
+                    <img src={photoUrl(p.path)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
+                    {k === 1 && dayPics.length > 2 && <span className="absolute inset-0 grid place-items-center bg-black/45 text-white text-xs font-semibold">+{dayPics.length - 2}</span>}
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -966,7 +960,7 @@ function WeekGrid({
                   {dayPics.slice(0, 3).map((p) => (
                     <img
                       key={p.id}
-                      src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
+                      src={photoUrl(p.path)}
                       alt=""
                       className="size-4 rounded-full object-cover ring-1 ring-white"
                     />
@@ -1165,7 +1159,7 @@ function DayView({
                 className="aspect-square rounded-lg overflow-hidden border border-line group relative"
               >
                 <img
-                  src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
+                  src={photoUrl(p.path)}
                   alt={p.caption ?? ''}
                   className="w-full h-full object-cover group-hover:scale-105 transition"
                   loading="lazy"
@@ -1273,7 +1267,7 @@ function AgendaGrid({
                       className="group relative aspect-square rounded-lg overflow-hidden border border-line hover:ring-2 hover:ring-accent transition"
                     >
                       <img
-                        src={`https://itbil.kz/storage/v1/object/public/photos/${p.path}`}
+                        src={photoUrl(p.path)}
                         alt={p.caption ?? ''}
                         className="w-full h-full object-cover group-hover:scale-105 transition"
                         loading="lazy"
