@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.17.4 — 2026-11-08
+
+- Ата-ана: a home-visit event card now looks like a note — the family's student(s) «(оқушысының отбасы)», the note in a box, the responsible person; photos only from that event (not every photo of the day).
+- «Қысқа жазба» no longer offers «Үйге қонаққа бару» (visits go through the event form); its options are «Мектептегі кездесу» and «Телефон».
+- Data: existing visit events got their students; visit notes without an event became visit events (status «өтті»).
+
 ## 1.17.3 — 2026-11-08
 
 - Сынып ресурстары: a third state «Оқимын / Көремін» (want, already allowed in the DB) next to «Оқып/Көріп жатырмын» and «Оқыдым/Көрдім»; cover badge per state. Rating something you only want to read counts as done.

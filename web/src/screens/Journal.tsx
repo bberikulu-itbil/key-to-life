@@ -618,7 +618,7 @@ function ParentsTab({
   const [contactForm, setContactForm] = useState({
     student_id: d.students[0]?.id ?? '',
     on_date: today(),
-    channel: 'visit' as 'visit' | 'meeting',
+    channel: 'meeting' as 'phone' | 'meeting',
     summary: '',
   })
   const [contactBusy, setContactBusy] = useState(false)
@@ -737,7 +737,7 @@ function ParentsTab({
       setContactForm({
         student_id: d.students[0]?.id ?? '',
         on_date: today(),
-        channel: 'visit',
+        channel: 'meeting',
         summary: '',
       })
       reload()
@@ -878,7 +878,7 @@ function ParentsTab({
                 ? '💼 ' + tx('Жиналыс')
                 : tx('Ата-ана шарасы')
               const badgeColor = isVisit ? '#ec4899' : isAct ? '#ec4899' : isHour ? '#9333ea' : '#64748b'
-              const attachedPhotos = d.photos.filter((p) => p.event_id === e.id || p.on_date === e.on_date)
+              const attachedPhotos = d.photos.filter((p) => p.event_id === e.id)
 
               return (
                 <div
@@ -923,21 +923,22 @@ function ParentsTab({
 
                   <h3 className="text-base font-bold text-ink">{e.title}</h3>
 
-                  {e.participants && e.participants.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 items-center">
-                      <span className="text-xs text-muted">{tx('Қатысушылар')}:</span>
-                      {e.participants.map((p) => (
-                        <span
-                          key={p.id}
-                          className="text-xs px-2 py-0.5 rounded-md bg-surface-2 text-ink font-medium"
-                        >
-                          {p.label}
-                        </span>
-                      ))}
+                  {/* Same look as a quick note: the family's student(s), then the note. */}
+                  {(e.participants ?? []).map((p) => (
+                    <div key={p.id} className="flex items-center gap-2">
+                      <span className="size-2 rounded-full bg-accent" />
+                      <span className="font-bold text-sm text-ink">{p.student?.full_name ?? p.label}</span>
+                      {p.kind === 'student' && <span className="text-xs text-muted">({tx('оқушысының отбасы')})</span>}
                     </div>
+                  ))}
+
+                  {e.note && (
+                    <p className="text-sm text-ink whitespace-pre-line bg-surface-2/40 p-2.5 rounded-lg border border-line/60">{e.note}</p>
                   )}
 
-                  {e.note && <p className="text-sm text-muted whitespace-pre-line">{e.note}</p>}
+                  {e.responsible_id && (
+                    <p className="text-xs text-muted">{tx('Жауапты')}: {staffName(e.responsible_id)}</p>
+                  )}
 
                   {attachedPhotos.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
@@ -975,7 +976,7 @@ function ParentsTab({
                         className="text-xs px-2.5 py-0.5 rounded-full text-white font-semibold"
                         style={{ backgroundColor: isVisit ? '#ec4899' : '#64748b' }}
                       >
-                        {isVisit ? '🏠 ' + tx('Үйге қонаққа бару') : '💬 ' + tx('Кездесу / Жиналыс')}
+                        {isVisit ? '🏠 ' + tx('Қонаққа бару') : c.channel === 'phone' ? '📞 ' + tx('Телефон') : '💬 ' + tx('Кездесу / Жиналыс')}
                       </span>
                       <span className="text-xs text-muted tabular-nums font-medium">
                         {fmtDate(c.on_date)}
@@ -1016,7 +1017,7 @@ function ParentsTab({
       {/* Sheet to Add Parent Contact (Visit or Meeting) */}
       {addContactOpen && (
         <Sheet
-          title={tx('Қонаққа бару немесе кездесуді тіркеу')}
+          title={tx('Қысқа жазба')}
           onClose={() => setAddContactOpen(false)}
         >
           <div className="grid gap-3">
@@ -1041,14 +1042,14 @@ function ParentsTab({
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setContactForm({ ...contactForm, channel: 'visit' })}
+                    onClick={() => setContactForm({ ...contactForm, channel: 'phone' })}
                     className={`flex-1 h-10 rounded-xl border text-sm font-semibold transition ${
-                      contactForm.channel === 'visit'
+                      contactForm.channel === 'phone'
                         ? 'bg-accent text-on-accent border-transparent'
                         : 'bg-surface border-line text-ink'
                     }`}
                   >
-                    🏠 {tx('Үйге қонаққа бару')}
+                    📞 {tx('Телефон')}
                   </button>
                   <button
                     type="button"
