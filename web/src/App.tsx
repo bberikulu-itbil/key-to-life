@@ -357,7 +357,7 @@ function SideNav({
       {link('/chats', 'chat', tx('Чаттар'), active('/chats'), chatBadge)}
       {link('/profile', 'user', tx('Профиль'), active('/profile') && seg !== 'dorm')}
       {me.role === 'student' && me.class && link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
-      {me.role === 'student' && me.class && link('/journal', 'file', tx('Сынып күнтізбесі'), seg === 'journal')}
+      {me.role === 'student' && me.class && link('/journal', 'calendar', tx('Сынып күнтізбесі'), seg === 'journal')}
       {me.role !== 'student' && (
         <>
           {collapsed ? (
@@ -370,7 +370,7 @@ function SideNav({
           {link('/class', 'users', tx('Менің сыныбым'), seg === 'class')}
           {link('/dorm', 'home', tx('Жатақхана'), seg === 'dorm')}
           {link('/resources', 'book', tx('Сынып ресурстары'), seg === 'resources')}
-          {link('/journal', 'file', tx('Сынып күнтізбесі'), seg === 'journal')}
+          {link('/journal', 'calendar', tx('Сынып күнтізбесі'), seg === 'journal')}
           {link('/mentor', 'file', tx('Анкета'), seg === 'mentor')}
           {link('/council', 'lock', tx('Сынып кеңесі'), seg === 'council')}
         </>

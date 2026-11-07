@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.16.0 — 2026-11-07
+
+- Сынып күнтізбесі, event form: types grouped (Бос уақыт, Сыртқа шығу, Тәрбие және ата-ана, Оқу және тәртіп, Ескертпелер) with one colour per group (`lib/eventTypes.ts`); date and times in one row; place behind a checkbox; responsible defaults to the creator; participants collapsed to a summary («Бүкіл сынып»); status only when editing.
+- «Оқушыларға хабарлама жіберу» toggle, off by default: `class_events.notify`; the notify trigger and the reminder tick fire only when it is on. Migration 0076 (applied).
+- Personal meetings and birthdays (from student profiles) show as reminders in the month view: dot, emoji, title.
+- Сынып қоры moved from Resources to the calendar («Сынып қоры» tab, `components/ClassFund.tsx`), now listing event expenses (read-only, 📅). Тәрбие сағаттары moved to Resources (staff only).
+- Film club screenings are saved as «Фильм» events linked to the film (`log_screening`, migration 0076).
+
 ## 1.15.0 — 2026-11-01
 
 - Сынып ресурстары: a type for films (Фильм, Сериал, Аниме, Мультфильм) and books (Кітап, Комикс, Манга, Аудиокітап, Журнал) with a type filter; a series or anime has a number of seasons. Everyone can rate 1–5 stars, and each season separately; cards show the class average, the sheet shows the average, the count and each season's class average. Rating something marks it as read/watched. Migration 0060.

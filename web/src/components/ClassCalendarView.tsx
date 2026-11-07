@@ -26,6 +26,8 @@ export type CalItem = {
   rawEvent?: ClassEvent
   audience?: CalAudience
   isSchoolEvent?: boolean
+  /** Personal meetings and birthdays: drawn as a light dot row, not an event bar. */
+  reminder?: boolean
 }
 
 export type CalViewMode = 'month' | 'week' | 'day' | 'year' | 'agenda'
@@ -815,7 +817,7 @@ function MonthGrid({
               {dayItems.slice(0, maxVisible - dayHolidays.length).map((i) => {
                 const typeCode = (i.types ?? [])[0]
                 const emoji = typeCode ? TYPE_EMOJIS[typeCode] : null
-                const isBanner = i.kind === 'school' || !i.time
+                const isBanner = !i.reminder && (i.kind === 'school' || !i.time)
 
                 if (isBanner) {
                   return (
@@ -851,7 +853,7 @@ function MonthGrid({
                       className="size-2 rounded-full shrink-0"
                       style={{ backgroundColor: i.color ?? '#2563eb' }}
                     />
-                    {i.time && (
+                    {i.time && !i.reminder && (
                       <span className="text-[10px] text-muted tabular-nums shrink-0 font-medium">
                         {i.time}
                       </span>

@@ -2743,5 +2743,22 @@
   "Сынып кеңесінің жазбалары": "Class council notes",
   "Ең көп дегенде 5 мықты қасиет таңдалады": "Maximum 5 top strengths can be selected",
   "Gallup CliftonStrengths": "Gallup CliftonStrengths",
-  "Қасиет атауын іздеу (EN / KK / RU)...": "Search theme name (EN / KK / RU)..."
+  "Қасиет атауын іздеу (EN / KK / RU)...": "Search theme name (EN / KK / RU)...",
+  "+ Тәрбие сағаты": "+ Class hour",
+  "{0} бөлме": "{0} rooms",
+  "{0} топ": "{0} groups",
+  "Бос уақыт": "Leisure",
+  "Бүкіл сынып": "Whole class",
+  "Ескертпелер": "Reminders",
+  "Күнтізбедегі оқиға шығыны": "Expense of a calendar event",
+  "Оқиғалар, сынып қоры, фото": "Events, class fund, photos",
+  "Оқу және тәртіп": "Study and discipline",
+  "Оқушыларға хабарлама жіберу": "Notify students",
+  "Сыныпқа бекітілгенде, сынып кітапханасы осында шығады.": "Once you are assigned to a class, its library appears here.",
+  "Тәрбие және ата-ана": "Upbringing and parents",
+  "мен": "me",
+  "Өтетін орынды көрсету": "Specify a place",
+  "Сынып күнтізбесі: оқиға қосу формасы жеңілдеді — типтер топтарға бөлінді, орын құсбелгімен қосылады, жауапты кісі әдепкіде — өзіңіз, қатысушылар жинақы. Оқушыларға хабарлама тек «Хабарлама жіберу» қосылса барады. Жеке кездесу мен туған күндер күнтізбеде ескертпе болып (нүкте, эмоджи, атауы) көрінеді. Сынып қоры күнтізбеге көшті және оқиға шығындарын да көрсетеді; тәрбие сағаттары Ресурстар бөліміне көшті. Киноклуб көрсетілімі күнтізбеде «Фильм» оқиғасы болып шығады.": "Class calendar: a lighter event form — types in groups, place via a checkbox, you are the default responsible person, compact participants. Students are notified only when «Notify students» is on. Personal meetings and birthdays show as reminders (dot, emoji, title). The class fund moved to the calendar and includes event expenses; class hours moved to Resources. Film club screenings appear as «Film» events.",
+  "Кітаптар, фильмдер, шаралар, тәрбие сағаттары": "Books, films, events, class hours",
+  "Кітаптар, фильмдер, шаралар": "Books, films, events"
 }

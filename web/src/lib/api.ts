@@ -1127,8 +1127,8 @@ export type ClassEventParticipant = { id: string; kind: 'student' | 'group' | 'r
 export type ClassWallet = { id: string; class_id: string; name: string; archived: boolean }
 export type ClassEventExpense = { id?: string; event_id: string; wallet_id: string; amount: number; note: string | null; wallet: { name: string } }
 export type ClassEventExpenseDraft = { wallet_id: string; amount: number; note: string | null }
-export type ClassEvent = { id: string; class_id?: string | null; school_id?: string | null; on_date: string; at_time: string | null; end_time: string | null; kind: 'school' | 'fun' | 'parents'; type_codes: EventTypeCode[]; title: string; visible: boolean; note: string | null; place: string | null; responsible_id: string | null; linked_kind: string | null; linked_id: string | null; status: ClassEventStatus; archived_at?: string | null; participants?: ClassEventParticipant[]; expenses?: ClassEventExpense | ClassEventExpense[] | null; audience?: CalAudience }
-export type ClassEventDraft = { class_id?: string | null; school_id?: string | null; on_date: string; at_time: string | null; end_time?: string | null; kind: ClassEvent['kind']; type_codes?: EventTypeCode[]; title: string; visible: boolean; note: string | null; place?: string | null; responsible_id?: string | null; linked_kind?: string | null; linked_id?: string | null; status?: ClassEventStatus; archived_at?: string | null; audience?: CalAudience }
+export type ClassEvent = { id: string; class_id?: string | null; school_id?: string | null; on_date: string; at_time: string | null; end_time: string | null; kind: 'school' | 'fun' | 'parents'; type_codes: EventTypeCode[]; title: string; visible: boolean; note: string | null; place: string | null; responsible_id: string | null; linked_kind: string | null; linked_id: string | null; status: ClassEventStatus; archived_at?: string | null; participants?: ClassEventParticipant[]; expenses?: ClassEventExpense | ClassEventExpense[] | null; audience?: CalAudience; notify?: boolean }
+export type ClassEventDraft = { class_id?: string | null; school_id?: string | null; on_date: string; at_time: string | null; end_time?: string | null; kind: ClassEvent['kind']; type_codes?: EventTypeCode[]; title: string; visible: boolean; note: string | null; place?: string | null; responsible_id?: string | null; linked_kind?: string | null; linked_id?: string | null; status?: ClassEventStatus; archived_at?: string | null; audience?: CalAudience; notify?: boolean }
 export type ClassPhoto = { id: string; on_date: string; path: string; caption: string | null; event_id?: string | null }
 export const isMissingColErr = (e: unknown) => {
   const err = e as { message?: string; details?: string } | null
@@ -1136,7 +1136,7 @@ export const isMissingColErr = (e: unknown) => {
   return m.includes('does not exist') || m.includes('42703')
 }
 
-const CE_SELECT_FIELDS = 'id, class_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at, audience, participants:class_event_participants(id, kind, student_id, label, student:profiles!student_id(full_name)), expenses:class_event_expenses(event_id, wallet_id, amount, note, wallet:class_wallets(name))'
+const CE_SELECT_FIELDS = 'id, class_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at, audience, notify, participants:class_event_participants(id, kind, student_id, label, student:profiles!student_id(full_name)), expenses:class_event_expenses(event_id, wallet_id, amount, note, wallet:class_wallets(name))'
 const CE_SELECT_SAFE = 'id, class_id, on_date, at_time, end_time, kind, type_codes, title, visible, note, place, responsible_id, linked_kind, linked_id, status, archived_at, participants:class_event_participants(id, kind, student_id, label, student:profiles!student_id(full_name)), expenses:class_event_expenses(event_id, wallet_id, amount, note, wallet:class_wallets(name))'
 
 export const listSchoolEvents = async (): Promise<ClassEvent[]> => {
@@ -1179,6 +1179,8 @@ export const listJournal = async (classId: string) => {
   ])
   return { hours, events, photos, meetings, contacts, plan, schoolEvents } as { hours: ClassHour[]; events: ClassEvent[]; photos: ClassPhoto[]; meetings: MentorMeeting[]; contacts: ParentContact[]; plan: { direction: string; target: number }[]; schoolEvents: ClassEvent[] }
 }
+/** Birthdays of the given students, for calendar reminders (only the date column is read). */
+export const classBirthdays = async (ids: string[]) => ids.length ? (await ok(supabase.from('student_profile_details').select('student_id, birthday').in('student_id', ids).not('birthday', 'is', null))) as { student_id: string; birthday: string }[] : []
 export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok(supabase.from('class_hours').insert(row))
 export const removeClassHour = (id: string) => ok(supabase.from('class_hours').delete().eq('id', id))
 export const addClassEvent = async (row: ClassEventDraft) => {
