@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  addClassEvent, addClassHour, addClassPhoto, addParentContact, classBirthdays, listRecipes, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
+  addClassEvent, addClassHour, linkHourEvent, updateClassHour, addClassPhoto, addParentContact, classBirthdays, listRecipes, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
   removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type FundRow, type Recipe, type Media, type MentorMeeting, type Resource, type Staff, type Student,
 } from '../lib/api'
 import { WD_SHORT, addDays, fmtDate, iso, isoDow, today } from '../lib/time'
@@ -501,12 +501,14 @@ export function ClassHoursPanel({ cls }: { cls: { id: string; teacher_id: string
   const staffName = (id: string | null) => d.staff.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
   return <div className="grid gap-3">
     <Button onClick={() => setAdd(true)}>{tx('+ Тәрбие сағаты')}</Button>
-    <Hours classId={cls.id} d={d} staffName={staffName} reload={data.reload} />
+    <Hours classId={cls.id} d={d} people={[cls.teacher_id, cls.tutor_id].filter((x): x is string => !!x)} staffName={staffName} reload={data.reload} />
     {add && <AddSheet classId={cls.id} init={{ what: 'hour', date: today() }} students={d.students} events={d.events} people={[cls.teacher_id, cls.tutor_id].filter((x): x is string => !!x)} staffName={staffName} onClose={() => setAdd(false)} onDone={() => { setAdd(false); data.reload() }} />}
   </div>
 }
 
-function Hours({ classId, d, staffName, reload }: { classId: string; d: D; staffName: (id: string | null) => string; reload: () => void }) {
+function Hours({ classId, d, people, staffName, reload }: { classId: string; d: D; people: string[]; staffName: (id: string | null) => string; reload: () => void }) {
+  const [editing, setEditing] = useState<ClassHour | null>(null)
+  const eventOf = (id: string) => d.events.find((e) => e.linked_kind === 'hour' && e.linked_id === id)
   const [dir, setDir] = useState('')
   const [q, setQ] = useState('')
   const [editPlan, setEditPlan] = useState(false)
@@ -585,13 +587,16 @@ function Hours({ classId, d, staffName, reload }: { classId: string; d: D; staff
           <div key={h.id} className="grid gap-1 rounded-lg bg-surface shadow-card border border-[var(--card-line,transparent)] px-4 py-3">
             <div className="flex items-start gap-2">
               <span className="flex-1 min-w-0"><span className="block text-xs font-semibold text-success">{DIRECTION[h.direction]}</span><span className="block font-semibold break-words">{h.topic}</span></span>
-              <button type="button" aria-label={tx('Өшіру')} onClick={() => removeClassHour(h.id).then(reload, (e) => toast(errText(e)))} className="size-8 grid place-items-center rounded-md text-muted hover:bg-surface-2"><Icon n="x" size={14} /></button>
+              <button type="button" onClick={() => setEditing(h)} className="h-8 px-2.5 rounded-md text-xs font-semibold text-accent hover:bg-surface-2">{tx('Өзгерту')}</button>
+              <button type="button" aria-label={tx('Өшіру')} onClick={() => confirm(tx('«{0}» тәрбие сағатын өшіру керек пе?', h.topic)) && removeClassHour(h.id).then(reload, (e) => toast(errText(e)))} className="size-8 grid place-items-center rounded-md text-muted hover:bg-surface-2"><Icon n="x" size={14} /></button>
             </div>
+            {eventOf(h.id) && <p className="text-xs font-semibold text-accent">🔗 {eventOf(h.id)!.title} · {fmtDate(eventOf(h.id)!.on_date)}</p>}
             <p className="text-xs text-muted">{fmtDate(h.on_date)} · {staffName(h.led_by)}{h.grp ? ` · ${h.grp}` : ''} · {h.absent.length ? tx('қатыспады: {0}', h.absent.map(name).join(', ')) : tx('бәрі қатысты')}</p>
             {h.note && <p className="text-sm whitespace-pre-line">{h.note}</p>}
           </div>
         ))}
       </div>
+      {editing && <AddSheet classId={classId} init={{ what: 'hour', date: editing.on_date }} hour={editing} linkedEventId={eventOf(editing.id)?.id ?? ''} students={d.students} events={d.events} people={people} staffName={staffName} onClose={() => setEditing(null)} onDone={() => { setEditing(null); reload() }} />}
     </div>
   )
 }
@@ -1493,15 +1498,18 @@ function MentorTab({
 }
 
 /** One sheet for adding anything: an event, a class hour or photos. */
-function AddSheet({ classId, init, students, events, people, staffName, onClose, onDone }: {
-  classId: string; init: Add; students: Student[]; events: ClassEvent[]; people: string[]; staffName: (id: string | null) => string; onClose: () => void; onDone: () => void
+function AddSheet({ classId, init, hour, linkedEventId = '', students, events, people, staffName, onClose, onDone }: {
+  classId: string; init: Add; hour?: ClassHour; linkedEventId?: string; students: Student[]; events: ClassEvent[]; people: string[]; staffName: (id: string | null) => string; onClose: () => void; onDone: () => void
   existing?: ClassEvent; staff?: Staff[]; places?: Resource[]; media?: Media[]; meetings?: MentorMeeting[]; hours?: ClassHour[]; wallets?: ClassWallet[]
 }) {
   const { me } = useMe()
   const [what, setWhat] = useState(init.what)
   const [date, setDate] = useState(init.date)
   const [ev] = useState({ title: '', kind: 'school' as ClassEvent['kind'], time: '', note: '', visible: false })
-  const [h, setH] = useState({ direction: 'moral', topic: '', led_by: people.includes(me.id) ? me.id : people[0] ?? '', grp: '', note: '', absent: [] as string[] })
+  const [h, setH] = useState(hour
+    ? { direction: hour.direction, topic: hour.topic, led_by: hour.led_by ?? '', grp: hour.grp ?? '', note: hour.note ?? '', absent: hour.absent }
+    : { direction: 'moral', topic: '', led_by: people.includes(me.id) ? me.id : people[0] ?? '', grp: '', note: '', absent: [] as string[] })
+  const [hourEvent, setHourEvent] = useState(linkedEventId)
   const [caption, setCaption] = useState('')
   const [eventId, setEventId] = useState('')
   const [files, setFiles] = useState<File[]>([])
@@ -1512,7 +1520,11 @@ function AddSheet({ classId, init, students, events, people, staffName, onClose,
     setBusy(true)
     try {
       if (what === 'event') await addClassEvent({ class_id: classId, on_date: date, at_time: ev.time || null, kind: ev.kind, title: ev.title.trim(), note: ev.note.trim() || null, visible: ev.visible })
-      else if (what === 'hour') await addClassHour({ class_id: classId, on_date: date, direction: h.direction, topic: h.topic.trim(), led_by: h.led_by || null, absent: h.absent, grp: h.grp.trim() || null, note: h.note.trim() || null })
+      else if (what === 'hour') {
+        const row = { on_date: date, direction: h.direction, topic: h.topic.trim(), led_by: h.led_by || null, absent: h.absent, grp: h.grp.trim() || null, note: h.note.trim() || null }
+        const id = hour ? (await updateClassHour(hour.id, row), hour.id) : (await addClassHour({ ...row, class_id: classId })).id
+        if (hourEvent !== linkedEventId) await linkHourEvent(id, hourEvent || null)
+      }
       // photos go to the same day; an event's or class hour's photos are captioned with its title
       const cap = what === 'event' ? ev.title.trim() : what === 'hour' ? h.topic.trim() : caption.trim()
       for (const f of files) await addClassPhoto(classId, date, me.id, f, cap || null, what === 'photo' ? eventId || null : null)
@@ -1520,9 +1532,9 @@ function AddSheet({ classId, init, students, events, people, staffName, onClose,
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
-    <Sheet title={tx('Қосу')} onClose={onClose}>
+    <Sheet title={hour ? tx('Тәрбие сағатын өзгерту') : tx('Қосу')} onClose={onClose}>
       <div className="grid gap-3">
-        <Chips label={tx('Не қосасыз')} value={what} onChange={setWhat} items={[['event', tx('Оқиға')], ['hour', tx('Тәрбие сағаты')], ['photo', tx('Фото')]]} />
+        {!hour && <Chips label={tx('Не қосасыз')} value={what} onChange={setWhat} items={[['event', tx('Оқиға')], ['hour', tx('Тәрбие сағаты')], ['photo', tx('Фото')]]} />}
         <input aria-label={tx('Күні')} type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${inputCls} min-w-0`} />
         {what === 'event' && <p className="text-sm text-muted">{tx('Оқиға формасы бөлек ашылды.')}</p>}
         {what === 'hour' && <>
@@ -1550,6 +1562,13 @@ function AddSheet({ classId, init, students, events, people, staffName, onClose,
             })}</div>
           )}</Field>
           <textarea aria-label={tx('Ескертпе')} value={h.note} onChange={(e) => setH({ ...h, note: e.target.value })} maxLength={2000} className={`${inputCls} h-20 py-2`} placeholder={tx('Ескертпе')} />
+          <Field label={tx('Іс-шарамен байланыстыру')}>{(id) => (
+            <select id={id} value={hourEvent} onChange={(e) => setHourEvent(e.target.value)} className={inputCls}>
+              <option value="">{tx('Іс-шарамен байланыстырмау')}</option>
+              {events.filter((e) => e.status !== 'archived' && (e.id === hourEvent || !e.linked_kind || (e.linked_kind === 'hour' && e.linked_id === hour?.id))).sort((a, b) => Math.abs(+new Date(a.on_date) - +new Date(date)) - Math.abs(+new Date(b.on_date) - +new Date(date))).slice(0, 40)
+                .map((e) => <option key={e.id} value={e.id}>{fmtDate(e.on_date)} · {e.title}</option>)}
+            </select>
+          )}</Field>
         </>}
         {what === 'photo' && <>
           <input aria-label={tx('Сипаттама')} value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={300} className={inputCls} placeholder={tx('Сипаттама (міндетті емес): қай шара')} />

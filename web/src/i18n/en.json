@@ -2838,5 +2838,8 @@
   "Оқимын": "Want to read",
   "Көріп жатырмын": "Watching",
   "Сынып ресурстары →": "Class resources →",
-  "Медиатека": "Media library"
+  "Медиатека": "Media library",
+  "Тәрбие сағатын өзгерту": "Edit class hour",
+  "«{0}» тәрбие сағатын өшіру керек пе?": "Delete the class hour «{0}»?",
+  "Іс-шарамен байланыстыру": "Link to an event"
 }
