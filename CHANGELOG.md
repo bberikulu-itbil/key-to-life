@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.6 — 2026-11-08
+
+- Сынып күнтізбесі: personal meetings, home visits and birthdays are drawn as reminders («dot · emoji · title») in the week and day views too, not only in the month view; home visits became reminders as well.
+
 ## 1.17.5 — 2026-11-08
 
 - Тәрбие сағаттары (Ресурстар): each hour can be edited (direction, topic, date, who led, group, absentees, note, photos) and deleting asks first.
