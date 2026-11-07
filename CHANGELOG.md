@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.17.2 — 2026-11-08
+
+- Сынып күнтізбесі: the «Ата-ана (қонақ, белсенділік)» tab is now just «Ата-ана».
+- «🏠 Қонаққа бару» opens the full event form (type visit: students, time, place, responsible, notes, photos, expenses, status) instead of the short note; the short note stays as «📝 Қысқа жазба».
+- Event form: an empty title is filled automatically from the type and students, e.g. «Қонаққа бару: Ахан Берік».
+
 ## 1.17.1 — 2026-11-08
 
 - Student dossier: the header and the student list show only current sections/olympiads (no end date, or it has not passed); the trajectory keeps the full history.

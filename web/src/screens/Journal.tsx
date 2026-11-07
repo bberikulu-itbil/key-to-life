@@ -338,7 +338,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
             ['calendar', tx('Күнтізбе')],
             ['activity', tx('Белсенділік')],
             ['fund', tx('Сынып қоры')],
-            ['parents', tx('Ата-ана (қонақ, белсенділік)')],
+            ['parents', tx('Ата-ана')],
             ['mentor', tx('Жеке кездесу')],
           ]}
         />
@@ -817,13 +817,14 @@ function ParentsTab({
             {tx('Шара / белсенділік қосу')}
           </span>
         </Button>
+        <Button kind="secondary" onClick={() => onAddEvent('visit')}>🏠 {tx('Қонаққа бару')}</Button>
         <button
           type="button"
-          onClick={() => setAddContactOpen(true)}
+          onClick={() => { setContactForm({ ...contactForm, channel: 'meeting' }); setAddContactOpen(true) }}
           className="flex-1 sm:flex-initial h-10 px-4 rounded-xl border border-line bg-surface hover:bg-surface-2 text-ink font-semibold text-sm flex items-center justify-center gap-1.5 shadow-2xs transition"
         >
-          <span>🏠</span>
-          {tx('Қонаққа бару / кездесуді тіркеу')}
+          <span>📝</span>
+          {tx('Қысқа жазба')}
         </button>
       </div>
 
