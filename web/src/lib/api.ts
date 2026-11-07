@@ -1204,7 +1204,13 @@ export async function saveRecipe(r: { id?: string; class_id: string; title: stri
   return row.id
 }
 export const removeRecipe = (id: string) => ok(supabase.from('class_recipes').delete().eq('id', id))
-export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok(supabase.from('class_hours').insert(row))
+export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok<{ id: string }>(supabase.from('class_hours').insert(row).select('id').single())
+export const updateClassHour = (id: string, row: Partial<Omit<ClassHour, 'id'>>) => ok(supabase.from('class_hours').update(row).eq('id', id))
+/** A class hour is tied to at most one event, through the event's linked_kind/linked_id. */
+export async function linkHourEvent(hourId: string, eventId: string | null) {
+  await ok(supabase.from('class_events').update({ linked_kind: null, linked_id: null }).eq('linked_kind', 'hour').eq('linked_id', hourId))
+  if (eventId) await ok(supabase.from('class_events').update({ linked_kind: 'hour', linked_id: hourId }).eq('id', eventId))
+}
 export const removeClassHour = (id: string) => ok(supabase.from('class_hours').delete().eq('id', id))
 export const addClassEvent = async (row: ClassEventDraft) => {
   try {

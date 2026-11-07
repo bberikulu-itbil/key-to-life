@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.17.5 — 2026-11-08
+
+- Тәрбие сағаттары (Ресурстар): each hour can be edited (direction, topic, date, who led, group, absentees, note, photos) and deleting asks first.
+- A class hour can be linked to a calendar event (through the event's linked_kind = 'hour'); the card shows «🔗 event · date». The same link set from the event form is shown too.
+
 ## 1.17.4 — 2026-11-08
 
 - Ата-ана: a home-visit event card now looks like a note — the family's student(s) «(оқушысының отбасы)», the note in a box, the responsible person; photos only from that event (not every photo of the day).
