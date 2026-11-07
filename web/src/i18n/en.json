@@ -2760,5 +2760,21 @@
   "Өтетін орынды көрсету": "Specify a place",
   "Сынып күнтізбесі: оқиға қосу формасы жеңілдеді — типтер топтарға бөлінді, орын құсбелгімен қосылады, жауапты кісі әдепкіде — өзіңіз, қатысушылар жинақы. Оқушыларға хабарлама тек «Хабарлама жіберу» қосылса барады. Жеке кездесу мен туған күндер күнтізбеде ескертпе болып (нүкте, эмоджи, атауы) көрінеді. Сынып қоры күнтізбеге көшті және оқиға шығындарын да көрсетеді; тәрбие сағаттары Ресурстар бөліміне көшті. Киноклуб көрсетілімі күнтізбеде «Фильм» оқиғасы болып шығады.": "Class calendar: a lighter event form — types in groups, place via a checkbox, you are the default responsible person, compact participants. Students are notified only when «Notify students» is on. Personal meetings and birthdays show as reminders (dot, emoji, title). The class fund moved to the calendar and includes event expenses; class hours moved to Resources. Film club screenings appear as «Film» events.",
   "Кітаптар, фильмдер, шаралар, тәрбие сағаттары": "Books, films, events, class hours",
-  "Кітаптар, фильмдер, шаралар": "Books, films, events"
+  "Кітаптар, фильмдер, шаралар": "Books, films, events",
+  "Ата-аналар басқосуы": "Parents' gathering",
+  "Белсенді демалыс": "Active leisure",
+  "Дәмхана": "Café",
+  "Емтихан / Сынақ": "Exam / Test",
+  "Жарыстар мен челлендждер": "Competitions & challenges",
+  "Интеллектуалды ойын": "Quiz game",
+  "Киберспорт": "Esports",
+  "Ойын-сауық және демалыс": "Fun & leisure",
+  "Ортақ тамақтану": "Shared meal",
+  "Оқу және ата-ана": "Study & parents",
+  "Саяхат / Экскурсия": "Trip / Excursion",
+  "Сынып / педагогикалық жиналыс": "Class / staff meeting",
+  "Туған күн кеші": "Birthday party",
+  "Тәрбие": "Upbringing",
+  "Шай ішу": "Tea party",
+  "Үстел ойындары": "Board games"
 }

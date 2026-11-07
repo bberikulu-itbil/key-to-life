@@ -9,7 +9,7 @@ import Avatar from '../components/Avatar'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import ClassFund from '../components/ClassFund'
 import ClassEventForm from '../components/ClassEventForm'
-import { TYPE_COLORS } from '../lib/eventTypes'
+import { FUN_TYPES, TYPE_COLORS, TYPE_LABELS } from '../lib/eventTypes'
 import ClassCalendarView, { type CalItem } from '../components/ClassCalendarView'
 import { tx } from '../lib/i18n'
 
@@ -122,16 +122,11 @@ function StudentCalendar() {
   )
 }
 
-const TYPE_LABELS: Record<EventTypeCode, string> = {
-  sport: tx('Спорт'), food: tx('Тамақ'), game: tx('Ойын'), film: tx('Фильм'), cleaning: tx('Тазалық'), walk: tx('Серуен'), outing: tx('Қыдыру'), trip: tx('Саяхат'),
-  hour_lead: tx('Жетекші тәрбие сағаты'), hour_parent: tx('Ата-ана тәрбие сағаты'), meeting: tx('Жиналыс'), parent_activity: tx('Ата-ана белсенділігі'),
-  visit: tx('Қонаққа бару'), mentor: tx('Жеке кездесу'), exam: tx('Емтихан'), birthday: tx('Туған күн'), competition: tx('Жарыс'), other: tx('Басқа'),
-}
 const eventKind = (e: ClassEvent): Kind => {
   const codes = e.type_codes ?? []
   if (codes.some((x) => ['mentor', 'meeting'].includes(x))) return 'mentor'
   if (codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x))) return 'parents'
-  if (codes.some((x) => ['film', 'sport', 'food', 'game', 'cleaning', 'walk', 'outing', 'trip'].includes(x))) return 'fun'
+  if (codes.some((x) => FUN_TYPES.includes(x))) return 'fun'
   if (codes.some((x) => ['hour_lead'].includes(x))) return 'hour'
   return e.kind as Kind
 }
@@ -250,7 +245,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
     const y = new Date().getFullYear()
     const bdays: Item[] = d.birthdays.flatMap((b) => [y - 1, y, y + 1].map((yr) => ({
       key: `b${b.student_id}${yr}`, date: `${yr}${b.birthday.slice(4, 10)}`, kind: 'parents' as const,
-      title: short(b.student_id), color: '#db2777', types: ['birthday' as EventTypeCode], personal: true, reminder: true,
+      title: short(b.student_id), color: TYPE_COLORS.birthday, types: ['birthday' as EventTypeCode], personal: true, reminder: true,
     })))
     const schoolItems = (d.schoolEvents ?? []).map((e) => ({
       ...eventItem(e, deputy ? () => removeClassEvent(e.id) : undefined, deputy ? () => editEvent(e) : undefined),

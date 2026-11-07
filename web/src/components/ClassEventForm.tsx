@@ -6,9 +6,9 @@ import {
 import { Button, Field, inputCls, toast } from './ui'
 import LocationPicker from './LocationPicker'
 import { tx } from '../lib/i18n'
-import { TYPE_COLORS, TYPE_GROUPS } from '../lib/eventTypes'
+import { FUN_TYPES, TYPE_GROUPS } from '../lib/eventTypes'
 
-const legacy = (codes: EventTypeCode[]): ClassEvent['kind'] => codes.some((x) => ['mentor', 'meeting'].includes(x)) ? 'school' : codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x)) ? 'parents' : codes.some((x) => ['film', 'sport', 'food', 'game', 'cleaning', 'walk', 'outing', 'trip'].includes(x)) ? 'fun' : 'school'
+const legacy = (codes: EventTypeCode[]): ClassEvent['kind'] => codes.some((x) => ['mentor', 'meeting'].includes(x)) ? 'school' : codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x)) ? 'parents' : codes.some((x) => FUN_TYPES.includes(x)) ? 'fun' : 'school'
 const listText = (v: string) => v.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean)
 type ExpenseRow = { key: string; wallet: string; walletName: string; amount: string; note: string }
 const newExpenseRow = (e?: ClassEventExpense): ExpenseRow => ({ key: e?.id ?? `new-${Math.random().toString(36).slice(2)}`, wallet: e?.wallet_id ?? '', walletName: '', amount: e ? String(e.amount) : '', note: e?.note ?? '' })
@@ -108,7 +108,7 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
       <span className="text-sm font-semibold">{tx('Іс-шара типі')}</span>
       {TYPE_GROUPS.map((g) => <div key={g.label} className="flex flex-wrap items-center gap-1.5">
         <span className="w-full text-[11px] uppercase tracking-wide text-muted">{g.label}</span>
-        {g.codes.map(([code, label]) => { const on = types.includes(code); return <button key={code} type="button" aria-pressed={on} onClick={() => toggle(code)} className={`h-8 px-3 rounded-full text-xs font-medium border transition ${on ? '' : 'bg-surface-2 border-transparent text-ink hover:bg-surface'}`} style={on ? { backgroundColor: `${TYPE_COLORS[code]}1f`, borderColor: TYPE_COLORS[code], color: TYPE_COLORS[code] } : undefined}>{label}</button> })}
+        {g.types.map(({ code, label, emoji, color }) => { const on = types.includes(code); return <button key={code} type="button" aria-pressed={on} onClick={() => toggle(code)} className={`h-8 pl-2 pr-3 rounded-full text-xs font-medium border transition inline-flex items-center gap-1 ${on ? '' : 'bg-surface-2 border-transparent text-ink hover:bg-surface'}`} style={on ? { backgroundColor: `${color}1f`, borderColor: color, color } : undefined}><span aria-hidden>{emoji}</span>{label}</button> })}
       </div>)}
     </div>
     <div className="grid grid-cols-2 sm:grid-cols-[1.5fr_1fr_1fr] gap-2">
