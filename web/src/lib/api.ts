@@ -1121,7 +1121,7 @@ export const myMentorMeetings = () => rpc<{ id: string; starts_at: string; topic
 
 /* ---------- class journal and calendar ---------- */
 export type ClassHour = { id: string; on_date: string; direction: string; topic: string; led_by: string | null; absent: string[]; grp: string | null; note: string | null }
-export type EventTypeCode = 'sport' | 'food' | 'game' | 'film' | 'cleaning' | 'walk' | 'outing' | 'trip' | 'hour_lead' | 'hour_parent' | 'meeting' | 'parent_activity' | 'visit' | 'mentor' | 'exam' | 'birthday' | 'competition' | 'other'
+export type EventTypeCode = 'sport' | 'food' | 'game' | 'film' | 'cleaning' | 'walk' | 'outing' | 'trip' | 'hour_lead' | 'hour_parent' | 'meeting' | 'parent_activity' | 'visit' | 'mentor' | 'exam' | 'birthday' | 'competition' | 'other' | 'tea' | 'active_rest' | 'quiz' | 'esport' | 'challenge'
 export type ClassEventStatus = 'planned' | 'passed' | 'postponed' | 'archived'
 export type ClassEventParticipant = { id: string; kind: 'student' | 'group' | 'room'; student_id: string | null; label: string; student: { full_name: string } | null }
 export type ClassWallet = { id: string; class_id: string; name: string; archived: boolean }

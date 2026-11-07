@@ -6,6 +6,7 @@ import { getKazakhstanHolidays } from '../lib/holidays'
 import { Icon, Sheet } from './ui'
 import { tx } from '../lib/i18n'
 import type { CalAudience, ClassEvent, ClassEventStatus, ClassPhoto, EventTypeCode } from '../lib/api'
+import { ALL_TYPES as ALL_TYPE_DEFS, TYPE_EMOJIS, TYPE_GROUPS as EVENT_GROUPS } from '../lib/eventTypes'
 
 export type CalItem = {
   key: string
@@ -34,39 +35,8 @@ export type CalViewMode = 'month' | 'week' | 'day' | 'year' | 'agenda'
 
 const dayLabel = (d: string) => `${WD_SHORT[isoDow(d) - 1]}, ${fmtDate(d)}`
 
-const TYPE_EMOJIS: Record<string, string> = {
-  sport: '⚽',
-  food: '🍕',
-  game: '🎮',
-  film: '🎬',
-  cleaning: '🧹',
-  walk: '🚶',
-  outing: '🎒',
-  trip: '🚌',
-  hour_lead: '📚',
-  hour_parent: '👨‍👩‍👧',
-  meeting: '💼',
-  parent_activity: '🤝',
-  visit: '🏠',
-  mentor: '💬',
-  exam: '📝',
-  birthday: '🎂',
-  competition: '🏆',
-  other: '📌',
-}
-
-const ALL_TYPES: EventTypeCode[] = [
-  'sport', 'food', 'game', 'film', 'cleaning', 'walk', 'outing', 'trip',
-  'hour_lead', 'hour_parent', 'meeting', 'parent_activity', 'visit',
-  'mentor', 'exam', 'birthday', 'competition', 'other',
-]
-
-const TYPE_GROUPS: { id: string; label: string; icon: string; types: EventTypeCode[] }[] = [
-  { id: 'class', label: tx('Сынып белсенділігі'), icon: '🎒', types: ['sport', 'food', 'game', 'film', 'cleaning', 'walk', 'outing', 'trip', 'competition'] },
-  { id: 'education', label: tx('Оқу және тәрбие'), icon: '📚', types: ['hour_lead', 'hour_parent', 'meeting', 'mentor', 'exam'] },
-  { id: 'parents', label: tx('Ата-ана және жеке'), icon: '🤝', types: ['parent_activity', 'visit', 'birthday'] },
-  { id: 'other', label: tx('Басқа'), icon: '📌', types: ['other'] },
-]
+const ALL_TYPES: EventTypeCode[] = ALL_TYPE_DEFS.map((x) => x.code)
+const TYPE_GROUPS = EVENT_GROUPS.map((g) => ({ id: g.label, label: g.label, icon: g.types[0].emoji, types: g.types.map((x) => x.code) }))
 
 export default function ClassCalendarView({
   items,
