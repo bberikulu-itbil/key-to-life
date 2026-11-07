@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import {
   addHabit, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listRecipes, listStaff, logScreening, photoUrl, uploadPhoto,
-  removeMedia, rateMedia, setMediaProgress, type Media, type Student,
+  removeMedia, rateMedia, setMediaProgress, type Media, type MediaState, type Student,
 } from '../lib/api'
 import { today } from '../lib/time'
-import { avgStars, seasonAvgs } from '../lib/stars'
+import { avgStars, seasonAvgs, stateLabel } from '../lib/stars'
 import { useMe } from '../App'
 import { ClassHoursPanel } from './Journal'
 import Recipes from '../components/Recipes'
@@ -136,7 +136,7 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
           return (
             <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="relative grid gap-1 text-left">
               <Cover m={m} />
-              {mine && <span className={`absolute top-1.5 right-1.5 size-6 rounded-full grid place-items-center text-white ${mine === 'done' ? 'bg-success' : 'bg-accent'}`}><Icon n={mine === 'done' ? 'check' : 'clock'} size={14} /></span>}
+              {mine && <span title={stateLabel(mine, book)} className={`absolute top-1.5 right-1.5 size-6 rounded-full grid place-items-center text-white ${mine === 'done' ? 'bg-success' : mine === 'want' ? 'bg-warning' : 'bg-accent'}`}><Icon n={mine === 'done' ? 'check' : mine === 'want' ? 'heart' : 'clock'} size={14} /></span>}
               <span className="text-sm font-semibold leading-tight line-clamp-2">{m.title}</span>
               <span className="text-xs text-muted truncate">{[formatName(kind, m.format), m.author ?? genreName(kind, m.genre)].filter(Boolean).join(' · ')}</span>
               {avgStars(m.progress.map((p) => p.rating)) && <span className="flex items-center gap-1 text-xs font-semibold"><Stars value={avgStars(m.progress.map((p) => p.rating))!.avg} size={12} label={tx('Баға')} />{avgStars(m.progress.map((p) => p.rating))!.avg}</span>}
@@ -202,8 +202,8 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
   const avg = avgStars(m.progress.map((p) => p.rating))
   const seasonAvg = m.seasons ? seasonAvgs(m.progress.map((p) => p.season_stars ?? {}), m.seasons) : []
   // rating counts as having read or watched it, unless the person is still on it
-  const rate = (patch: { rating?: number | null; season_stars?: Record<string, number> }) => run(() => rateMedia(m.id, mineP?.state ?? 'done', patch))
-  const mark = (state: 'doing' | 'done' | null) => run(async () => {
+  const rate = (patch: { rating?: number | null; season_stars?: Record<string, number> }) => run(() => rateMedia(m.id, mineP && mineP.state !== 'want' ? mineP.state : 'done', patch))
+  const mark = (state: MediaState | null) => run(async () => {
     await setMediaProgress(m.id, state)
     // "reading" puts a daily reading habit into the student's own tracker
     if (book && state === 'doing') {
@@ -230,11 +230,11 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
             <Button kind="ghost" onClick={() => run(async () => { await removeMedia(m.id); onClose() })}>{staff ? tx('Қабылдамау') : tx('Қайтару')}</Button>
           </div>
         ) : <>
-          <div className="grid grid-cols-2 gap-2">
-            {(['doing', 'done'] as const).map((st) => {
+          <div className="grid grid-cols-3 gap-2">
+            {(['want', 'doing', 'done'] as const).map((st) => {
               const on = mineP?.state === st
               return <button key={st} type="button" aria-pressed={on} disabled={busy} onClick={() => mark(on ? null : st)}
-                className={`h-11 rounded-md text-sm font-semibold ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{st === 'doing' ? (book ? tx('Оқып жатырмын') : tx('Көремін')) : (book ? tx('Оқыдым') : tx('Көрдім'))}</button>
+                className={`min-h-11 px-1 rounded-md text-sm font-semibold leading-tight ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{stateLabel(st, book)}</button>
             })}
           </div>
           <div className="grid gap-2 rounded-md bg-surface-2 p-3">
@@ -273,7 +273,7 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
   )
 }
 
-function Review({ m, state, review, reload }: { m: Media; state: 'doing' | 'done'; review: string; reload: () => void }) {
+function Review({ m, state, review, reload }: { m: Media; state: MediaState; review: string; reload: () => void }) {
   const [v, setV] = useState(review)
   const [busy, setBusy] = useState(false)
   return (

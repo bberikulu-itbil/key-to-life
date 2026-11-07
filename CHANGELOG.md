@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.17.3 — 2026-11-08
+
+- Сынып ресурстары: a third state «Оқимын / Көремін» (want, already allowed in the DB) next to «Оқып/Көріп жатырмын» and «Оқыдым/Көрдім»; cover badge per state. Rating something you only want to read counts as done.
+- Student dossier → Медиатека: the student's books and films from Сынып ресурстары in three columns (want / doing / done) with their stars and review.
+
 ## 1.17.2 — 2026-11-08
 
 - Сынып күнтізбесі: the «Ата-ана (қонақ, белсенділік)» tab is now just «Ата-ана».
