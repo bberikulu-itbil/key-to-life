@@ -258,7 +258,7 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
 
           {/* Right Main Dossier Panel */}
           <div
-            className={`flex-1 min-w-0 bg-surface rounded-xl shadow-card border border-[var(--card-line,transparent)] p-4 lg:p-6 ${
+            className={`flex-1 min-w-0 lg:bg-surface lg:rounded-xl lg:shadow-card lg:border border-[var(--card-line,transparent)] lg:p-6 ${
               !selectedId ? 'hidden lg:block' : 'block'
             }`}
           >
@@ -410,11 +410,11 @@ function StudentDossierView({
   ]
 
   return (
-    <div className="grid gap-5">
+    <div className="grid grid-cols-1 gap-5">
       {/* Top Header Bar matching Notion/Airtable style */}
-      <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
-        {/* Navigation Tabs Bar */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 min-w-0">
+      <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
+        {/* Navigation Tabs Bar: wraps on phones so every tab is visible, one scrolling row on desktop */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center gap-1.5 lg:overflow-x-auto no-scrollbar py-0.5 min-w-0">
           {onBack && (
             <button
               type="button"
@@ -431,7 +431,7 @@ function StudentDossierView({
               key={t.id}
               type="button"
               onClick={() => onTabChange(t.id)}
-              className={`inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-sm font-semibold transition shrink-0 ${
+              className={`inline-flex items-center gap-1.5 lg:gap-2 h-9 px-2.5 lg:px-3.5 rounded-lg text-[13px] lg:text-sm font-semibold transition shrink-0 ${
                 tab === t.id
                   ? 'bg-surface shadow-xs text-fg border border-line ring-1 ring-black/5 dark:ring-white/10'
                   : 'text-muted hover:text-fg hover:bg-surface-2'
@@ -599,7 +599,7 @@ function StudentDossierView({
       />
 
       {tab === 'info' && (
-        <div className="grid gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <StudentDossierStructured
             studentId={student.id}
             profile={d.profileDetails}
@@ -679,11 +679,11 @@ function StudentDossierView({
           TAB 2: PERSONALITIES TEST (MBTI, Gallup CliftonStrengths, Holland, MI)
           ==================================================================== */}
       {tab === 'tests' && (
-        <div className="grid gap-5">
+        <div className="grid grid-cols-1 gap-5">
           <StudentTrajectory studentId={student.id} />
           {/* 1. MBTI Card */}
-          <Card className="grid gap-3">
-            <div className="flex items-center justify-between">
+          <Card className="grid grid-cols-1 gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="font-bold text-base flex items-center gap-2">
                   <span>MBTI</span>
@@ -699,7 +699,7 @@ function StudentDossierView({
                 <select
                   value={answers.mbti ?? mbtiComputed?.type ?? ''}
                   onChange={(e) => saveField('mbti', e.target.value)}
-                  className={`${inputCls} h-9 text-xs w-auto font-semibold`}
+                  className={`${inputCls} h-9 text-xs w-auto min-w-28 font-semibold`}
                 >
                   <option value="">{tx('Таңдау...')}</option>
                   {MBTI_TYPES.map((t) => (
@@ -737,8 +737,8 @@ function StudentDossierView({
           </Card>
 
           {/* 2. Gallup CliftonStrengths Card */}
-          <Card className="grid gap-4">
-            <div className="flex items-center justify-between">
+          <Card className="grid grid-cols-1 gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="font-bold text-base flex items-center gap-2">
                   <span>Gallup CliftonStrengths</span>
@@ -757,7 +757,7 @@ function StudentDossierView({
             </div>
 
             {/* Top 5 Gallup */}
-            <div className="grid gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <span className="text-xs font-bold uppercase text-muted tracking-wider">
                 Top 5 Gallup ({tx('Мықты қасиеттері')})
               </span>
@@ -819,7 +819,7 @@ function StudentDossierView({
 
           {/* 3. Holland (RIASEC) Card */}
           {testHol && (
-            <Card className="grid gap-2">
+            <Card className="grid grid-cols-1 gap-2">
               <p className="font-bold text-base">{tx('Холланд кәсіби бағдар тесті (RIASEC)')}</p>
               {(() => {
                 const h = hollandScore(testHol.answers)
@@ -842,7 +842,7 @@ function StudentDossierView({
 
           {/* 4. Multiple Intelligences Card */}
           {testMi && (
-            <Card className="grid gap-2">
+            <Card className="grid grid-cols-1 gap-2">
               <p className="font-bold text-base">{tx('Гарднер көптік интеллекті')}</p>
               <div className="grid gap-1.5 text-sm">
                 {miScore(testMi.answers)
@@ -865,7 +865,7 @@ function StudentDossierView({
           TAB 3: PLAN (Rich Roadmap: Goals, Habits, Tasks, Presets Bank)
           ==================================================================== */}
       {tab === 'plan' && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <RoadmapSection
             studentId={student.id}
             roadmap={roadmap}
@@ -882,7 +882,7 @@ function StudentDossierView({
           TAB 4: MEETINGS (1-on-1 History & Actions)
           ==================================================================== */}
       {tab === 'meetings' && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div className="flex items-center justify-between">
             <p className="font-bold text-base">{tx('Жеке кездесулер журналы')}</p>
             <Button onClick={() => setAddMeeting(true)}>
@@ -929,11 +929,11 @@ function StudentDossierView({
           ) : null}
 
           {pastMeetings.length > 0 && (
-            <Card className="grid gap-2">
+            <Card className="grid grid-cols-1 gap-2">
               <p className="text-xs text-muted font-semibold uppercase">
                 {tx('Өткен кездесулер · {0}', pastMeetings.length)}
               </p>
-              <div className="grid gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 {pastMeetings.map((m) => (
                   <details key={m.id} className="rounded-lg bg-surface-2 px-3 py-2.5">
                     <summary className="cursor-pointer text-sm font-semibold">
@@ -962,9 +962,9 @@ function StudentDossierView({
           TAB 5: RESOURCES (Study materials, Books, Council notes)
           ==================================================================== */}
       {tab === 'resources' && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {student.class_id && <StudentMedia classId={student.class_id} studentId={student.id} />}
-          <Card className="grid gap-3">
+          <Card className="grid grid-cols-1 gap-3">
             <p className="font-bold text-base">{tx('Оқушыға ұсынылған ресурстар')}</p>
             <p className="text-sm text-muted">
               {tx('Оқушының мақсаттарына, олимпиада бағытына және қызығушылығына сай кітаптар, материалдар мен құжаттар.')}
@@ -1126,7 +1126,7 @@ function GallupPickerSheet({
       title={tx('Gallup CliftonStrengths')}
       onClose={onClose}
     >
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {/* Switcher: Top 5 vs Low */}
         <div className="flex rounded-lg bg-surface-2 p-1">
           <button
@@ -1257,7 +1257,7 @@ function StudentTrajectory({ studentId }: { studentId: string }) {
   }
 
   return (
-    <Card className="grid gap-3">
+    <Card className="grid grid-cols-1 gap-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-bold text-base flex items-center gap-2"><Icon n="list" size={17} className="text-accent" />{tx('Қызығушылықтар және бағыттар')}</p>
@@ -1266,7 +1266,7 @@ function StudentTrajectory({ studentId }: { studentId: string }) {
         <Button kind="secondary" onClick={openAdd}><Icon n="plus" size={15} />{tx('Қосу')}</Button>
       </div>
       {data.loading && !data.data ? <p className="text-sm text-muted">{tx('Жүктелуде...')}</p> : !rows.length ? <Empty icon="list" title={tx('Бағыттар әлі қосылмаған')} text={tx('Хобби мен спортқа уақыт кестесін, олимпиада мен үйірмеге қатысу кезеңін қосыңыз.')} /> : (
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2">
           {rows.map((item) => {
             const meta = TRAJECTORY_META[item.kind]
             const period = isPeriodTrajectory(item.kind)
@@ -1302,10 +1302,10 @@ function TrajectoryForm({ studentId, item, onDone }: { studentId: string; item: 
     setBusy(true)
     try { await saveStudentTrajectory(studentId, { ...draft, title: draft.title.trim(), coach_or_place: draft.coach_or_place?.trim() || null, note: draft.note?.trim() || null, start_time: period ? null : draft.start_time || null, end_time: period ? null : draft.end_time || null, started_on: period ? draft.started_on || null : null, ended_on: period ? draft.ended_on || null : null }); toast(tx('Сақталды')); onDone() } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
-  return <div className="grid gap-4">
+  return <div className="grid grid-cols-1 gap-4">
     <Field label={tx('Бағыт түрі')}>{(id) => <select id={id} className={inputCls} value={draft.kind} onChange={(e) => { const kind = e.target.value as StudentTrajectoryKind; update({ kind, ...(isPeriodTrajectory(kind) ? { start_time: null, end_time: null } : { started_on: null, ended_on: null }) }) }}>{(Object.keys(TRAJECTORY_META) as StudentTrajectoryKind[]).map((kind) => <option key={kind} value={kind}>{TRAJECTORY_META[kind].label}</option>)}</select>}</Field>
     <Field label={tx('Атауы')} hint={tx('Мысалы: футбол, робототехника, математика олимпиадасы')}>{(id) => <input id={id} className={inputCls} value={draft.title} onChange={(e) => update({ title: e.target.value })} />}</Field>
-    {period ? <div className="grid gap-3 rounded-lg bg-surface-2 p-3"><p className="text-sm font-semibold">{tx('Қатысу кезеңі')}</p><div className="grid grid-cols-2 gap-2"><Field label={tx('Қатыса бастаған күні')} hint={tx('Формат: YYYY-MM-DD')}>{(id) => <input id={id} type="date" className={inputCls} value={draft.started_on ?? ''} onChange={(e) => update({ started_on: e.target.value || null })} />}</Field>{current ? <div className="grid content-start gap-1"><span className="text-sm font-semibold">{tx('Аяқталған күні')}</span><span className="h-12 rounded-md bg-surface px-3 flex items-center text-sm text-muted">{tx('Бүгінге дейін')}</span></div> : <Field label={tx('Қатысу аяқталған күні')} hint={tx('Формат: YYYY-MM-DD')}>{(id) => <input id={id} type="date" className={inputCls} value={draft.ended_on ?? ''} onChange={(e) => update({ ended_on: e.target.value || null })} />}</Field>}</div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={current} onChange={(e) => update({ ended_on: e.target.checked ? null : today() })} />{tx('Қазір қатысып келеді')}</label><p className="text-xs text-muted">{tx('Қатысу ұзақтығы автоматты есептеледі.')}</p></div> : <><div className="grid gap-2"><p className="text-sm font-semibold">{tx('Апта күндері')}</p><div className="grid grid-cols-7 gap-1">{TRAJECTORY_DAYS.map((label, index) => <button key={label} type="button" onClick={() => toggleDay(index + 1)} className={`h-9 rounded-md text-xs font-semibold ${draft.days_of_week.includes(index + 1) ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}>{label}</button>)}</div></div><div className="grid grid-cols-2 gap-2"><Field label={tx('Басталу уақыты')} hint={tx('Формат: 09:00')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.start_time ?? ''} onChange={(e) => update({ start_time: e.target.value || null })} />}</Field><Field label={tx('Аяқталу уақыты')} hint={tx('Мысалы: 10:30')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.end_time ?? ''} onChange={(e) => update({ end_time: e.target.value || null })} />}</Field></div></>}
+    {period ? <div className="grid gap-3 rounded-lg bg-surface-2 p-3"><p className="text-sm font-semibold">{tx('Қатысу кезеңі')}</p><div className="grid grid-cols-2 gap-2"><Field label={tx('Қатыса бастаған күні')} hint={tx('Формат: YYYY-MM-DD')}>{(id) => <input id={id} type="date" className={inputCls} value={draft.started_on ?? ''} onChange={(e) => update({ started_on: e.target.value || null })} />}</Field>{current ? <div className="grid content-start gap-1"><span className="text-sm font-semibold">{tx('Аяқталған күні')}</span><span className="h-12 rounded-md bg-surface px-3 flex items-center text-sm text-muted">{tx('Бүгінге дейін')}</span></div> : <Field label={tx('Қатысу аяқталған күні')} hint={tx('Формат: YYYY-MM-DD')}>{(id) => <input id={id} type="date" className={inputCls} value={draft.ended_on ?? ''} onChange={(e) => update({ ended_on: e.target.value || null })} />}</Field>}</div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={current} onChange={(e) => update({ ended_on: e.target.checked ? null : today() })} />{tx('Қазір қатысып келеді')}</label><p className="text-xs text-muted">{tx('Қатысу ұзақтығы автоматты есептеледі.')}</p></div> : <><div className="grid grid-cols-1 gap-2"><p className="text-sm font-semibold">{tx('Апта күндері')}</p><div className="grid grid-cols-7 gap-1">{TRAJECTORY_DAYS.map((label, index) => <button key={label} type="button" onClick={() => toggleDay(index + 1)} className={`h-9 rounded-md text-xs font-semibold ${draft.days_of_week.includes(index + 1) ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}>{label}</button>)}</div></div><div className="grid grid-cols-2 gap-2"><Field label={tx('Басталу уақыты')} hint={tx('Формат: 09:00')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.start_time ?? ''} onChange={(e) => update({ start_time: e.target.value || null })} />}</Field><Field label={tx('Аяқталу уақыты')} hint={tx('Мысалы: 10:30')}>{(id) => <input id={id} type="time" className={inputCls} value={draft.end_time ?? ''} onChange={(e) => update({ end_time: e.target.value || null })} />}</Field></div></>}
     <Field label={tx('Жетекші немесе орын')} hint={tx('Мысалы: спортзал, Айбек ағай')}>{(id) => <input id={id} className={inputCls} value={draft.coach_or_place ?? ''} onChange={(e) => update({ coach_or_place: e.target.value })} />}</Field>
     <Field label={tx('Қысқаша түсініктеме')} hint={tx('Міндетті емес')}>{(id) => <textarea id={id} className={`${inputCls} h-24 py-2`} value={draft.note ?? ''} onChange={(e) => update({ note: e.target.value })} />}</Field>
     <Button block loading={busy} onClick={save}><Icon n="check" size={16} />{tx('Сақтау')}</Button>
@@ -1549,7 +1549,7 @@ function RoadmapSection({
         <button
           type="button"
           onClick={() => setCatFilter('all')}
-          className={`px-2.5 py-1 rounded-md transition ${catFilter === 'all' ? 'bg-accent/20 text-accent font-semibold' : 'text-muted hover:bg-surface-2'}`}
+          className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md transition ${catFilter === 'all' ? 'bg-accent/20 text-accent font-semibold' : 'text-muted hover:bg-surface-2'}`}
         >
           {tx('Барлық санат')}
         </button>
@@ -1558,7 +1558,7 @@ function RoadmapSection({
             key={c.id}
             type="button"
             onClick={() => setCatFilter(c.id)}
-            className={`px-2.5 py-1 rounded-md transition flex items-center gap-1 ${catFilter === c.id ? `${c.bg} ${c.color} font-semibold` : 'text-muted hover:bg-surface-2'}`}
+            className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md transition flex items-center gap-1 ${catFilter === c.id ? `${c.bg} ${c.color} font-semibold` : 'text-muted hover:bg-surface-2'}`}
           >
             <Icon n={c.icon} size={12} />
             {c.label}
@@ -1584,7 +1584,7 @@ function RoadmapSection({
 
       {/* 1. Мақсаттар (Goals) */}
       {(tab === 'today' || tab === 'all' || tab === 'goals' || archive) && filteredGoals.length > 0 && (
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5"><Icon n="target" size={13} />{tx('Мақсаттар мен қадамдар')}</p>
           {filteredGoals.map((g) => {
             const cat = getCategoryMeta(g.category)
@@ -1658,7 +1658,7 @@ function RoadmapSection({
                 </div>
 
                 {/* Прогресс сызығы */}
-                <div className="grid gap-1">
+                <div className="grid grid-cols-1 gap-1">
                   <div className="flex items-center justify-between text-xs text-muted tabular-nums">
                     <span>{tx('Прогресс')}</span>
                     <span className="font-semibold text-foreground">{prog}%</span>
@@ -1733,7 +1733,7 @@ function RoadmapSection({
 
       {/* 2. Әдеттер (Habits) */}
       {(tab === 'today' || tab === 'all' || tab === 'habits' || archive) && filteredHabits.length > 0 && (
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5"><Icon n="repeat" size={13} />{tx('Күнделікті әдеттер трекері')}</p>
           {filteredHabits.map((h) => {
             const cat = getCategoryMeta(h.category)
@@ -1847,7 +1847,7 @@ function RoadmapSection({
 
       {/* 3. Тапсырмалар (Tasks) */}
       {(tab === 'today' || tab === 'all' || tab === 'tasks' || archive) && filteredTasks.length > 0 && (
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5"><Icon n="check" size={13} />{tx('Нақты тапсырмалар')}</p>
           {filteredTasks.map((tk) => {
             const cat = getCategoryMeta(tk.category)
@@ -1979,7 +1979,7 @@ function RoadmapGoalEditorSheet({
 
   return (
     <Sheet title={tx('Мақсатты өзгерту')} onClose={onClose}>
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <Field label={tx('Бағыты')}>
           {() => (
             <div className="flex gap-1.5 flex-wrap">
@@ -2068,7 +2068,7 @@ function RoadmapHabitEditorSheet({
 
   return (
     <Sheet title={tx('Әдетті өзгерту')} onClose={onClose}>
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <Field label={tx('Бағыты')}>
           {() => <div className="flex gap-1.5 flex-wrap">{PLAN_CATEGORIES.map((c) => <button key={c.id} type="button" onClick={() => setCategory(c.id)} className={`px-2.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 ${category === c.id ? `${c.bg} ${c.color} ring-2 ring-accent` : 'bg-surface-2 text-muted'}`}><Icon n={c.icon} size={12} />{c.label}</button>)}</div>}
         </Field>
@@ -2092,7 +2092,7 @@ function RoadmapHabitEditorSheet({
           </Field>
         </div>
         {frequency !== 'daily' && (
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-2">
             <p className="text-sm font-semibold">{tx('Орындайтын күндер')}</p>
             <div className="grid grid-cols-7 gap-1">
               {['Дс', 'Сс', 'Ср', 'Бс', 'Жм', 'Сн', 'Жс'].map((label, i) => <button key={label} type="button" onClick={() => toggleDay(i + 1)} className={`h-9 rounded-md text-xs font-semibold ${days.includes(i + 1) ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}>{label}</button>)}
@@ -2403,7 +2403,7 @@ function RoadmapBuilderSheet({
 
   return (
     <Sheet title={tx('Жеке даму жоспарын құру')} onClose={onClose}>
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <p className="text-xs text-muted">
           {tx('{0} үшін мақсат қою, күнделікті пайдалы әдеттерді енгізу немесе нақты тапсырмалар беру.', student.full_name)}
         </p>
@@ -2442,7 +2442,7 @@ function RoadmapBuilderSheet({
 
         {/* 1. ДАЙЫН ҮЛГІЛЕР БАНКІ */}
         {tab === 'presets' && !selectedPreset && (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div className="flex gap-1 overflow-x-auto pb-1 text-xs">
               <button
                 type="button"
@@ -2464,7 +2464,7 @@ function RoadmapBuilderSheet({
               ))}
             </div>
 
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               {PLAN_PRESETS.filter((p) => presetCat === 'all' || p.category === presetCat).map((p) => {
                 const cat = getCategoryMeta(p.category)
                 return (
@@ -2512,7 +2512,7 @@ function RoadmapBuilderSheet({
 
         {/* 2. МАҚСАТ ҚҰРУ (Custom Goal) */}
         {tab === 'goal' && (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <Field label={tx('Санаты / Бағыты')}>
               {() => (
                 <div className="flex gap-1.5 flex-wrap">
@@ -2689,7 +2689,7 @@ function RoadmapBuilderSheet({
 
         {/* 3. ӘДЕТ ҚОСУ (Custom Habit) */}
         {tab === 'habit' && (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <Field label={tx('Санаты')}>
               {() => (
                 <div className="flex gap-1.5 flex-wrap">
@@ -2853,7 +2853,7 @@ function RoadmapBuilderSheet({
 
         {/* 4. ТАПСЫРМА БЕРУ (Custom Task) */}
         {tab === 'task' && (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <Field label={tx('Санаты')}>
               {() => (
                 <div className="flex gap-1.5 flex-wrap">
@@ -2966,7 +2966,7 @@ function PlanSheet({ student, onClose, onDone }: { student: { id: string; class_
   const [busy, setBusy] = useState(false)
   return (
     <Sheet title={tx('Кездесу жоспарлау')} onClose={onClose}>
-      <div className="grid gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <div className="flex flex-wrap gap-2">{TEMPLATES.map((t) => (
           <button key={t.key} type="button" aria-pressed={f.topic === t.topic} onClick={() => setF({ ...f, topic: t.topic })}
             className={`h-9 px-3 rounded-full text-sm font-semibold ${f.topic === t.topic ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{t.topic}</button>
@@ -3005,10 +3005,10 @@ function FinishSheet({ m, onClose, onDone }: { m: MentorMeeting; onClose: () => 
   }
   return (
     <Sheet title={m.topic} onClose={onClose}>
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {tpl && <div className="rounded-md bg-accent-soft p-3 text-sm"><p className="font-semibold text-accent mb-1">{tx('Сұрақтар')}</p>
           <ul className="list-disc pl-5 grid gap-0.5">{tpl.questions.map((q) => <li key={q}>{q}</li>)}</ul></div>}
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <p className="font-semibold">{tx('Оқушыға міндеттер')}</p>
           <p className="text-xs text-muted">{m.visible ? tx('Тапсырма оқушының Жоспарына, әдет — Әдеттеріне түседі. Орындалғанын осы беттен көресіз.') : tx('Кездесу жабық болса да, міндеттер оқушының жоспарына түседі.')}</p>
           {items.map((i, k) => (
@@ -3047,7 +3047,7 @@ function StudentMedia({ classId, studentId }: { classId: string; studentId: stri
   })
   const book = kind === 'book'
   return (
-    <Card className="grid gap-3">
+    <Card className="grid grid-cols-1 gap-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="font-bold text-base">{tx('Медиатека')}</p>
         <a href={`#/resources/${classId}`} className="text-xs font-semibold text-accent hover:underline">{tx('Сынып ресурстары →')}</a>

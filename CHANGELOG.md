@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.7 — 2026-11-08
+
+- Student dossier on phones: the page no longer spills off the right edge (grids now use `grid-cols-1`, so long text cannot widen them); the outer card is dropped on phones so the content uses the full width; the tabs wrap onto two rows instead of hiding off-screen; MBTI/Gallup headers and plan category chips wrap or stay on one line.
+
 ## 1.17.6 — 2026-11-08
 
 - Сынып күнтізбесі: personal meetings, home visits and birthdays are drawn as reminders («dot · emoji · title») in the week and day views too, not only in the month view; home visits became reminders as well.
