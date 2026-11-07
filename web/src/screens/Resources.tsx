@@ -1,20 +1,20 @@
 import { useState } from 'react'
 import {
-  addClassList, addHabit, addListItem, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listStaff, logScreening, photoUrl, uploadPhoto,
-  removeClassList, removeListItem, removeMedia, rateMedia, setMediaProgress, tickListItem, type ClassList, type Media, type Student,
+  addHabit, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listRecipes, listStaff, logScreening, photoUrl, uploadPhoto,
+  removeMedia, rateMedia, setMediaProgress, type Media, type Student,
 } from '../lib/api'
-import { fmtDate, today } from '../lib/time'
-import { money } from '../lib/money'
+import { today } from '../lib/time'
 import { avgStars, seasonAvgs } from '../lib/stars'
 import { useMe } from '../App'
 import { ClassHoursPanel } from './Journal'
+import Recipes from '../components/Recipes'
 import Avatar from '../components/Avatar'
-import { Button, Card, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
+import { Button, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
-/* «Сынып ресурстары» — the class's shared shelf: books, films (with film club), event shopping lists, class hours (staff). The fund lives in the class calendar. */
+/* «Сынып ресурстары» — the class's shared shelf: books, films (with film club), recipes, class hours (staff). The fund lives in the class calendar. */
 
-type Tab = 'book' | 'film' | 'lists' | 'hours'
+type Tab = 'book' | 'film' | 'recipes' | 'hours'
 
 export default function Resources({ classId }: { classId?: string }) {
   const { me } = useMe()
@@ -29,8 +29,8 @@ export default function Resources({ classId }: { classId?: string }) {
   const [tab, setTab] = useState<Tab>('book')
   const data = useLoad(async () => {
     if (!cid) return null
-    const [r, students, people] = await Promise.all([listClassResources(cid), classStudents(cid), listStaff()])
-    return { ...r, students, people }
+    const [r, students, people, recipes] = await Promise.all([listClassResources(cid), classStudents(cid), listStaff(), listRecipes(cid)])
+    return { ...r, students, people, recipes }
   }, [cid])
   if (classes.loading && !classes.data) return <><PageHead title={tx('Сынып ресурстары')} back /><Skeleton /></>
   if (!cid) return <><PageHead title={tx('Сынып ресурстары')} back /><Empty icon="book" title={tx('Сынып бекітілмеген')} text={tx('Сыныпқа бекітілгенде, сынып кітапханасы осында шығады.')} /></>
@@ -42,10 +42,10 @@ export default function Resources({ classId }: { classId?: string }) {
         <select aria-label={tx('Сынып')} value={cid} onChange={(e) => go(`/resources/${e.target.value}`)} className={`${inputCls} w-auto`}>
           {options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>) : undefined} />
-      <Chips label={tx('Бөлім')} value={tab} onChange={setTab} items={[['book', tx('Кітаптар')], ['film', tx('Фильмдер')], ['lists', tx('Шараға тізім')], ...(staff ? [['hours', tx('Тәрбие сағаттары')]] as [Tab, string][] : [])]} />
+      <Chips label={tx('Бөлім')} value={tab} onChange={setTab} items={[['book', tx('Кітаптар')], ['film', tx('Фильмдер')], ['recipes', tx('Рецепттер')], ...(staff ? [['hours', tx('Тәрбие сағаттары')]] as [Tab, string][] : [])]} />
       {data.loading && !d ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : d && (
         tab === 'book' || tab === 'film' ? <Shelf key={tab} kind={tab} classId={cid} media={d.media.filter((m) => m.kind === tab)} students={d.students} staff={staff} name={name} reload={data.reload} />
-        : tab === 'lists' ? <Lists classId={cid} lists={d.lists} students={d.students} staff={staff} name={name} reload={data.reload} />
+        : tab === 'recipes' ? <Recipes classId={cid} recipes={d.recipes} classSize={d.students.length} staff={staff} me={me.id} reload={data.reload} />
         : tab === 'hours' && cls ? <ClassHoursPanel cls={cls} /> : null
       )}
     </div>
@@ -308,74 +308,6 @@ function Screening({ m, students, onClose, reload }: { m: Media; students: Stude
         <p className="text-xs text-muted">{tx('Көрсетілім Журнал және күнтізбеде сары түспен шығады.')}</p>
       </div>
     </Sheet>
-  )
-}
-
-function Lists({ classId, lists, students, staff, name, reload }: { classId: string; lists: ClassList[]; students: Student[]; staff: boolean; name: (id: string | null) => string; reload: () => void }) {
-  const { me } = useMe()
-  const [f, setF] = useState({ title: '', date: '' })
-  const [busy, setBusy] = useState(false)
-  const run = async (fn: () => Promise<unknown>) => { setBusy(true); try { await fn(); reload() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
-  return (
-    <div className="grid gap-3">
-      {staff && (
-        <Card className="grid gap-2">
-          <p className="font-semibold">{tx('Жаңа шара')}</p>
-          <div className="grid grid-cols-[1fr_auto] gap-2 [&_input]:min-w-0">
-            <input aria-label={tx('Атауы')} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} maxLength={200} className={inputCls} placeholder={tx('Мысалы: шай кеші, пикник')} />
-            <input aria-label={tx('Күні')} type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} className={inputCls} />
-          </div>
-          <Button loading={busy} disabled={f.title.trim().length < 2} onClick={() => run(async () => { await addClassList(classId, f.title.trim(), f.date || null); setF({ title: '', date: '' }) })}>{tx('Қосу')}</Button>
-        </Card>
-      )}
-      {!lists.length ? <Empty icon="check" title={tx('Шара жоқ')} text={tx('Шай кеші не пикникке не алу керек, кім жауапты — осында жазылады.')} /> : lists.map((l) => {
-        const total = l.items.reduce((s, i) => s + i.price * i.qty, 0)
-        return (
-          <Card key={l.id} className="grid gap-2">
-            <div className="flex items-start gap-2">
-              <span className="flex-1"><span className="block font-semibold">{l.title}</span>{l.on_date && <span className="block text-xs text-muted">{fmtDate(l.on_date)}</span>}</span>
-              <span className="font-semibold tabular-nums">{money(total)}</span>
-              {staff && <button type="button" aria-label={tx('Өшіру')} onClick={() => run(() => removeClassList(l.id))} className="size-9 grid place-items-center rounded-md text-muted hover:bg-surface-2"><Icon n="x" size={16} /></button>}
-            </div>
-            <ul className="grid gap-1">{l.items.map((i) => {
-              const can = staff || i.student_id === me.id
-              return (
-                <li key={i.id} className="flex items-center gap-3 rounded-md bg-surface-2 px-3 min-h-11">
-                  <input type="checkbox" aria-label={tx('{0} алынды', i.name)} checked={i.done} disabled={!can || busy} onChange={() => run(() => tickListItem(i.id, !i.done))} className="size-5 accent-[var(--accent)]" />
-                  <span className={`flex-1 min-w-0 text-sm ${i.done ? 'line-through text-muted' : ''}`}><span className="block truncate">{i.name}</span><span className="block text-xs text-muted">{i.student_id ? name(i.student_id) : tx('Жауапты жоқ')}</span></span>
-                  <span className="text-sm tabular-nums text-right">{i.qty} × {money(i.price)}</span>
-                  {staff && <button type="button" aria-label={tx('Өшіру')} onClick={() => run(() => removeListItem(i.id))} className="size-8 grid place-items-center rounded-md text-muted"><Icon n="x" size={14} /></button>}
-                </li>
-              )
-            })}</ul>
-            {staff && <ItemForm listId={l.id} students={students} reload={reload} />}
-          </Card>
-        )
-      })}
-    </div>
-  )
-}
-
-function ItemForm({ listId, students, reload }: { listId: string; students: Student[]; reload: () => void }) {
-  const [f, setF] = useState({ name: '', price: '', qty: '1', student: '' })
-  const [busy, setBusy] = useState(false)
-  return (
-    <div className="grid gap-2 border-t border-line pt-3">
-      <input aria-label={tx('Тауар атауы')} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={200} className={inputCls} placeholder={tx('Тауар атауы')} />
-      <div className="grid grid-cols-3 gap-2 [&_input]:min-w-0">
-        <input aria-label={tx('Бағасы')} type="number" inputMode="numeric" min={0} value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} className={inputCls} placeholder={tx('Бағасы, ₸')} />
-        <input aria-label={tx('Саны')} type="number" inputMode="decimal" min={0} step="any" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} className={inputCls} placeholder={tx('Саны')} />
-        <select aria-label={tx('Жауапты')} value={f.student} onChange={(e) => setF({ ...f, student: e.target.value })} className={`${inputCls} min-w-0`}>
-          <option value="">{tx('Жауапты')}</option>
-          {students.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-        </select>
-      </div>
-      <Button kind="secondary" loading={busy} disabled={!f.name.trim() || !(Number(f.qty) > 0) || Number(f.price) < 0} onClick={async () => {
-        setBusy(true)
-        try { await addListItem({ list_id: listId, name: f.name.trim(), price: Number(f.price) || 0, qty: Number(f.qty), student_id: f.student || null }); setF({ name: '', price: '', qty: '1', student: '' }); reload() }
-        catch (e) { toast(errText(e)) } finally { setBusy(false) }
-      }}><Icon n="plus" size={18} />{tx('Тауар қосу')}</Button>
-    </div>
   )
 }
 

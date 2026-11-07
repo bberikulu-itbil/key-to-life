@@ -212,3 +212,10 @@ assert.equal(avgStars([]), null)
 assert.deepEqual(avgStars([5, 4, null, 4]), { avg: 4.3, n: 3 })
 assert.deepEqual(seasonAvgs([{ 1: 5, 2: 3 }, { 1: 4 }], 2), [{ avg: 4.5, n: 2 }, { avg: 3, n: 1 }])
 console.log('stars ok')
+
+import { parseTags, scaleAmount } from './recipe'
+assert.equal(scaleAmount(200, 4, 10), 500)
+assert.equal(scaleAmount(1, 3, 2), 0.67)
+assert.equal(scaleAmount(null, 4, 8), null)
+assert.deepEqual(parseTags('#Пудинг #десерт, шоколад #пудинг'), ['пудинг', 'десерт', 'шоколад'])
+console.log('recipe ok')

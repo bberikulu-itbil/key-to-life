@@ -1,20 +1,21 @@
 import { useState } from 'react'
 import {
-  addClassEvent, addClassPhoto, addClassWallet, errText, setClassEventExpenses, setClassEventParticipants, updateClassEvent,
+  addClassEvent, addClassPhoto, addClassWallet, errText, photoUrl, removeClassPhoto, type ClassPhoto, type Recipe, setClassEventExpenses, setClassEventParticipants, updateClassEvent,
   type CalAudience, type ClassEvent, type ClassEventExpense, type ClassEventStatus, type ClassHour, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student, type ClassWallet,
 } from '../lib/api'
 import { Button, Field, inputCls, toast } from './ui'
 import LocationPicker from './LocationPicker'
 import { tx } from '../lib/i18n'
-import { TYPE_COLORS, TYPE_GROUPS } from '../lib/eventTypes'
+import { money } from '../lib/money'
+import { FUN_TYPES, TYPE_GROUPS } from '../lib/eventTypes'
 
-const legacy = (codes: EventTypeCode[]): ClassEvent['kind'] => codes.some((x) => ['mentor', 'meeting'].includes(x)) ? 'school' : codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x)) ? 'parents' : codes.some((x) => ['film', 'sport', 'food', 'game', 'cleaning', 'walk', 'outing', 'trip'].includes(x)) ? 'fun' : 'school'
+const legacy = (codes: EventTypeCode[]): ClassEvent['kind'] => codes.some((x) => ['mentor', 'meeting'].includes(x)) ? 'school' : codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x)) ? 'parents' : codes.some((x) => FUN_TYPES.includes(x)) ? 'fun' : 'school'
 const listText = (v: string) => v.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean)
 type ExpenseRow = { key: string; wallet: string; walletName: string; amount: string; note: string }
 const newExpenseRow = (e?: ClassEventExpense): ExpenseRow => ({ key: e?.id ?? `new-${Math.random().toString(36).slice(2)}`, wallet: e?.wallet_id ?? '', walletName: '', amount: e ? String(e.amount) : '', note: e?.note ?? '' })
 
-export default function ClassEventForm({ classId, date, existing, defaultTypes, defaultStudentId, students, staff, places, media, meetings, hours, wallets, meId, onDone }: {
-  classId: string; date: string; existing?: ClassEvent; defaultTypes?: EventTypeCode[]; defaultStudentId?: string; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; meId: string; onDone: () => void
+export default function ClassEventForm({ classId, date, existing, defaultTypes, defaultStudentId, students, staff, places, media, meetings, hours, wallets, photos = [], recipes = [], meId, onDone }: {
+  classId: string; date: string; existing?: ClassEvent; defaultTypes?: EventTypeCode[]; defaultStudentId?: string; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; photos?: ClassPhoto[]; recipes?: Recipe[]; meId: string; onDone: () => void
 }) {
   const initialTypes: EventTypeCode[] = existing?.type_codes?.length ? existing.type_codes : defaultTypes?.length ? defaultTypes : existing?.kind === 'parents' ? ['visit'] : existing?.kind === 'fun' ? ['film'] : ['exam']
   const [title, setTitle] = useState(existing?.title ?? '')
@@ -42,6 +43,9 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
   const [expense, setExpense] = useState(oldExpenses.length > 0)
   const [expenseRows, setExpenseRows] = useState<ExpenseRow[]>(oldExpenses.length ? oldExpenses.map(newExpenseRow) : [newExpenseRow()])
   const [files, setFiles] = useState<File[]>([])
+  // Existing photos: removed ids, and ids replaced by a new file (old one removed on save).
+  const [removed, setRemoved] = useState<string[]>([])
+  const [replaced, setReplaced] = useState<Record<string, File>>({})
   const [busy, setBusy] = useState(false)
   const toggle = (code: EventTypeCode) => setTypes(types.includes(code) ? types.filter((x) => x !== code) : [...types, code])
   const updateExpenseRow = (key: string, patch: Partial<ExpenseRow>) => setExpenseRows((rows) => rows.map((row) => row.key === key ? { ...row, ...patch } : row))
@@ -78,12 +82,22 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
           resolvedExpenses.push({ wallet_id: walletId, amount: Number(row.amount.trim().replace(',', '.')), note: row.note.trim() || null })
         }
         await setClassEventExpenses(id, expense ? resolvedExpenses : [])
+        for (const p of photos) {
+          if (replaced[p.id]) await addClassPhoto(classId, onDate, meId, replaced[p.id], p.caption ?? title.trim(), id)
+          if (replaced[p.id] || removed.includes(p.id)) await removeClassPhoto(p.id)
+        }
         for (const f of files) await addClassPhoto(classId, onDate, meId, f, title.trim(), id)
       }
       toast(existing ? tx('Оқиға өзгертілді') : tx('Оқиға сақталды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
+  const linkedRecipe = link.startsWith('recipe:') ? recipes.find((r) => r.id === link.slice(7)) : undefined
+  // People = listed students, else the whole class; price lines are for the recipe's own servings.
+  const recipePeople = selected.length || students.length || linkedRecipe?.servings || 1
+  const recipeCost = linkedRecipe ? Math.round(linkedRecipe.items.reduce((a, x) => a + Number(x.price), 0) * recipePeople / linkedRecipe.servings) : 0
+  const addRecipeCost = () => { if (!linkedRecipe) return; setExpense(true); setExpenseRows([...expenseRows.filter((x) => x.amount.trim()), { ...newExpenseRow(), amount: String(recipeCost), note: linkedRecipe.title }]) }
   const linkOptions = [
+    ...types.some((x) => ['food', 'tea', 'birthday'].includes(x)) ? recipes.map((r) => [`recipe:${r.id}`, `${tx('Рецепт')}: ${r.title}`] as [string, string]) : [],
     ...types.includes('film') ? media.filter((m) => m.approved).map((m) => [`media:${m.id}`, `${tx('Фильм')}: ${m.title}`] as [string, string]) : [],
     ...types.includes('mentor') ? meetings.map((m) => [`mentor:${m.id}`, `${tx('Жеке кездесу')}: ${m.topic}`] as [string, string]) : [],
     ...types.some((x) => ['hour_lead', 'hour_parent'].includes(x)) ? hours.map((h) => [`hour:${h.id}`, `${tx('Тәрбие сағаты')}: ${h.topic}`] as [string, string]) : [],
@@ -108,7 +122,7 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
       <span className="text-sm font-semibold">{tx('Іс-шара типі')}</span>
       {TYPE_GROUPS.map((g) => <div key={g.label} className="flex flex-wrap items-center gap-1.5">
         <span className="w-full text-[11px] uppercase tracking-wide text-muted">{g.label}</span>
-        {g.codes.map(([code, label]) => { const on = types.includes(code); return <button key={code} type="button" aria-pressed={on} onClick={() => toggle(code)} className={`h-8 px-3 rounded-full text-xs font-medium border transition ${on ? '' : 'bg-surface-2 border-transparent text-ink hover:bg-surface'}`} style={on ? { backgroundColor: `${TYPE_COLORS[code]}1f`, borderColor: TYPE_COLORS[code], color: TYPE_COLORS[code] } : undefined}>{label}</button> })}
+        {g.types.map(({ code, label, emoji, color }) => { const on = types.includes(code); return <button key={code} type="button" aria-pressed={on} onClick={() => toggle(code)} className={`h-8 pl-2 pr-3 rounded-full text-xs font-medium border transition inline-flex items-center gap-1 ${on ? '' : 'bg-surface-2 border-transparent text-ink hover:bg-surface'}`} style={on ? { backgroundColor: `${color}1f`, borderColor: color, color } : undefined}><span aria-hidden>{emoji}</span>{label}</button> })}
       </div>)}
     </div>
     <div className="grid grid-cols-2 sm:grid-cols-[1.5fr_1fr_1fr] gap-2">
@@ -126,6 +140,7 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
       {showPeople && <div className="px-3 pb-3"><><div className="flex flex-wrap gap-1.5"><button type="button" onClick={() => setParticipantType('student')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'student' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Оқушылар')}</button><button type="button" onClick={() => setParticipantType('group')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'group' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Топ')}</button><button type="button" onClick={() => setParticipantType('room')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'room' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Бөлме')}</button></div>{participantType === 'student' ? <div className="flex flex-wrap gap-1.5 mt-2">{students.map((s) => { const on = selected.includes(s.id); return <button key={s.id} type="button" aria-pressed={on} onClick={() => setSelected(on ? selected.filter((x) => x !== s.id) : [...selected, s.id])} className={`h-8 px-3 rounded-full text-xs ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{s.full_name.split(' ').slice(0, 2).join(' ')}</button> })}</div> : <input value={participantType === 'group' ? groups : rooms} onChange={(e) => participantType === 'group' ? setGroups(e.target.value) : setRooms(e.target.value)} className={`${inputCls} mt-2`} placeholder={participantType === 'group' ? tx('Мысалы: Топ 1, Топ 2') : tx('Мысалы: 209-бөлме')} />}</></div>}
     </div>
     {linkOptions.length > 0 && <Field label={tx('Ресурспен байланыстыру')}>{() => <select value={link} onChange={(e) => setLink(e.target.value)} className={inputCls}><option value="">{tx('Байланыстырмау')}</option>{linkOptions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>}</Field>}
+    {linkedRecipe && classId !== 'school' && <button type="button" onClick={addRecipeCost} className="h-10 rounded-md bg-surface-2 text-accent text-sm font-semibold">{tx('Рецепт құнын шығынға қосу ({0} адам · {1})', recipePeople, money(recipeCost))}</button>}
     <Field label={tx('Ескертпе')} hint={tx('Міндетті емес')}>{(id) => <textarea id={id} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} className={`${inputCls} h-20 py-2`} />}</Field>
     {existing && <Field label={tx('Статус')}>{() => <select value={status} onChange={(e) => setStatus(e.target.value as ClassEventStatus)} className={inputCls}><option value="planned">{tx('Жоспарланған')}</option><option value="passed">{tx('Өтті')}</option><option value="postponed">{tx('Кейінге қалдырылды')}</option><option value="archived">{tx('Мұрағаттау')}</option></select>}</Field>}
     <Field label={tx('Көрінетін аудитория')} hint={tx('Оқиға кімдерге көрінетінін таңдаңыз')}>
@@ -181,9 +196,20 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
         </>}
       </div>
     )}
-    {classId !== 'school' && (
+    {classId !== 'school' && (<>
+      {photos.length > 0 && <div className="grid grid-cols-3 gap-2">
+        {photos.map((p) => { const gone = removed.includes(p.id); const nf = replaced[p.id]; return <div key={p.id} className={`relative aspect-square rounded-md overflow-hidden bg-surface-2 ${gone ? 'opacity-30' : ''}`}>
+          <img src={nf ? URL.createObjectURL(nf) : photoUrl(p.path)} alt={p.caption ?? ''} className="size-full object-cover" />
+          <div className="absolute inset-x-0 bottom-0 flex justify-between p-1 bg-gradient-to-t from-black/60">
+            {gone ? <button type="button" onClick={() => setRemoved(removed.filter((x) => x !== p.id))} className="h-8 px-2 rounded bg-white/90 text-xs text-black">{tx('Қайтару')}</button> : <>
+              <label className="h-8 px-2 grid place-items-center rounded bg-white/90 text-xs text-black cursor-pointer">{tx('Алмастыру')}<input type="file" accept="image/*" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) setReplaced({ ...replaced, [p.id]: f }) }} /></label>
+              <button type="button" aria-label={tx('Өшіру')} onClick={() => { setRemoved([...removed, p.id]); const r = { ...replaced }; delete r[p.id]; setReplaced(r) }} className="size-8 grid place-items-center rounded bg-white/90 text-black">✕</button>
+            </>}
+          </div>
+        </div> })}
+      </div>}
       <label className="h-14 rounded-md border-2 border-dashed border-line grid place-items-center text-sm text-muted cursor-pointer"><span>{files.length ? tx('{0} сурет таңдалды', files.length) : tx('Фото қосу (міндетті емес)')}</span><input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => setFiles([...(e.target.files ?? [])])} /></label>
-    )}
+    </>)}
     <Button block loading={busy} onClick={save}>{existing ? tx('Өзгерту') : tx('Сақтау')}</Button>
   </div>
 }

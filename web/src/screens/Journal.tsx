@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  addClassEvent, addClassHour, addClassPhoto, addParentContact, classBirthdays, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
-  removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type FundRow, type Media, type MentorMeeting, type Resource, type Staff, type Student,
+  addClassEvent, addClassHour, addClassPhoto, addParentContact, classBirthdays, listRecipes, classEventsForMe, classStudents, errText, listClasses, listClassResources, listClassWallets, listJournal, listResources, listStaff, photoUrl, removeClassEvent, removeClassHour,
+  removeClassPhoto, removeParentContact, removeMentorMeeting, setHourPlan, type ClassEvent, type ClassPhoto, type ClassHour, type ClassWallet, type EventTypeCode, type FundRow, type Recipe, type Media, type MentorMeeting, type Resource, type Staff, type Student,
 } from '../lib/api'
 import { WD_SHORT, addDays, fmtDate, iso, isoDow, today } from '../lib/time'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import ClassFund from '../components/ClassFund'
+import ClassActivity from '../components/ClassActivity'
 import ClassEventForm from '../components/ClassEventForm'
-import { TYPE_COLORS } from '../lib/eventTypes'
+import { FUN_TYPES, TYPE_COLORS, TYPE_LABELS } from '../lib/eventTypes'
 import ClassCalendarView, { type CalItem } from '../components/ClassCalendarView'
 import { tx } from '../lib/i18n'
 
@@ -61,7 +62,7 @@ const KIND = {
 } as const
 type Kind = keyof typeof KIND
 type Item = CalItem
-type Tab = 'calendar' | 'fund' | 'parents' | 'mentor' | 'week' | 'month'
+type Tab = 'calendar' | 'activity' | 'fund' | 'parents' | 'mentor' | 'week' | 'month'
 type Add = { what: 'event' | 'hour' | 'photo'; date: string }
 
 const Dot = ({ k, size = 8, color }: { k: Kind; size?: number; color?: string }) => <span className="block shrink-0 rounded-full" style={{ background: color ?? KIND[k][0], width: size, height: size }} />
@@ -122,16 +123,11 @@ function StudentCalendar() {
   )
 }
 
-const TYPE_LABELS: Record<EventTypeCode, string> = {
-  sport: tx('Спорт'), food: tx('Тамақ'), game: tx('Ойын'), film: tx('Фильм'), cleaning: tx('Тазалық'), walk: tx('Серуен'), outing: tx('Қыдыру'), trip: tx('Саяхат'),
-  hour_lead: tx('Жетекші тәрбие сағаты'), hour_parent: tx('Ата-ана тәрбие сағаты'), meeting: tx('Жиналыс'), parent_activity: tx('Ата-ана белсенділігі'),
-  visit: tx('Қонаққа бару'), mentor: tx('Жеке кездесу'), exam: tx('Емтихан'), birthday: tx('Туған күн'), competition: tx('Жарыс'), other: tx('Басқа'),
-}
 const eventKind = (e: ClassEvent): Kind => {
   const codes = e.type_codes ?? []
   if (codes.some((x) => ['mentor', 'meeting'].includes(x))) return 'mentor'
   if (codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x))) return 'parents'
-  if (codes.some((x) => ['film', 'sport', 'food', 'game', 'cleaning', 'walk', 'outing', 'trip'].includes(x))) return 'fun'
+  if (codes.some((x) => FUN_TYPES.includes(x))) return 'fun'
   if (codes.some((x) => ['hour_lead'].includes(x))) return 'hour'
   return e.kind as Kind
 }
@@ -205,7 +201,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
   }, [hash])
   const [tab, setTab] = useState<Tab>(() => {
     const t = queryParams.get('tab')
-    return t === 'mentor' || t === 'fund' || t === 'parents' ? (t as Tab) : 'calendar'
+    return t === 'mentor' || t === 'activity' || t === 'fund' || t === 'parents' ? (t as Tab) : 'calendar'
   })
   const [audFilter, setAudFilter] = useState<string>('all')
   const [day, setDay] = useState(today())
@@ -231,12 +227,12 @@ function StaffCalendar({ classId }: { classId?: string }) {
   const data = useLoad(async () => {
     if (isSchool) {
       const [j, staff, places] = await Promise.all([listJournal('school'), listStaff(), listResources()])
-      return { ...j, students: [] as Student[], staff, places, media: [] as Media[], fund: [] as FundRow[], wallets: [] as ClassWallet[], birthdays: [] as { student_id: string; birthday: string }[] }
+      return { ...j, students: [] as Student[], staff, places, media: [] as Media[], fund: [] as FundRow[], wallets: [] as ClassWallet[], birthdays: [] as { student_id: string; birthday: string }[], recipes: [] as Recipe[] }
     }
     if (!cls) return null
-    const [j, students, staff, places, resourceData, wallets] = await Promise.all([listJournal(cls.id), classStudents(cls.id), listStaff(), listResources(), listClassResources(cls.id), listClassWallets(cls.id)])
+    const [j, students, staff, places, resourceData, wallets, recipes] = await Promise.all([listJournal(cls.id), classStudents(cls.id), listStaff(), listResources(), listClassResources(cls.id), listClassWallets(cls.id), listRecipes(cls.id).catch(() => [] as Recipe[])])
     const birthdays = await classBirthdays(students.map((s) => s.id)).catch(() => [])
-    return { ...j, students, staff, places, media: resourceData.media, fund: resourceData.fund, wallets, birthdays }
+    return { ...j, students, staff, places, media: resourceData.media, fund: resourceData.fund, wallets, birthdays, recipes }
   }, [isSchool, cls?.id])
   const d = data.data
   const short = (id: string) => d?.students.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ') ?? '—'
@@ -250,7 +246,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
     const y = new Date().getFullYear()
     const bdays: Item[] = d.birthdays.flatMap((b) => [y - 1, y, y + 1].map((yr) => ({
       key: `b${b.student_id}${yr}`, date: `${yr}${b.birthday.slice(4, 10)}`, kind: 'parents' as const,
-      title: short(b.student_id), color: '#db2777', types: ['birthday' as EventTypeCode], personal: true, reminder: true,
+      title: short(b.student_id), color: TYPE_COLORS.birthday, types: ['birthday' as EventTypeCode], personal: true, reminder: true,
     })))
     const schoolItems = (d.schoolEvents ?? []).map((e) => ({
       ...eventItem(e, deputy ? () => removeClassEvent(e.id) : undefined, deputy ? () => editEvent(e) : undefined),
@@ -340,6 +336,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
           onChange={setTab}
           items={[
             ['calendar', tx('Күнтізбе')],
+            ['activity', tx('Белсенділік')],
             ['fund', tx('Сынып қоры')],
             ['parents', tx('Ата-ана (қонақ, белсенділік)')],
             ['mentor', tx('Жеке кездесу')],
@@ -362,6 +359,8 @@ function StaffCalendar({ classId }: { classId?: string }) {
               classTitle={isSchool ? tx('Мектеп күнтізбесі') : `${cls?.name} ${tx('сыныбы')}`}
               typeLabels={TYPE_LABELS}
             />
+          ) : tab === 'activity' && cls ? (
+            <ClassActivity classId={cls.id} students={d.students} />
           ) : tab === 'fund' && cls ? (
             <ClassFund classId={cls.id} rows={d.fund} events={d.events} staff reload={data.reload} />
           ) : tab === 'parents' && cls ? (
@@ -413,6 +412,8 @@ function StaffCalendar({ classId }: { classId?: string }) {
             meetings={d.meetings}
             hours={d.hours}
             wallets={d.wallets}
+            recipes={d.recipes}
+            photos={editing ? d.photos.filter((p) => p.event_id === editing.id) : []}
             meId={me.id}
             onDone={() => {
               closeForm()
@@ -440,7 +441,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
     </div>
   )
 }
-type D = Awaited<ReturnType<typeof listJournal>> & { students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; fund: FundRow[]; wallets: ClassWallet[]; birthdays: { student_id: string; birthday: string }[] }
+type D = Awaited<ReturnType<typeof listJournal>> & { students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; fund: FundRow[]; wallets: ClassWallet[]; birthdays: { student_id: string; birthday: string }[]; recipes: Recipe[] }
 
 /** Everything on the calendar, by date. */
 function journalItems(d: Pick<D, 'hours' | 'events' | 'meetings' | 'contacts'>, studentName: (id: string) => string, edit?: (e: ClassEvent) => void): Item[] {
@@ -490,7 +491,7 @@ const photoEventTitle = (p: ClassPhoto, events: ClassEvent[]) => p.event_id ? ev
 export function ClassHoursPanel({ cls }: { cls: { id: string; teacher_id: string | null; tutor_id: string | null } }) {
   const data = useLoad(async () => {
     const [j, students, staff] = await Promise.all([listJournal(cls.id), classStudents(cls.id), listStaff()])
-    return { ...j, students, staff, places: [] as Resource[], media: [] as Media[], fund: [] as FundRow[], wallets: [] as ClassWallet[], birthdays: [] }
+    return { ...j, students, staff, places: [] as Resource[], media: [] as Media[], fund: [] as FundRow[], wallets: [] as ClassWallet[], birthdays: [], recipes: [] as Recipe[] }
   }, [cls.id])
   const [add, setAdd] = useState(false)
   const d = data.data

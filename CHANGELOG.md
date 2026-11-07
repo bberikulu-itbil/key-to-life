@@ -1,11 +1,23 @@
 # Changelog
 
+## 1.17.0 — 2026-11-08
+
+- Сынып күнтізбесі → «Белсенділік» tab: per-student stats for 7 days / this month / school year / a custom range — event participation, one-on-ones, tasks done/all, habit completion, goals done, parents (home visits / meetings / contacts) — plus summary tiles.
+- Class groups for a period (name, colour, start, optional end, members); filter the stats by group; group dots next to names.
+- Migration 0077_class_activity (`class_groups`, `class_group_members`, RPC `class_activity_stats`, staff only) — applied.
+- Сынып ресурстары: «Шараға тізім» replaced by «Рецепттер» — ingredients with amount, unit and price, scaled to any number of people with an approximate total and per-person cost; numbered steps; #hashtags with filter and search; photo. Old `class_lists` data is kept, only hidden. Migration 0078_class_recipes (applied).
+- Event form: for 🍕/☕/🎂 events a recipe can be linked, and its cost (for listed students or the whole class) added to the event's expenses, so it shows in the class fund.
+- From 1.16.x (not merged before): 5 event groups with emoji and colours; event photo remove/replace; month-cell photos split in two; fixed calendar photo URLs.
+
 ## 1.16.0 — 2026-11-07
 
 - Сынып күнтізбесі, event form: types grouped (Бос уақыт, Сыртқа шығу, Тәрбие және ата-ана, Оқу және тәртіп, Ескертпелер) with one colour per group (`lib/eventTypes.ts`); date and times in one row; place behind a checkbox; responsible defaults to the creator; participants collapsed to a summary («Бүкіл сынып»); status only when editing.
+- Event types reworked into 5 groups (Тәрбие, Дәмхана, Ойын-сауық және демалыс, Жарыстар мен челлендждер, Оқу және ата-ана) with an emoji and a colour each; related types share a colour (Фильм + Киберспорт, Серуен + Саяхат, Үстел ойындары + Интеллектуалды ойын…). New codes: tea, active_rest, quiz, esport, challenge; `outing` and `other` kept only for old events. `lib/eventTypes.ts` is the single source for labels, emojis and colours.
 - «Оқушыларға хабарлама жіберу» toggle, off by default: `class_events.notify`; the notify trigger and the reminder tick fire only when it is on. Migration 0076 (applied).
 - Personal meetings and birthdays (from student profiles) show as reminders in the month view: dot, emoji, title.
 - Сынып қоры moved from Resources to the calendar («Сынып қоры» tab, `components/ClassFund.tsx`), now listing event expenses (read-only, 📅). Тәрбие сағаттары moved to Resources (staff only).
+- Editing an event shows its photos: remove (with undo) or replace each one; applied on save.
+- Month view photos: fixed the broken image address (wrong host); the cell shows the photo itself, split in two when there are 2+, with «+N» for the rest.
 - Film club screenings are saved as «Фильм» events linked to the film (`log_screening`, migration 0076).
 
 ## 1.15.0 — 2026-11-01

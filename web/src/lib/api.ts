@@ -1121,7 +1121,7 @@ export const myMentorMeetings = () => rpc<{ id: string; starts_at: string; topic
 
 /* ---------- class journal and calendar ---------- */
 export type ClassHour = { id: string; on_date: string; direction: string; topic: string; led_by: string | null; absent: string[]; grp: string | null; note: string | null }
-export type EventTypeCode = 'sport' | 'food' | 'game' | 'film' | 'cleaning' | 'walk' | 'outing' | 'trip' | 'hour_lead' | 'hour_parent' | 'meeting' | 'parent_activity' | 'visit' | 'mentor' | 'exam' | 'birthday' | 'competition' | 'other'
+export type EventTypeCode = 'sport' | 'food' | 'game' | 'film' | 'cleaning' | 'walk' | 'outing' | 'trip' | 'hour_lead' | 'hour_parent' | 'meeting' | 'parent_activity' | 'visit' | 'mentor' | 'exam' | 'birthday' | 'competition' | 'other' | 'tea' | 'active_rest' | 'quiz' | 'esport' | 'challenge'
 export type ClassEventStatus = 'planned' | 'passed' | 'postponed' | 'archived'
 export type ClassEventParticipant = { id: string; kind: 'student' | 'group' | 'room'; student_id: string | null; label: string; student: { full_name: string } | null }
 export type ClassWallet = { id: string; class_id: string; name: string; archived: boolean }
@@ -1181,6 +1181,27 @@ export const listJournal = async (classId: string) => {
 }
 /** Birthdays of the given students, for calendar reminders (only the date column is read). */
 export const classBirthdays = async (ids: string[]) => ids.length ? (await ok(supabase.from('student_profile_details').select('student_id, birthday').in('student_id', ids).not('birthday', 'is', null))) as { student_id: string; birthday: string }[] : []
+export type ClassGroup = { id: string; class_id: string; name: string; color: string | null; starts_on: string; ends_on: string | null; members: { student_id: string }[] }
+export type ActivityStat = { student_id: string; events: number; mentor: number; tasks_total: number; tasks_done: number; habit_expected: number; habit_checks: number; goals_done: number; parent_visits: number; parent_meetings: number; parent_other: number }
+export const listClassGroups = (classId: string) => ok<ClassGroup[]>(supabase.from('class_groups').select('*, members:class_group_members(student_id)').eq('class_id', classId).order('starts_on', { ascending: false }))
+export async function saveClassGroup(g: { id?: string; class_id: string; name: string; color: string | null; starts_on: string; ends_on: string | null }, members: string[]) {
+  const row = await ok<{ id: string }>(g.id ? supabase.from('class_groups').update(g).eq('id', g.id).select('id').single() : supabase.from('class_groups').insert(g).select('id').single())
+  await ok(supabase.from('class_group_members').delete().eq('group_id', row.id))
+  if (members.length) await ok(supabase.from('class_group_members').insert(members.map((student_id) => ({ group_id: row.id, student_id }))))
+}
+export const removeClassGroup = (id: string) => ok(supabase.from('class_groups').delete().eq('id', id))
+export const classActivityStats = (classId: string, from: string, to: string) => ok<ActivityStat[]>(supabase.rpc('class_activity_stats', { p_class: classId, p_from: from, p_to: to }))
+export type RecipeItem = { id?: string; pos?: number; name: string; amount: number | null; unit: string | null; price: number }
+export type Recipe = { id: string; class_id: string; title: string; servings: number; steps: string; tags: string[]; photo: string | null; items: RecipeItem[] }
+export const listRecipes = async (classId: string) => ((await ok<Recipe[]>(supabase.from('class_recipes').select('*, items:class_recipe_items(id, pos, name, amount, unit, price)').eq('class_id', classId).order('title'))) ?? [])
+  .map((r) => ({ ...r, items: [...r.items].sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0)) }))
+export async function saveRecipe(r: { id?: string; class_id: string; title: string; servings: number; steps: string; tags: string[]; photo: string | null }, items: RecipeItem[]) {
+  const row = await ok<{ id: string }>(r.id ? supabase.from('class_recipes').update(r).eq('id', r.id).select('id').single() : supabase.from('class_recipes').insert(r).select('id').single())
+  await ok(supabase.from('class_recipe_items').delete().eq('recipe_id', row.id))
+  if (items.length) await ok(supabase.from('class_recipe_items').insert(items.map((x, pos) => ({ recipe_id: row.id, pos, name: x.name, amount: x.amount, unit: x.unit, price: x.price }))))
+  return row.id
+}
+export const removeRecipe = (id: string) => ok(supabase.from('class_recipes').delete().eq('id', id))
 export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok(supabase.from('class_hours').insert(row))
 export const removeClassHour = (id: string) => ok(supabase.from('class_hours').delete().eq('id', id))
 export const addClassEvent = async (row: ClassEventDraft) => {
