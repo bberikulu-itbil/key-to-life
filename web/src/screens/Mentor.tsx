@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   addMentorMeeting, classMentorMeetings, classStudentForms, classStudentProfileDetails, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
   mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting,
-  isCurrentTrajectory, listStudentTrajectory, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
+  isCurrentTrajectory, listClassResources, listStudentTrajectory, type Media, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
@@ -14,6 +14,7 @@ import {
 } from '../lib/mentor'
 import { GALLUP_DOMAINS, GALLUP_THEMES, findGallup } from '../lib/gallup'
 import { addDays, fmtDate, today } from '../lib/time'
+import { stateLabel } from '../lib/stars'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import LocationPicker from '../components/LocationPicker'
@@ -962,6 +963,7 @@ function StudentDossierView({
           ==================================================================== */}
       {tab === 'resources' && (
         <div className="grid gap-4">
+          {student.class_id && <StudentMedia classId={student.class_id} studentId={student.id} />}
           <Card className="grid gap-3">
             <p className="font-bold text-base">{tx('Оқушыға ұсынылған ресурстар')}</p>
             <p className="text-sm text-muted">
@@ -3030,5 +3032,44 @@ function FinishSheet({ m, onClose, onDone }: { m: MentorMeeting; onClose: () => 
         <Button loading={busy} onClick={save}>{tx('Кездесуді аяқтау')}</Button>
       </div>
     </Sheet>
+  )
+}
+
+/** Медиатека: the student's books and films from «Сынып ресурстары», by state (want / doing / done). */
+function StudentMedia({ classId, studentId }: { classId: string; studentId: string }) {
+  const data = useLoad(() => listClassResources(classId), [classId])
+  const [kind, setKind] = useState<Media['kind']>('book')
+  if (data.loading && !data.data) return <Skeleton />
+  if (data.error) return <ErrorBox text={data.error} retry={data.reload} />
+  const mine = (data.data?.media ?? []).filter((m) => m.kind === kind).flatMap((m) => {
+    const p = m.progress.find((x) => x.user_id === studentId)
+    return p ? [{ m, p }] : []
+  })
+  const book = kind === 'book'
+  return (
+    <Card className="grid gap-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="font-bold text-base">{tx('Медиатека')}</p>
+        <a href={`#/resources/${classId}`} className="text-xs font-semibold text-accent hover:underline">{tx('Сынып ресурстары →')}</a>
+      </div>
+      <Chips label={tx('Түрі')} value={kind} onChange={setKind} items={[['book', tx('Кітаптар')], ['film', tx('Фильмдер')]]} />
+      <div className="grid sm:grid-cols-3 gap-2">
+        {(['want', 'doing', 'done'] as const).map((st) => {
+          const list = mine.filter((x) => x.p.state === st)
+          return (
+            <div key={st} className="rounded-lg bg-surface-2 p-2 grid gap-1.5 content-start">
+              <p className="text-xs font-bold uppercase text-muted">{stateLabel(st, book)} · {list.length}</p>
+              {list.length ? list.map(({ m, p }) => (
+                <div key={m.id} className="rounded-md bg-surface p-2 text-sm">
+                  <p className="font-semibold leading-tight">{m.title}</p>
+                  {(m.author || p.rating) && <p className="text-xs text-muted">{[m.author, p.rating ? '★'.repeat(p.rating) : ''].filter(Boolean).join(' · ')}</p>}
+                  {p.review && <p className="text-xs mt-1 italic">«{p.review}»</p>}
+                </div>
+              )) : <p className="text-xs text-muted">—</p>}
+            </div>
+          )
+        })}
+      </div>
+    </Card>
   )
 }

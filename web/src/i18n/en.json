@@ -2834,5 +2834,9 @@
   "Ресурстарда «Рецепттер»: азық-түлік тізімі (мөлшері, бағасы), адам санына қарай қайта есептеу, жасалу қадамдары, хэштегтер. Рецептті күнтізбедегі оқиғаға тіркеп, құнын сынып қорының шығынына қосуға болады.": "Resources → «Recipes»: ingredients with amounts and prices, recalculated for any number of people, steps and hashtags. Link a recipe to a calendar event and add its cost to the class fund expenses.",
   "Архив ({0})": "Archive ({0})",
   "Қысқа жазба": "Quick note",
-  "Ата-ана": "Parents"
+  "Ата-ана": "Parents",
+  "Оқимын": "Want to read",
+  "Көріп жатырмын": "Watching",
+  "Сынып ресурстары →": "Class resources →",
+  "Медиатека": "Media library"
 }
