@@ -2845,5 +2845,11 @@
   "{0} бет": "{0} pages",
   "{0} / {1} бет": "{0} / {1} pages",
   "Неше бет оқыдың?": "How many pages have you read?",
-  "Оқып бітірдің!": "You finished it!"
+  "Оқып бітірдің!": "You finished it!",
+  "«{0}» тізімнен алынсын ба?": "Remove «{0}» from the list?",
+  "Кітап таңдау": "Choose a book",
+  "Сынып ресурстарында басқа таңдайтын ештеңе жоқ — «Жаңа» арқылы қосыңыз.": "Nothing else to choose in class resources — add one with «New».",
+  "Тізімнен алу": "Remove from list",
+  "Фильм таңдау": "Choose a film",
+  "Қосу: {0}": "Add: {0}"
 }
