@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.17.0 — 2026-11-08
+
+- Сынып күнтізбесі → «Белсенділік» tab: per-student stats for 7 days / this month / school year / a custom range — event participation, one-on-ones, tasks done/all, habit completion, goals done, parents (home visits / meetings / contacts) — plus summary tiles.
+- Class groups for a period (name, colour, start, optional end, members); filter the stats by group; group dots next to names.
+- Migration 0077_class_activity (`class_groups`, `class_group_members`, RPC `class_activity_stats`, staff only) — applied.
+- From 1.16.x (not merged before): 5 event groups with emoji and colours; event photo remove/replace; month-cell photos split in two; fixed calendar photo URLs.
+
 ## 1.16.0 — 2026-11-07
 
 - Сынып күнтізбесі, event form: types grouped (Бос уақыт, Сыртқа шығу, Тәрбие және ата-ана, Оқу және тәртіп, Ескертпелер) with one colour per group (`lib/eventTypes.ts`); date and times in one row; place behind a checkbox; responsible defaults to the creator; participants collapsed to a summary («Бүкіл сынып»); status only when editing.

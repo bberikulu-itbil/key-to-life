@@ -8,6 +8,7 @@ import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import ClassFund from '../components/ClassFund'
+import ClassActivity from '../components/ClassActivity'
 import ClassEventForm from '../components/ClassEventForm'
 import { FUN_TYPES, TYPE_COLORS, TYPE_LABELS } from '../lib/eventTypes'
 import ClassCalendarView, { type CalItem } from '../components/ClassCalendarView'
@@ -61,7 +62,7 @@ const KIND = {
 } as const
 type Kind = keyof typeof KIND
 type Item = CalItem
-type Tab = 'calendar' | 'fund' | 'parents' | 'mentor' | 'week' | 'month'
+type Tab = 'calendar' | 'activity' | 'fund' | 'parents' | 'mentor' | 'week' | 'month'
 type Add = { what: 'event' | 'hour' | 'photo'; date: string }
 
 const Dot = ({ k, size = 8, color }: { k: Kind; size?: number; color?: string }) => <span className="block shrink-0 rounded-full" style={{ background: color ?? KIND[k][0], width: size, height: size }} />
@@ -200,7 +201,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
   }, [hash])
   const [tab, setTab] = useState<Tab>(() => {
     const t = queryParams.get('tab')
-    return t === 'mentor' || t === 'fund' || t === 'parents' ? (t as Tab) : 'calendar'
+    return t === 'mentor' || t === 'activity' || t === 'fund' || t === 'parents' ? (t as Tab) : 'calendar'
   })
   const [audFilter, setAudFilter] = useState<string>('all')
   const [day, setDay] = useState(today())
@@ -335,6 +336,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
           onChange={setTab}
           items={[
             ['calendar', tx('Күнтізбе')],
+            ['activity', tx('Белсенділік')],
             ['fund', tx('Сынып қоры')],
             ['parents', tx('Ата-ана (қонақ, белсенділік)')],
             ['mentor', tx('Жеке кездесу')],
@@ -357,6 +359,8 @@ function StaffCalendar({ classId }: { classId?: string }) {
               classTitle={isSchool ? tx('Мектеп күнтізбесі') : `${cls?.name} ${tx('сыныбы')}`}
               typeLabels={TYPE_LABELS}
             />
+          ) : tab === 'activity' && cls ? (
+            <ClassActivity classId={cls.id} students={d.students} />
           ) : tab === 'fund' && cls ? (
             <ClassFund classId={cls.id} rows={d.fund} events={d.events} staff reload={data.reload} />
           ) : tab === 'parents' && cls ? (

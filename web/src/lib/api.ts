@@ -1181,6 +1181,16 @@ export const listJournal = async (classId: string) => {
 }
 /** Birthdays of the given students, for calendar reminders (only the date column is read). */
 export const classBirthdays = async (ids: string[]) => ids.length ? (await ok(supabase.from('student_profile_details').select('student_id, birthday').in('student_id', ids).not('birthday', 'is', null))) as { student_id: string; birthday: string }[] : []
+export type ClassGroup = { id: string; class_id: string; name: string; color: string | null; starts_on: string; ends_on: string | null; members: { student_id: string }[] }
+export type ActivityStat = { student_id: string; events: number; mentor: number; tasks_total: number; tasks_done: number; habit_expected: number; habit_checks: number; goals_done: number; parent_visits: number; parent_meetings: number; parent_other: number }
+export const listClassGroups = (classId: string) => ok<ClassGroup[]>(supabase.from('class_groups').select('*, members:class_group_members(student_id)').eq('class_id', classId).order('starts_on', { ascending: false }))
+export async function saveClassGroup(g: { id?: string; class_id: string; name: string; color: string | null; starts_on: string; ends_on: string | null }, members: string[]) {
+  const row = await ok<{ id: string }>(g.id ? supabase.from('class_groups').update(g).eq('id', g.id).select('id').single() : supabase.from('class_groups').insert(g).select('id').single())
+  await ok(supabase.from('class_group_members').delete().eq('group_id', row.id))
+  if (members.length) await ok(supabase.from('class_group_members').insert(members.map((student_id) => ({ group_id: row.id, student_id }))))
+}
+export const removeClassGroup = (id: string) => ok(supabase.from('class_groups').delete().eq('id', id))
+export const classActivityStats = (classId: string, from: string, to: string) => ok<ActivityStat[]>(supabase.rpc('class_activity_stats', { p_class: classId, p_from: from, p_to: to }))
 export const addClassHour = (row: Omit<ClassHour, 'id'> & { class_id: string }) => ok(supabase.from('class_hours').insert(row))
 export const removeClassHour = (id: string) => ok(supabase.from('class_hours').delete().eq('id', id))
 export const addClassEvent = async (row: ClassEventDraft) => {
