@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   addMentorMeeting, classMentorMeetings, classStudentForms, classStudentProfileDetails, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
   mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting,
@@ -58,6 +58,7 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
   }, [cls?.id])
 
   const [selectedId, setSelectedId] = useState<string | null>(initialStudentId ?? null)
+  const autoPicked = useRef(false)
   const [search, setSearch] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [tab, setTab] = useState<DossierTab>('info')
@@ -67,12 +68,11 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
     if (data.data?.formsMap) {
       setFormsState(data.data.formsMap)
     }
-    if (data.data?.students.length && !selectedId) {
-      if (initialStudentId && data.data.students.some((s) => s.id === initialStudentId)) {
-        setSelectedId(initialStudentId)
-      } else {
-        setSelectedId(data.data.students[0].id)
-      }
+    // Phones show the class list first (and «Тізім» must stay on it); only the desktop auto-opens the first student.
+    if (data.data?.students.length && !selectedId && !autoPicked.current) {
+      autoPicked.current = true
+      if (initialStudentId && data.data.students.some((s) => s.id === initialStudentId)) setSelectedId(initialStudentId)
+      else if (window.matchMedia('(min-width: 1024px)').matches) setSelectedId(data.data.students[0].id)
     }
   }, [data.data, initialStudentId, selectedId])
 
