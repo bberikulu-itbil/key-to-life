@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.17.1 — 2026-11-08
+
+- Student dossier: the header and the student list show only current sections/olympiads (no end date, or it has not passed); the trajectory keeps the full history.
+- Даму жоспары: done goals and tasks leave the working lists and go to a separate «Архив» tab, together with archived habits.
+
 ## 1.17.0 — 2026-11-08
 
 - Сынып күнтізбесі → «Белсенділік» tab: per-student stats for 7 days / this month / school year / a custom range — event participation, one-on-ones, tasks done/all, habit completion, goals done, parents (home visits / meetings / contacts) — plus summary tiles.
