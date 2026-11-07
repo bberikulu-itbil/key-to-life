@@ -6,13 +6,8 @@ import {
 import { Button, Field, inputCls, toast } from './ui'
 import LocationPicker from './LocationPicker'
 import { tx } from '../lib/i18n'
+import { TYPE_COLORS, TYPE_GROUPS } from '../lib/eventTypes'
 
-type TypeDef = [EventTypeCode, string, string]
-const TYPES: TypeDef[] = [
-  ['sport', tx('Спорт'), '#2563eb'], ['food', tx('Тамақ'), '#f59e0b'], ['game', tx('Ойын'), '#8b5cf6'], ['film', tx('Фильм'), '#7c3aed'], ['cleaning', tx('Тазалық'), '#0d9488'],
-  ['walk', tx('Серуен'), '#16a34a'], ['outing', tx('Қыдыру'), '#16a34a'], ['trip', tx('Саяхат'), '#0891b2'], ['hour_lead', tx('Жетекші тәрбие сағаты'), '#16a34a'], ['hour_parent', tx('Ата-ана тәрбие сағаты'), '#9333ea'],
-  ['meeting', tx('Жиналыс'), '#64748b'], ['parent_activity', tx('Ата-ана белсенділігі'), '#ec4899'], ['visit', tx('Қонаққа бару'), '#ec4899'], ['mentor', tx('Жеке кездесу'), '#2563eb'], ['exam', tx('Емтихан'), '#dc2626'], ['birthday', tx('Туған күн'), '#db2777'], ['competition', tx('Жарыс'), '#dc2626'], ['other', tx('Басқа'), '#6b7280'],
-]
 const legacy = (codes: EventTypeCode[]): ClassEvent['kind'] => codes.some((x) => ['mentor', 'meeting'].includes(x)) ? 'school' : codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x)) ? 'parents' : codes.some((x) => ['film', 'sport', 'food', 'game', 'cleaning', 'walk', 'outing', 'trip'].includes(x)) ? 'fun' : 'school'
 const listText = (v: string) => v.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean)
 type ExpenseRow = { key: string; wallet: string; walletName: string; amount: string; note: string }
@@ -28,11 +23,14 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
   const [start, setStart] = useState(existing?.at_time?.slice(0, 5) ?? '')
   const [end, setEnd] = useState(existing?.end_time?.slice(0, 5) ?? '')
   const [place, setPlace] = useState(existing?.place ?? '')
-  const [responsible, setResponsible] = useState(existing?.responsible_id ?? '')
+  const [responsible, setResponsible] = useState(existing ? existing.responsible_id ?? '' : meId)
+  const [hasPlace, setHasPlace] = useState(!!existing?.place)
+  const [notify, setNotify] = useState(existing?.notify ?? false)
   const [note, setNote] = useState(existing?.note ?? '')
   const [visible, setVisible] = useState(existing?.visible ?? false)
   const [audience, setAudience] = useState<CalAudience>(existing?.audience ?? (existing?.visible ? 'students' : 'all'))
   const [status, setStatus] = useState<ClassEventStatus>(existing?.status ?? 'planned')
+  const [showPeople, setShowPeople] = useState(!!existing?.participants?.length || !!defaultStudentId || initialTypes.some((x) => x === 'mentor' || x === 'visit'))
   const [participantType, setParticipantType] = useState<'student' | 'group' | 'room'>('student')
   const [selected, setSelected] = useState<string[]>(
     existing?.participants?.filter((p) => p.kind === 'student').map((p) => p.student_id!).filter(Boolean) ?? (defaultStudentId ? [defaultStudentId] : [])
@@ -59,7 +57,7 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
     setBusy(true)
     try {
       const isSchool = classId === 'school'
-      const row = { class_id: isSchool ? null : classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible: audience === 'students' || audience === 'all' || visible, audience, note: note.trim() || null, place: place.trim() || null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
+      const row = { class_id: isSchool ? null : classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible: audience === 'students' || audience === 'all' || visible, audience, note: note.trim() || null, place: hasPlace ? place.trim() || null : null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, notify: !isSchool && notify, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
       const id = existing ? existing.id : (await addClassEvent(row)).id
       if (existing) {
         const changes = Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'class_id')) as Partial<Parameters<typeof updateClassEvent>[1]>
@@ -90,6 +88,7 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
     ...types.includes('mentor') ? meetings.map((m) => [`mentor:${m.id}`, `${tx('Жеке кездесу')}: ${m.topic}`] as [string, string]) : [],
     ...types.some((x) => ['hour_lead', 'hour_parent'].includes(x)) ? hours.map((h) => [`hour:${h.id}`, `${tx('Тәрбие сағаты')}: ${h.topic}`] as [string, string]) : [],
   ]
+  const peopleSummary = [selected.length ? tx('{0} оқушы', selected.length) : '', listText(groups).length ? tx('{0} топ', listText(groups).length) : '', listText(rooms).length ? tx('{0} бөлме', listText(rooms).length) : ''].filter(Boolean).join(', ') || tx('Бүкіл сынып')
   return <div className="grid gap-3">
     <Field label={tx('Атауы')}>{(id) => (
       <div className="grid gap-1.5">
@@ -105,17 +104,30 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
         )}
       </div>
     )}</Field>
-    <Field label={tx('Іс-шара типтері')} hint={tx('Бірнеше тип таңдауға болады')}>{() => <div className="flex flex-wrap gap-1.5">{TYPES.map(([code, label, color]) => <button key={code} type="button" aria-pressed={types.includes(code)} onClick={() => toggle(code)} className={`min-h-9 px-3 rounded-full text-sm border ${types.includes(code) ? 'text-white border-transparent' : 'bg-surface border-line'}`} style={types.includes(code) ? { backgroundColor: color } : undefined}>{label}</button>)}</div>}</Field>
-    <input aria-label={tx('Күні')} type="date" value={onDate} onChange={(e) => setOnDate(e.target.value)} className={`${inputCls} min-w-0`} />
-    <div className="grid grid-cols-2 gap-2"><Field label={tx('Басталуы')}>{(id) => <input id={id} type="time" value={start} onChange={(e) => setStart(e.target.value)} className={`${inputCls} min-w-0`} />}</Field><Field label={tx('Аяқталуы')}>{(id) => <input id={id} type="time" value={end} onChange={(e) => setEnd(e.target.value)} className={`${inputCls} min-w-0`} />}</Field></div>
-    <Field label={tx('Өтетін орны')} hint={tx('Жатақхана орындары немесе мектеп кабинеттері')}>
-      {(id) => <LocationPicker id={id} value={place} onChange={setPlace} places={places} />}
-    </Field>
-    <Field label={tx('Жауапты кісі')}>{() => <select aria-label={tx('Жауапты кісі')} value={responsible} onChange={(e) => setResponsible(e.target.value)} className={inputCls}><option value="">{tx('Таңдалмаған')}</option>{staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}{s.title ? ` · ${s.title}` : ''}</option>)}</select>}</Field>
-    <Field label={tx('Қатысушылар')} hint={tx('Оқушы, топ немесе бөлме бойынша таңдауға болады')}>{() => <><div className="flex flex-wrap gap-1.5"><button type="button" onClick={() => setParticipantType('student')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'student' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Оқушылар')}</button><button type="button" onClick={() => setParticipantType('group')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'group' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Топ')}</button><button type="button" onClick={() => setParticipantType('room')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'room' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Бөлме')}</button></div>{participantType === 'student' ? <div className="flex flex-wrap gap-1.5 mt-2">{students.map((s) => { const on = selected.includes(s.id); return <button key={s.id} type="button" aria-pressed={on} onClick={() => setSelected(on ? selected.filter((x) => x !== s.id) : [...selected, s.id])} className={`h-8 px-3 rounded-full text-xs ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{s.full_name.split(' ').slice(0, 2).join(' ')}</button> })}</div> : <input value={participantType === 'group' ? groups : rooms} onChange={(e) => participantType === 'group' ? setGroups(e.target.value) : setRooms(e.target.value)} className={`${inputCls} mt-2`} placeholder={participantType === 'group' ? tx('Мысалы: Топ 1, Топ 2') : tx('Мысалы: 209-бөлме')} />}</>}</Field>
+    <div className="grid gap-2">
+      <span className="text-sm font-semibold">{tx('Іс-шара типі')}</span>
+      {TYPE_GROUPS.map((g) => <div key={g.label} className="flex flex-wrap items-center gap-1.5">
+        <span className="w-full text-[11px] uppercase tracking-wide text-muted">{g.label}</span>
+        {g.codes.map(([code, label]) => { const on = types.includes(code); return <button key={code} type="button" aria-pressed={on} onClick={() => toggle(code)} className={`h-8 px-3 rounded-full text-xs font-medium border transition ${on ? '' : 'bg-surface-2 border-transparent text-ink hover:bg-surface'}`} style={on ? { backgroundColor: `${TYPE_COLORS[code]}1f`, borderColor: TYPE_COLORS[code], color: TYPE_COLORS[code] } : undefined}>{label}</button> })}
+      </div>)}
+    </div>
+    <div className="grid grid-cols-2 sm:grid-cols-[1.5fr_1fr_1fr] gap-2">
+      <div className="col-span-2 sm:col-span-1"><Field label={tx('Күні')}>{(id) => <input id={id} type="date" value={onDate} onChange={(e) => setOnDate(e.target.value)} className={`${inputCls} min-w-0 px-2`} />}</Field></div>
+      <Field label={tx('Басталуы')}>{(id) => <input id={id} type="time" value={start} onChange={(e) => setStart(e.target.value)} className={`${inputCls} min-w-0 px-2`} />}</Field>
+      <Field label={tx('Аяқталуы')}>{(id) => <input id={id} type="time" value={end} onChange={(e) => setEnd(e.target.value)} className={`${inputCls} min-w-0 px-2`} />}</Field>
+    </div>
+    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={hasPlace} onChange={(e) => setHasPlace(e.target.checked)} className="size-4 accent-[var(--accent)]" />{tx('Өтетін орынды көрсету')}</label>
+    {hasPlace && <LocationPicker id="ev-place" value={place} onChange={setPlace} places={places} />}
+    <Field label={tx('Жауапты кісі')}>{() => <select aria-label={tx('Жауапты кісі')} value={responsible} onChange={(e) => setResponsible(e.target.value)} className={inputCls}><option value="">{tx('Таңдалмаған')}</option>{staff.map((s) => <option key={s.id} value={s.id}>{s.id === meId ? `${s.full_name} (${tx('мен')})` : s.full_name}{s.title ? ` · ${s.title}` : ''}</option>)}</select>}</Field>
+    <div className="rounded-md border border-line">
+      <button type="button" aria-expanded={showPeople} onClick={() => setShowPeople(!showPeople)} className="w-full h-11 px-3 flex items-center gap-2 text-sm text-left">
+        <span className="font-semibold">{tx('Қатысушылар')}</span><span className="flex-1 truncate text-muted">{peopleSummary}</span><span className="text-muted">{showPeople ? '▴' : '▾'}</span>
+      </button>
+      {showPeople && <div className="px-3 pb-3"><><div className="flex flex-wrap gap-1.5"><button type="button" onClick={() => setParticipantType('student')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'student' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Оқушылар')}</button><button type="button" onClick={() => setParticipantType('group')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'group' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Топ')}</button><button type="button" onClick={() => setParticipantType('room')} className={`h-9 px-3 rounded-full text-sm ${participantType === 'room' ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{tx('Бөлме')}</button></div>{participantType === 'student' ? <div className="flex flex-wrap gap-1.5 mt-2">{students.map((s) => { const on = selected.includes(s.id); return <button key={s.id} type="button" aria-pressed={on} onClick={() => setSelected(on ? selected.filter((x) => x !== s.id) : [...selected, s.id])} className={`h-8 px-3 rounded-full text-xs ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{s.full_name.split(' ').slice(0, 2).join(' ')}</button> })}</div> : <input value={participantType === 'group' ? groups : rooms} onChange={(e) => participantType === 'group' ? setGroups(e.target.value) : setRooms(e.target.value)} className={`${inputCls} mt-2`} placeholder={participantType === 'group' ? tx('Мысалы: Топ 1, Топ 2') : tx('Мысалы: 209-бөлме')} />}</></div>}
+    </div>
     {linkOptions.length > 0 && <Field label={tx('Ресурспен байланыстыру')}>{() => <select value={link} onChange={(e) => setLink(e.target.value)} className={inputCls}><option value="">{tx('Байланыстырмау')}</option>{linkOptions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>}</Field>}
     <Field label={tx('Ескертпе')} hint={tx('Міндетті емес')}>{(id) => <textarea id={id} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} className={`${inputCls} h-20 py-2`} />}</Field>
-    <Field label={tx('Статус')}>{() => <select value={status} onChange={(e) => setStatus(e.target.value as ClassEventStatus)} className={inputCls}><option value="planned">{tx('Жоспарланған')}</option><option value="passed">{tx('Өтті')}</option><option value="postponed">{tx('Кейінге қалдырылды')}</option><option value="archived">{tx('Мұрағаттау')}</option></select>}</Field>
+    {existing && <Field label={tx('Статус')}>{() => <select value={status} onChange={(e) => setStatus(e.target.value as ClassEventStatus)} className={inputCls}><option value="planned">{tx('Жоспарланған')}</option><option value="passed">{tx('Өтті')}</option><option value="postponed">{tx('Кейінге қалдырылды')}</option><option value="archived">{tx('Мұрағаттау')}</option></select>}</Field>}
     <Field label={tx('Көрінетін аудитория')} hint={tx('Оқиға кімдерге көрінетінін таңдаңыз')}>
       {() => (
         <select
@@ -135,6 +147,12 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
         </select>
       )}
     </Field>
+    {classId !== 'school' && (
+      <label className="flex items-center gap-3 rounded-md bg-surface-2 px-3 h-12 text-sm cursor-pointer">
+        <span className="flex-1">🔔 {tx('Оқушыларға хабарлама жіберу')}</span>
+        <input type="checkbox" role="switch" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="size-5 accent-[var(--accent)]" />
+      </label>
+    )}
     {classId !== 'school' && (
       <div className="grid gap-2 rounded-md bg-surface-2 p-3">
         <label className="flex items-center gap-2 text-sm font-semibold">

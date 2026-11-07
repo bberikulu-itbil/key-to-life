@@ -108,9 +108,9 @@ function ClassPage({ classId, tabs }: { classId?: string; tabs: ReactNode }) {
       <Card className="p-0 overflow-hidden">
         <ul className="divide-y divide-line">{([
           [`#/dorm?class=${cls.id}`, 'home', tx('Жатақхана'), tx('Бөлмелер, түнгі тексеру, тазалық'), true],
-          [`#/resources/${cls.id}`, 'book', tx('Сынып ресурстары'), tx('Кітаптар, фильмдер, шаралар, сынып қоры'), mineOrDeputy],
+          [`#/resources/${cls.id}`, 'book', tx('Сынып ресурстары'), tx('Кітаптар, фильмдер, шаралар, тәрбие сағаттары'), mineOrDeputy],
           [`#/hub/${cls.id}`, 'book', tx('Сынып жобалары'), tx('Кітап, фильм, рецепт және сынып жоспары'), mineOrDeputy],
-          [`#/journal/${cls.id}`, 'file', tx('Сынып күнтізбесі'), tx('Тәрбие сағаттары, оқиғалар, фото'), mineOrDeputy],
+          [`#/journal/${cls.id}`, 'calendar', tx('Сынып күнтізбесі'), tx('Оқиғалар, сынып қоры, фото'), mineOrDeputy],
           ['#/leaves', 'clock', tx('Рұқсаттар'), pending.length ? tx('{0} сұрау шешім күтуде', pending.length) : tx('Сұраулар, кім сыртта, қатысу'), true],
           [`#/mentor?class=${cls.id}`, 'file', tx('Анкета'), tx('Оқушы анкетасы, мақсат-жоспарлары, тесттер'), mineOrDeputy],
           [`#/council/${cls.id}`, 'lock', tx('Сынып кеңесі'), tx('Жазбалар, жиналыс, тапсырмалар, ата-аналар'), mineOrDeputy],
