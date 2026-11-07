@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   addMentorMeeting, classMentorMeetings, classStudentForms, classStudentProfileDetails, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
   mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting,
-  listStudentTrajectory, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
+  isCurrentTrajectory, listStudentTrajectory, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
@@ -207,7 +207,7 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
                 filtered.map(({ s, st }) => {
                   const isSelected = s.id === selectedId
                   const details = data.data?.detailsMap[s.id]
-                  const trajectoryDisplay = s.trajectory.map((item) => item.title).filter(Boolean).join(' · ')
+                  const trajectoryDisplay = s.trajectory.filter(isCurrentTrajectory).map((item) => item.title).filter(Boolean).join(' · ')
                   const bdayDisplay = details?.birthday
                     ? fmtBirthday(details.birthday)
                     : details?.iin
@@ -1321,17 +1321,17 @@ function RoadmapSection({
   onUpdate: (r: StudentRoadmap) => void
   onOpenAdd?: (kind?: 'goal' | 'habit' | 'task') => void
 }) {
-  const [tab, setTab] = useState<'today' | 'all' | 'goals' | 'habits' | 'tasks'>('today')
+  const [tab, setTab] = useState<'today' | 'all' | 'goals' | 'habits' | 'tasks' | 'archive'>('today')
   const [catFilter, setCatFilter] = useState<string>('all')
   const [newStepInputs, setNewStepInputs] = useState<Record<string, string>>({})
   const [editingGoal, setEditingGoal] = useState<RoadmapGoal | null>(null)
   const [editingHabit, setEditingHabit] = useState<RoadmapHabit | null>(null)
-  const [showArchivedHabits, setShowArchivedHabits] = useState(false)
   const t = today()
 
   const goals = roadmap.goals ?? []
   const allHabits = roadmap.habits ?? []
-  const habits = allHabits.filter((h) => showArchivedHabits ? h.archived : !h.archived)
+  const archive = tab === 'archive'
+  const habits = allHabits.filter((h) => archive ? h.archived : !h.archived)
   const tasks = roadmap.tasks ?? []
 
   const update = (fn: (prev: StudentRoadmap) => StudentRoadmap, lane?: 'goals' | 'habits' | 'tasks') => {
@@ -1425,14 +1425,15 @@ function RoadmapSection({
 
   const filterCat = (itemCat: string) => catFilter === 'all' || itemCat === catFilter
 
-  const filteredGoals = goals.filter((g) => filterCat(g.category) && (tab !== 'today' || !g.done))
+  // Done goals and tasks leave the working lists and live in «Архив», together with archived habits.
+  const filteredGoals = goals.filter((g) => filterCat(g.category) && (archive ? g.done : !g.done))
   const filteredHabits = habits.filter((h) => filterCat(h.category) && (tab !== 'today' || habitDueOn(h, t)))
-  const filteredTasks = tasks.filter((tk) => filterCat(tk.category) && (tab !== 'today' || (!tk.done && (!tk.due_on || tk.due_on <= t))))
+  const filteredTasks = tasks.filter((tk) => filterCat(tk.category) && (archive ? tk.done : !tk.done && (tab !== 'today' || !tk.due_on || tk.due_on <= t)))
 
   const totalVisible =
-    (tab === 'today' || tab === 'all' || tab === 'goals' ? filteredGoals.length : 0) +
-    (tab === 'today' || tab === 'all' || tab === 'habits' ? filteredHabits.length : 0) +
-    (tab === 'today' || tab === 'all' || tab === 'tasks' ? filteredTasks.length : 0)
+    (tab === 'today' || tab === 'all' || tab === 'goals' || archive ? filteredGoals.length : 0) +
+    (tab === 'today' || tab === 'all' || tab === 'habits' || archive ? filteredHabits.length : 0) +
+    (tab === 'today' || tab === 'all' || tab === 'tasks' || archive ? filteredTasks.length : 0)
 
   // Last 7 days for habit tracker
   const last7Days = Array.from({ length: 7 }, (_, i) => addDays(t, i - 6))
@@ -1510,7 +1511,7 @@ function RoadmapSection({
           onClick={() => setTab('goals')}
           className={`px-3 py-1.5 rounded-full font-semibold transition ${tab === 'goals' ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}
         >
-          <Icon n="target" size={14} /> {tx('Мақсаттар ({0})', goals.length)}
+          <Icon n="target" size={14} /> {tx('Мақсаттар ({0})', goals.filter((g) => !g.done).length)}
         </button>
         <button
           type="button"
@@ -1524,7 +1525,14 @@ function RoadmapSection({
           onClick={() => setTab('tasks')}
           className={`px-3 py-1.5 rounded-full font-semibold transition ${tab === 'tasks' ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}
         >
-          <Icon n="check" size={14} /> {tx('Тапсырмалар ({0})', tasks.length)}
+          <Icon n="check" size={14} /> {tx('Тапсырмалар ({0})', tasks.filter((tk) => !tk.done).length)}
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('archive')}
+          className={`px-3 py-1.5 rounded-full font-semibold transition ${archive ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'}`}
+        >
+          <Icon n="inbox" size={14} /> {tx('Архив ({0})', goals.filter((g) => g.done).length + tasks.filter((tk) => tk.done).length + allHabits.filter((h) => h.archived).length)}
         </button>
       </div>
 
@@ -1532,13 +1540,6 @@ function RoadmapSection({
         <p className="text-[11px] text-muted">
           {tx('Әдетті аз-аздан, бірақ тұрақты орындау маңызды. Бүгінгі бет тек керек қадамдарды көрсетеді.')}
         </p>
-        <button
-          type="button"
-          onClick={() => setShowArchivedHabits((v) => !v)}
-          className="shrink-0 text-[11px] text-accent font-semibold hover:underline"
-        >
-          {showArchivedHabits ? tx('Белсенді әдеттер') : tx('Архив ({0})', allHabits.filter((h) => h.archived).length)}
-        </button>
       </div>
 
       {/* Санаттар чиптері */}
@@ -1580,7 +1581,7 @@ function RoadmapSection({
       ) : null}
 
       {/* 1. Мақсаттар (Goals) */}
-      {(tab === 'today' || tab === 'all' || tab === 'goals') && filteredGoals.length > 0 && (
+      {(tab === 'today' || tab === 'all' || tab === 'goals' || archive) && filteredGoals.length > 0 && (
         <div className="grid gap-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5"><Icon n="target" size={13} />{tx('Мақсаттар мен қадамдар')}</p>
           {filteredGoals.map((g) => {
@@ -1729,7 +1730,7 @@ function RoadmapSection({
       )}
 
       {/* 2. Әдеттер (Habits) */}
-      {(tab === 'today' || tab === 'all' || tab === 'habits') && filteredHabits.length > 0 && (
+      {(tab === 'today' || tab === 'all' || tab === 'habits' || archive) && filteredHabits.length > 0 && (
         <div className="grid gap-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5"><Icon n="repeat" size={13} />{tx('Күнделікті әдеттер трекері')}</p>
           {filteredHabits.map((h) => {
@@ -1843,7 +1844,7 @@ function RoadmapSection({
       )}
 
       {/* 3. Тапсырмалар (Tasks) */}
-      {(tab === 'today' || tab === 'all' || tab === 'tasks') && filteredTasks.length > 0 && (
+      {(tab === 'today' || tab === 'all' || tab === 'tasks' || archive) && filteredTasks.length > 0 && (
         <div className="grid gap-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5"><Icon n="check" size={13} />{tx('Нақты тапсырмалар')}</p>
           {filteredTasks.map((tk) => {

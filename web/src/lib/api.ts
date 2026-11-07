@@ -475,7 +475,9 @@ export const classStudentTrajectories = async (studentIds: string[]): Promise<St
   }
 }
 
-const trajectoryTitles = (rows: StudentTrajectorySummary[], kind: StudentTrajectoryKind) => [...new Set(rows.filter((row) => row.kind === kind).map((row) => row.title.trim()).filter(Boolean))].join(' · ') || null
+export const isCurrentTrajectory = (r: { ended_on?: string | null }) => !r.ended_on || r.ended_on >= iso(new Date())
+// Headers and lists show only what the student still attends (no end date, or it is not past yet); the dossier keeps the full history.
+const trajectoryTitles = (rows: Pick<StudentTrajectorySummary, 'kind' | 'title' | 'ended_on'>[], kind: StudentTrajectoryKind) => [...new Set(rows.filter((row) => row.kind === kind && isCurrentTrajectory(row)).map((row) => row.title.trim()).filter(Boolean))].join(' · ') || null
 
 export const classStudents = async (classId: string): Promise<Student[]> => {
   const profiles = await ok(supabase.from('profiles').select('id, full_name, parliament, photo').eq('class_id', classId).eq('role', 'student').is('removed_at', null).order('full_name')) as Omit<Student, 'olympiad' | 'club' | 'trajectory'>[]
