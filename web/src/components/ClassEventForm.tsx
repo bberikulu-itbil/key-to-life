@@ -7,7 +7,7 @@ import { Button, Field, inputCls, toast } from './ui'
 import LocationPicker from './LocationPicker'
 import { tx } from '../lib/i18n'
 import { money } from '../lib/money'
-import { FUN_TYPES, TYPE_GROUPS } from '../lib/eventTypes'
+import { FUN_TYPES, TYPE_GROUPS, TYPE_LABELS } from '../lib/eventTypes'
 
 const legacy = (codes: EventTypeCode[]): ClassEvent['kind'] => codes.some((x) => ['mentor', 'meeting'].includes(x)) ? 'school' : codes.some((x) => ['visit', 'parent_activity', 'hour_parent'].includes(x)) ? 'parents' : codes.some((x) => FUN_TYPES.includes(x)) ? 'fun' : 'school'
 const listText = (v: string) => v.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean)
@@ -49,8 +49,11 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
   const [busy, setBusy] = useState(false)
   const toggle = (code: EventTypeCode) => setTypes(types.includes(code) ? types.filter((x) => x !== code) : [...types, code])
   const updateExpenseRow = (key: string, patch: Partial<ExpenseRow>) => setExpenseRows((rows) => rows.map((row) => row.key === key ? { ...row, ...patch } : row))
+  // Empty title → «<type>: <students>», e.g. «Қонаққа бару: Ахан Берік».
+  const autoTitle = types.length ? `${TYPE_LABELS[types[0]]}${selected.length ? `: ${selected.map((id) => students.find((s) => s.id === id)?.full_name.split(' ').slice(0, 2).join(' ')).filter(Boolean).join(', ')}` : ''}`.slice(0, 200) : ''
+  const finalTitle = title.trim() || autoTitle
   const save = async () => {
-    if (title.trim().length < 2 || !types.length) return toast(tx('Атауы мен кемінде бір типті таңдаңыз'))
+    if (finalTitle.length < 2 || !types.length) return toast(tx('Атауы мен кемінде бір типті таңдаңыз'))
     const invalidExpense = expense && (!expenseRows.length || expenseRows.some((row) => {
       const parsed = Number(row.amount.trim().replace(',', '.'))
       return ((!row.wallet && !row.walletName.trim()) || !Number.isFinite(parsed) || parsed <= 0)
@@ -61,7 +64,7 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
     setBusy(true)
     try {
       const isSchool = classId === 'school'
-      const row = { class_id: isSchool ? null : classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: title.trim(), visible: audience === 'students' || audience === 'all' || visible, audience, note: note.trim() || null, place: hasPlace ? place.trim() || null : null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, notify: !isSchool && notify, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
+      const row = { class_id: isSchool ? null : classId, on_date: onDate, at_time: start || null, end_time: end || null, kind: legacy(types), type_codes: types, title: finalTitle, visible: audience === 'students' || audience === 'all' || visible, audience, note: note.trim() || null, place: hasPlace ? place.trim() || null : null, responsible_id: responsible || null, linked_kind: link ? link.split(':')[0] : null, linked_id: link ? link.slice(link.indexOf(':') + 1) : null, notify: !isSchool && notify, status, archived_at: status === 'archived' ? new Date().toISOString() : null }
       const id = existing ? existing.id : (await addClassEvent(row)).id
       if (existing) {
         const changes = Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'class_id')) as Partial<Parameters<typeof updateClassEvent>[1]>
@@ -83,10 +86,10 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
         }
         await setClassEventExpenses(id, expense ? resolvedExpenses : [])
         for (const p of photos) {
-          if (replaced[p.id]) await addClassPhoto(classId, onDate, meId, replaced[p.id], p.caption ?? title.trim(), id)
+          if (replaced[p.id]) await addClassPhoto(classId, onDate, meId, replaced[p.id], p.caption ?? finalTitle, id)
           if (replaced[p.id] || removed.includes(p.id)) await removeClassPhoto(p.id)
         }
-        for (const f of files) await addClassPhoto(classId, onDate, meId, f, title.trim(), id)
+        for (const f of files) await addClassPhoto(classId, onDate, meId, f, finalTitle, id)
       }
       toast(existing ? tx('Оқиға өзгертілді') : tx('Оқиға сақталды')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
@@ -106,7 +109,7 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
   return <div className="grid gap-3">
     <Field label={tx('Атауы')}>{(id) => (
       <div className="grid gap-1.5">
-        <input id={id} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className={inputCls} placeholder={types.includes('mentor') ? tx('Жеке кездесу тақырыбы (не төмендегіден таңдаңыз)') : ''} />
+        <input id={id} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className={inputCls} placeholder={types.includes('mentor') ? tx('Жеке кездесу тақырыбы (не төмендегіден таңдаңыз)') : autoTitle} />
         {types.includes('mentor') && (
           <div className="flex flex-wrap gap-1.5">
             {[tx('Үлгерім мен БЖБ'), tx('Бейімделу және көңіл-күй'), tx('Олимпиадаға дайындық'), tx('Мамандық пен болашақ'), tx('Тәртіп пен ереже'), tx('Жеке әңгіме')].map((topic) => (
