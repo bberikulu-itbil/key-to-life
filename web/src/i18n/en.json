@@ -2841,5 +2841,9 @@
   "Медиатека": "Media library",
   "Тәрбие сағатын өзгерту": "Edit class hour",
   "«{0}» тәрбие сағатын өшіру керек пе?": "Delete the class hour «{0}»?",
-  "Іс-шарамен байланыстыру": "Link to an event"
+  "Іс-шарамен байланыстыру": "Link to an event",
+  "{0} бет": "{0} pages",
+  "{0} / {1} бет": "{0} / {1} pages",
+  "Неше бет оқыдың?": "How many pages have you read?",
+  "Оқып бітірдің!": "You finished it!"
 }

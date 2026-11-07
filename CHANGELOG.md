@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.17.9 — 2026-11-08
+
+- Books have a page count (`class_media.pages`, already in the DB): set when proposing a book, editable by staff in the book sheet, shown as «N бет».
+- «Оқып жатырмын»: the student enters how many pages they have read (`media_progress.pages_read`) with a progress bar and %; reaching the last page marks the book «Оқыдым». The cover shows a small progress bar.
+- Student dossier → Медиатека now actually appears: it looked for the class on a list object that has no class_id; it now takes it from the dossier. Shows pages and reading progress.
+
 ## 1.17.8 — 2026-11-08
 
 - Removed «Сынып жобалары» (screen `ClassHub`, its route `#/hub`, the links in Менің сыныбым and Profile, and its API helpers). Books, films and recipes live in Сынып ресурстары. The `class_hub_*` tables and their data stay in the database.

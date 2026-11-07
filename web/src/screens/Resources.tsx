@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   addHabit, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listRecipes, listStaff, logScreening, photoUrl, uploadPhoto,
-  removeMedia, rateMedia, setMediaProgress, type Media, type MediaState, type Student,
+  removeMedia, rateMedia, setMediaPages, setMediaProgress, setPagesRead, type Media, type MediaState, type Student,
 } from '../lib/api'
 import { today } from '../lib/time'
 import { avgStars, seasonAvgs, stateLabel } from '../lib/stars'
@@ -137,6 +137,7 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
             <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="relative grid gap-1 text-left">
               <Cover m={m} />
               {mine && <span title={stateLabel(mine, book)} className={`absolute top-1.5 right-1.5 size-6 rounded-full grid place-items-center text-white ${mine === 'done' ? 'bg-success' : mine === 'want' ? 'bg-warning' : 'bg-accent'}`}><Icon n={mine === 'done' ? 'check' : mine === 'want' ? 'heart' : 'clock'} size={14} /></span>}
+              {mine === 'doing' && kind === 'book' && m.pages ? <span className="h-1.5 rounded-full bg-surface-2 overflow-hidden"><span className="block h-full bg-accent" style={{ width: `${Math.min(100, (100 * (m.progress.find((p) => p.user_id === me.id)?.pages_read ?? 0)) / m.pages)}%` }} /></span> : null}
               <span className="text-sm font-semibold leading-tight line-clamp-2">{m.title}</span>
               <span className="text-xs text-muted truncate">{[formatName(kind, m.format), m.author ?? genreName(kind, m.genre)].filter(Boolean).join(' · ')}</span>
               {avgStars(m.progress.map((p) => p.rating)) && <span className="flex items-center gap-1 text-xs font-semibold"><Stars value={avgStars(m.progress.map((p) => p.rating))!.avg} size={12} label={tx('Баға')} />{avgStars(m.progress.map((p) => p.rating))!.avg}</span>}
@@ -153,14 +154,14 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
 function AddMedia({ kind, classId, staff, onClose, onDone }: { kind: Media['kind']; classId: string; staff: boolean; onClose: () => void; onDone: () => void }) {
   const { me } = useMe()
   const book = kind === 'book'
-  const [f, setF] = useState({ title: '', author: '', note: '', genre: '', format: kind === 'book' ? 'book' : 'movie', seasons: '' })
+  const [f, setF] = useState({ title: '', author: '', note: '', genre: '', format: kind === 'book' ? 'book' : 'movie', seasons: '', pages: '' })
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const save = async () => {
     setBusy(true)
     try {
       const cover = file ? await uploadPhoto(me.id, file) : null
-      await addMedia({ class_id: classId, kind, title: f.title.trim(), author: f.author.trim() || null, note: f.note.trim() || null, genre: f.genre || null, format: f.format, seasons: hasSeasons(f.format) && Number(f.seasons) > 0 ? Math.min(50, Number(f.seasons)) : null, cover, approved: staff, proposed_by: me.id })
+      await addMedia({ class_id: classId, kind, title: f.title.trim(), author: f.author.trim() || null, note: f.note.trim() || null, genre: f.genre || null, format: f.format, seasons: hasSeasons(f.format) && Number(f.seasons) > 0 ? Math.min(50, Number(f.seasons)) : null, pages: kind === 'book' && Number(f.pages) > 0 ? Math.min(10000, Math.round(Number(f.pages))) : null, cover, approved: staff, proposed_by: me.id })
       toast(staff ? tx('Қосылды') : tx('Ұсыныс жіберілді')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
@@ -178,6 +179,7 @@ function AddMedia({ kind, classId, staff, onClose, onDone }: { kind: Media['kind
           </div>
         </div>
         <Chips label={tx('Түрі')} value={f.format} onChange={(format) => setF({ ...f, format })} items={FORMATS[kind]} />
+        {kind === 'book' && <input aria-label={tx('Бет саны')} type="number" inputMode="numeric" min={1} max={10000} value={f.pages} onChange={(e) => setF({ ...f, pages: e.target.value })} className={inputCls} placeholder={tx('Бет саны')} />}
         {hasSeasons(f.format) && <input aria-label={tx('Неше маусым')} type="number" inputMode="numeric" min={1} max={50} value={f.seasons} onChange={(e) => setF({ ...f, seasons: e.target.value })} className={inputCls} placeholder={tx('Неше маусым (сезон)')} />}
         <Chips label={tx('Жанр')} value={f.genre} onChange={(genre) => setF({ ...f, genre })} items={GENRES[kind]} />
         <input aria-label={tx('Неге ұсынасыз?')} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={1000} className={inputCls} placeholder={tx('Неге ұсынасыз? (міндетті емес)')} />
@@ -218,9 +220,10 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
           <Cover m={m} />
           <div className="grid gap-1 content-start text-sm">
             {m.author && <p className="font-semibold">{m.author}</p>}
-            <p className="text-muted">{[formatName(m.kind, m.format), genreName(m.kind, m.genre), m.seasons ? tx('{0} маусым', m.seasons) : ''].filter(Boolean).join(' · ')}</p>
+            <p className="text-muted">{[formatName(m.kind, m.format), genreName(m.kind, m.genre), m.seasons ? tx('{0} маусым', m.seasons) : '', m.pages ? tx('{0} бет', m.pages) : ''].filter(Boolean).join(' · ')}</p>
             {avg && <p className="flex items-center gap-1.5"><Stars value={avg.avg} size={16} label={tx('Орташа баға')} /><b>{avg.avg}</b><span className="text-muted">· {tx('{0} баға', avg.n)}</span></p>}
             {m.note && <p>{m.note}</p>}
+            {book && staff && <label className="flex items-center gap-2 text-xs text-muted">{tx('Бет саны')}<input type="number" inputMode="numeric" min={1} max={10000} defaultValue={m.pages ?? ''} onBlur={(e) => { const n = Math.round(Number(e.target.value)) || null; if (n !== (m.pages ?? null)) run(() => setMediaPages(m.id, n && n > 0 ? Math.min(10000, n) : null)) }} className={`${inputCls} h-8 w-24 px-2 text-sm`} /></label>}
             {!m.approved && <p className="text-warning font-semibold">{tx('Күтуде · ұсынған: {0}', name(m.proposed_by))}</p>}
           </div>
         </div>
@@ -237,6 +240,7 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
                 className={`min-h-11 px-1 rounded-md text-sm font-semibold leading-tight ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{stateLabel(st, book)}</button>
             })}
           </div>
+          {book && mineP?.state === 'doing' && <PagesRead m={m} read={mineP.pages_read ?? 0} busy={busy} save={(n) => run(() => setPagesRead(m.id, n, m.pages && n >= m.pages ? 'done' : 'doing'), m.pages && n >= m.pages ? tx('Оқып бітірдің!') : undefined)} />}
           <div className="grid gap-2 rounded-md bg-surface-2 p-3">
             <div className="flex items-center gap-2"><span className="flex-1 text-sm font-semibold">{tx('Сенің бағаң')}</span><Stars value={mineP?.rating ?? null} onPick={(v) => rate({ rating: v })} size={26} label={tx('Сенің бағаң')} /></div>
             {m.seasons && Array.from({ length: m.seasons }, (_, i) => String(i + 1)).map((k, i) => (
@@ -311,3 +315,19 @@ function Screening({ m, students, onClose, reload }: { m: Media; students: Stude
   )
 }
 
+/** «Неше бет оқыдың?» — a page counter with a progress bar; reaching the last page marks the book read. */
+function PagesRead({ m, read, busy, save }: { m: Media; read: number; busy: boolean; save: (n: number) => void }) {
+  const [n, setN] = useState(String(read || ''))
+  const v = Math.max(0, Math.round(Number(n) || 0))
+  return (
+    <div className="grid gap-2 rounded-md bg-surface-2 p-3">
+      <label htmlFor="pages-read" className="text-sm font-semibold">{tx('Неше бет оқыдың?')}</label>
+      <div className="flex items-center gap-2">
+        <input id="pages-read" type="number" inputMode="numeric" min={0} max={m.pages ?? 10000} value={n} onChange={(e) => setN(e.target.value)} className={`${inputCls} h-9 w-20 px-2 text-center`} />
+        {m.pages ? <span className="flex-1 text-sm text-muted whitespace-nowrap">/ {m.pages} {m.pages ? `· ${Math.round((100 * read) / m.pages)}%` : ''}</span> : <span className="flex-1" />}
+        <Button kind="secondary" loading={busy} disabled={v === read} onClick={() => save(m.pages ? Math.min(v, m.pages) : v)}>{tx('Сақтау')}</Button>
+      </div>
+      {m.pages ? <div className="h-2 rounded-full bg-surface overflow-hidden"><div className="h-full bg-accent" style={{ width: `${Math.min(100, (100 * read) / m.pages)}%` }} /></div> : null}
+    </div>
+  )
+}
