@@ -7,6 +7,8 @@
 - «Оқушыларға хабарлама жіберу» toggle, off by default: `class_events.notify`; the notify trigger and the reminder tick fire only when it is on. Migration 0076 (applied).
 - Personal meetings and birthdays (from student profiles) show as reminders in the month view: dot, emoji, title.
 - Сынып қоры moved from Resources to the calendar («Сынып қоры» tab, `components/ClassFund.tsx`), now listing event expenses (read-only, 📅). Тәрбие сағаттары moved to Resources (staff only).
+- Editing an event shows its photos: remove (with undo) or replace each one; applied on save.
+- Month view photos: fixed the broken image address (wrong host); the cell shows the photo itself, split in two when there are 2+, with «+N» for the rest.
 - Film club screenings are saved as «Фильм» events linked to the film (`log_screening`, migration 0076).
 
 ## 1.15.0 — 2026-11-01

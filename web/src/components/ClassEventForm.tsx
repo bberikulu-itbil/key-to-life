@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  addClassEvent, addClassPhoto, addClassWallet, errText, setClassEventExpenses, setClassEventParticipants, updateClassEvent,
+  addClassEvent, addClassPhoto, addClassWallet, errText, photoUrl, removeClassPhoto, type ClassPhoto, setClassEventExpenses, setClassEventParticipants, updateClassEvent,
   type CalAudience, type ClassEvent, type ClassEventExpense, type ClassEventStatus, type ClassHour, type EventTypeCode, type Media, type MentorMeeting, type Resource, type Staff, type Student, type ClassWallet,
 } from '../lib/api'
 import { Button, Field, inputCls, toast } from './ui'
@@ -13,8 +13,8 @@ const listText = (v: string) => v.split(/[\n,;]+/).map((x) => x.trim()).filter(B
 type ExpenseRow = { key: string; wallet: string; walletName: string; amount: string; note: string }
 const newExpenseRow = (e?: ClassEventExpense): ExpenseRow => ({ key: e?.id ?? `new-${Math.random().toString(36).slice(2)}`, wallet: e?.wallet_id ?? '', walletName: '', amount: e ? String(e.amount) : '', note: e?.note ?? '' })
 
-export default function ClassEventForm({ classId, date, existing, defaultTypes, defaultStudentId, students, staff, places, media, meetings, hours, wallets, meId, onDone }: {
-  classId: string; date: string; existing?: ClassEvent; defaultTypes?: EventTypeCode[]; defaultStudentId?: string; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; meId: string; onDone: () => void
+export default function ClassEventForm({ classId, date, existing, defaultTypes, defaultStudentId, students, staff, places, media, meetings, hours, wallets, photos = [], meId, onDone }: {
+  classId: string; date: string; existing?: ClassEvent; defaultTypes?: EventTypeCode[]; defaultStudentId?: string; students: Student[]; staff: Staff[]; places: Resource[]; media: Media[]; meetings: MentorMeeting[]; hours: ClassHour[]; wallets: ClassWallet[]; photos?: ClassPhoto[]; meId: string; onDone: () => void
 }) {
   const initialTypes: EventTypeCode[] = existing?.type_codes?.length ? existing.type_codes : defaultTypes?.length ? defaultTypes : existing?.kind === 'parents' ? ['visit'] : existing?.kind === 'fun' ? ['film'] : ['exam']
   const [title, setTitle] = useState(existing?.title ?? '')
@@ -42,6 +42,9 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
   const [expense, setExpense] = useState(oldExpenses.length > 0)
   const [expenseRows, setExpenseRows] = useState<ExpenseRow[]>(oldExpenses.length ? oldExpenses.map(newExpenseRow) : [newExpenseRow()])
   const [files, setFiles] = useState<File[]>([])
+  // Existing photos: removed ids, and ids replaced by a new file (old one removed on save).
+  const [removed, setRemoved] = useState<string[]>([])
+  const [replaced, setReplaced] = useState<Record<string, File>>({})
   const [busy, setBusy] = useState(false)
   const toggle = (code: EventTypeCode) => setTypes(types.includes(code) ? types.filter((x) => x !== code) : [...types, code])
   const updateExpenseRow = (key: string, patch: Partial<ExpenseRow>) => setExpenseRows((rows) => rows.map((row) => row.key === key ? { ...row, ...patch } : row))
@@ -78,6 +81,10 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
           resolvedExpenses.push({ wallet_id: walletId, amount: Number(row.amount.trim().replace(',', '.')), note: row.note.trim() || null })
         }
         await setClassEventExpenses(id, expense ? resolvedExpenses : [])
+        for (const p of photos) {
+          if (replaced[p.id]) await addClassPhoto(classId, onDate, meId, replaced[p.id], p.caption ?? title.trim(), id)
+          if (replaced[p.id] || removed.includes(p.id)) await removeClassPhoto(p.id)
+        }
         for (const f of files) await addClassPhoto(classId, onDate, meId, f, title.trim(), id)
       }
       toast(existing ? tx('Оқиға өзгертілді') : tx('Оқиға сақталды')); onDone()
@@ -181,9 +188,20 @@ export default function ClassEventForm({ classId, date, existing, defaultTypes, 
         </>}
       </div>
     )}
-    {classId !== 'school' && (
+    {classId !== 'school' && (<>
+      {photos.length > 0 && <div className="grid grid-cols-3 gap-2">
+        {photos.map((p) => { const gone = removed.includes(p.id); const nf = replaced[p.id]; return <div key={p.id} className={`relative aspect-square rounded-md overflow-hidden bg-surface-2 ${gone ? 'opacity-30' : ''}`}>
+          <img src={nf ? URL.createObjectURL(nf) : photoUrl(p.path)} alt={p.caption ?? ''} className="size-full object-cover" />
+          <div className="absolute inset-x-0 bottom-0 flex justify-between p-1 bg-gradient-to-t from-black/60">
+            {gone ? <button type="button" onClick={() => setRemoved(removed.filter((x) => x !== p.id))} className="h-8 px-2 rounded bg-white/90 text-xs text-black">{tx('Қайтару')}</button> : <>
+              <label className="h-8 px-2 grid place-items-center rounded bg-white/90 text-xs text-black cursor-pointer">{tx('Алмастыру')}<input type="file" accept="image/*" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) setReplaced({ ...replaced, [p.id]: f }) }} /></label>
+              <button type="button" aria-label={tx('Өшіру')} onClick={() => { setRemoved([...removed, p.id]); const r = { ...replaced }; delete r[p.id]; setReplaced(r) }} className="size-8 grid place-items-center rounded bg-white/90 text-black">✕</button>
+            </>}
+          </div>
+        </div> })}
+      </div>}
       <label className="h-14 rounded-md border-2 border-dashed border-line grid place-items-center text-sm text-muted cursor-pointer"><span>{files.length ? tx('{0} сурет таңдалды', files.length) : tx('Фото қосу (міндетті емес)')}</span><input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => setFiles([...(e.target.files ?? [])])} /></label>
-    )}
+    </>)}
     <Button block loading={busy} onClick={save}>{existing ? tx('Өзгерту') : tx('Сақтау')}</Button>
   </div>
 }
