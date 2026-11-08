@@ -1254,12 +1254,12 @@ export const removeClassPhoto = (id: string) => ok(supabase.from('class_photos')
 export type MediaState = 'want' | 'doing' | 'done'
 export type Media = { id: string; kind: 'book' | 'film'; title: string; author: string | null; note: string | null; cover: string | null; genre: string | null; format: string | null; seasons: number | null; pages?: number | null; approved: boolean; proposed_by: string | null; progress: { user_id: string; state: MediaState; review: string | null; rating: number | null; season_stars: Record<string, number>; pages_read?: number | null; updated_at: string }[] }
 export type ClassList = { id: string; title: string; on_date: string | null; items: { id: string; name: string; price: number; qty: number; student_id: string | null; done: boolean }[] }
-export type FundRow = { id: string; on_date: string; amount: number; note: string; planned: boolean }
+export type FundRow = { id: string; on_date: string; amount: number; note: string; planned: boolean; wallet_id?: string | null }
 export const listClassResources = async (classId: string) => {
   const [media, lists, fund] = await Promise.all([
     ok(supabase.from('class_media').select('id, kind, title, author, note, cover, genre, format, seasons, pages, approved, proposed_by, progress:media_progress(user_id, state, review, rating, season_stars, pages_read, updated_at)').eq('class_id', classId).order('created_at', { ascending: false })),
     ok(supabase.from('class_lists').select('id, title, on_date, items:class_list_items(id, name, price, qty, student_id, done)').eq('class_id', classId).order('created_at', { ascending: false })),
-    ok(supabase.from('class_fund').select('id, on_date, amount, note, planned').eq('class_id', classId).order('on_date', { ascending: false })),
+    ok(supabase.from('class_fund').select('id, on_date, amount, note, planned, wallet_id').eq('class_id', classId).order('on_date', { ascending: false })),
   ])
   return { media, lists, fund } as { media: Media[]; lists: ClassList[]; fund: FundRow[] }
 }
@@ -1285,5 +1285,5 @@ export const removeClassList = (id: string) => ok(supabase.from('class_lists').d
 export const addListItem = (row: { list_id: string; name: string; price: number; qty: number; student_id: string | null }) => ok(supabase.from('class_list_items').insert(row))
 export const removeListItem = (id: string) => ok(supabase.from('class_list_items').delete().eq('id', id))
 export const tickListItem = (id: string, done: boolean) => rpc('tick_list_item', { p_id: id, p_done: done })
-export const addFund = (row: { class_id: string; on_date: string; amount: number; note: string; planned: boolean }) => ok(supabase.from('class_fund').insert(row))
+export const addFund = (row: { class_id: string; on_date: string; amount: number; note: string; planned: boolean; wallet_id: string | null }) => ok(supabase.from('class_fund').insert(row))
 export const removeFund = (id: string) => ok(supabase.from('class_fund').delete().eq('id', id))

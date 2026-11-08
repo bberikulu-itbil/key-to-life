@@ -362,7 +362,7 @@ function StaffCalendar({ classId }: { classId?: string }) {
           ) : tab === 'activity' && cls ? (
             <ClassActivity classId={cls.id} students={d.students} />
           ) : tab === 'fund' && cls ? (
-            <ClassFund classId={cls.id} rows={d.fund} events={d.events} staff reload={data.reload} />
+            <ClassFund classId={cls.id} rows={d.fund} events={d.events} wallets={d.wallets} staff reload={data.reload} />
           ) : tab === 'parents' && cls ? (
             <ParentsTab
               classId={cls.id}

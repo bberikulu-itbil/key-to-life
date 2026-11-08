@@ -2851,5 +2851,12 @@
   "Сынып ресурстарында басқа таңдайтын ештеңе жоқ — «Жаңа» арқылы қосыңыз.": "Nothing else to choose in class resources — add one with «New».",
   "Тізімнен алу": "Remove from list",
   "Фильм таңдау": "Choose a film",
-  "Қосу: {0}": "Add: {0}"
+  "Қосу: {0}": "Add: {0}",
+  "Бұл жазбаны өшіру керек пе?": "Delete this entry?",
+  "Жаңа әмиян": "New wallet",
+  "Мысалы: Сынып қоры, Ата-ана жарнасы": "E.g. Class fund, Parents' contributions",
+  "жоспар": "planned",
+  "Әмиян": "Wallet",
+  "Әмиян атауын жазыңыз": "Enter a wallet name",
+  "Әмиянсыз": "No wallet"
 }
