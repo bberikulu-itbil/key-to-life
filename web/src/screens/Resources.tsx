@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  addHabit, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listRecipes, listStaff, logScreening, photoUrl, uploadPhoto,
+  addHabit, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listRecipes, listStaff, logScreening, uploadPhoto,
   removeMedia, rateMedia, setMediaPages, setMediaProgress, setPagesRead, type Media, type MediaState, type Student,
 } from '../lib/api'
 import { today } from '../lib/time'
@@ -9,6 +9,7 @@ import { useMe } from '../App'
 import { ClassHoursPanel } from './Journal'
 import Recipes from '../components/Recipes'
 import Avatar from '../components/Avatar'
+import MediaCover from '../components/MediaCover'
 import { Button, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
@@ -80,14 +81,6 @@ const GENRES: Record<Media['kind'], [string, string][]> = {
 }
 const genreName = (kind: Media['kind'], g: string | null) => GENRES[kind].find(([k]) => k === g)?.[1] ?? ''
 // a cover colour from the title, for books and films without a photo
-const tint = (t: string) => `hsl(${[...t].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)} 45% 42%)`
-
-function Cover({ m, className = '' }: { m: Media; className?: string }) {
-  return m.cover
-    ? <img src={photoUrl(m.cover)} alt="" className={`aspect-[2/3] w-full rounded-md object-cover ${className}`} loading="lazy" />
-    : <span aria-hidden className={`aspect-[2/3] w-full rounded-md grid place-items-center text-white/90 text-4xl font-bold ${className}`} style={{ background: tint(m.title) }}>{m.title.trim()[0]?.toUpperCase()}</span>
-}
-
 function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: Media['kind']; classId: string; media: Media[]; students: Student[]; staff: boolean; name: (id: string | null) => string; reload: () => void }) {
   const { me } = useMe()
   const book = kind === 'book'
@@ -118,13 +111,13 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
         </button>
       )}
       {showPending && <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">{pending.map((m) => (
-        <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="grid gap-1 text-left opacity-80"><Cover m={m} /><span className="text-xs font-semibold line-clamp-2">{m.title}</span></button>
+        <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="grid gap-1 text-left opacity-80"><MediaCover m={m} /><span className="text-xs font-semibold line-clamp-2">{m.title}</span></button>
       ))}</div>}
 
       {!q && !genre && forYou.length > 0 && shelf.length > 3 && <>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Саған ұсынамыз')}</h2>
         <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none]">{forYou.map((m) => (
-          <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="w-24 shrink-0 grid gap-1 text-left"><Cover m={m} /><span className="text-xs font-semibold line-clamp-2">{m.title}</span>
+          <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="w-24 shrink-0 grid gap-1 text-left"><MediaCover m={m} /><span className="text-xs font-semibold line-clamp-2">{m.title}</span>
             {doneBy(m) > 0 && <span className="text-[11px] text-muted">{book ? tx('{0} оқыды', doneBy(m)) : tx('{0} көрді', doneBy(m))}</span>}</button>
         ))}</div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mt-1">{tx('Барлығы · {0}', shelf.length)}</h2>
@@ -135,7 +128,7 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
           const mine = m.progress.find((p) => p.user_id === me.id)?.state
           return (
             <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="relative grid gap-1 text-left">
-              <Cover m={m} />
+              <MediaCover m={m} />
               {mine && <span title={stateLabel(mine, book)} className={`absolute top-1.5 right-1.5 size-6 rounded-full grid place-items-center text-white ${mine === 'done' ? 'bg-success' : mine === 'want' ? 'bg-warning' : 'bg-accent'}`}><Icon n={mine === 'done' ? 'check' : mine === 'want' ? 'heart' : 'clock'} size={14} /></span>}
               {mine === 'doing' && kind === 'book' && m.pages ? <span className="h-1.5 rounded-full bg-surface-2 overflow-hidden"><span className="block h-full bg-accent" style={{ width: `${Math.min(100, (100 * (m.progress.find((p) => p.user_id === me.id)?.pages_read ?? 0)) / m.pages)}%` }} /></span> : null}
               <span className="text-sm font-semibold leading-tight line-clamp-2">{m.title}</span>
@@ -217,7 +210,7 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
     <Sheet title={m.title} onClose={onClose}>
       <div className="grid gap-4">
         <div className="grid grid-cols-[6rem_1fr] gap-3">
-          <Cover m={m} />
+          <MediaCover m={m} />
           <div className="grid gap-1 content-start text-sm">
             {m.author && <p className="font-semibold">{m.author}</p>}
             <p className="text-muted">{[formatName(m.kind, m.format), genreName(m.kind, m.genre), m.seasons ? tx('{0} маусым', m.seasons) : '', m.pages ? tx('{0} бет', m.pages) : ''].filter(Boolean).join(' · ')}</p>

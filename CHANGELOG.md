@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.17.10 — 2026-11-08
+
+- Анкета → Медиатека: covers (medium size) in each column; a «+» on every column (Оқимын / Оқып жатырмын / Оқыдым) opens a picker of the class's books or films with covers and search, plus «Жаңа» to add a new title (title, author, pages) straight into that column. Tapping a title moves it to another column or removes it from the student's list.
+- `MediaCover` is now a shared component (Resources and the dossier); `addMedia` returns the new id; `setStudentMedia` lets staff set a student's state (allowed by the existing `mp_staff` policy).
+
 ## 1.17.9 — 2026-11-08
 
 - Books have a page count (`class_media.pages`, already in the DB): set when proposing a book, editable by staff in the book sheet, shown as «N бет».

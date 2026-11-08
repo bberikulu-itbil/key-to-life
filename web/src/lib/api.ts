@@ -1263,7 +1263,11 @@ export const listClassResources = async (classId: string) => {
   ])
   return { media, lists, fund } as { media: Media[]; lists: ClassList[]; fund: FundRow[] }
 }
-export const addMedia = (row: { class_id: string; kind: Media['kind']; title: string; author: string | null; note: string | null; cover: string | null; genre: string | null; format: string | null; seasons: number | null; pages?: number | null; approved: boolean; proposed_by: string }) => ok(supabase.from('class_media').insert(row))
+export const addMedia = (row: { class_id: string; kind: Media['kind']; title: string; author: string | null; note: string | null; cover: string | null; genre: string | null; format: string | null; seasons: number | null; pages?: number | null; approved: boolean; proposed_by: string }) => ok<{ id: string }>(supabase.from('class_media').insert(row).select('id').single())
+/** Staff set a book/film state for a student (Анкета → Медиатека); null removes it. */
+export const setStudentMedia = (media_id: string, user_id: string, state: MediaState | null) => state
+  ? ok(supabase.from('media_progress').upsert({ media_id, user_id, state, updated_at: new Date().toISOString() }))
+  : ok(supabase.from('media_progress').delete().eq('media_id', media_id).eq('user_id', user_id))
 export const setMediaPages = (id: string, pages: number | null) => ok(supabase.from('class_media').update({ pages }).eq('id', id))
 /** Pages read so far; reaching the book's page count marks it read. */
 export const setPagesRead = (media_id: string, pages_read: number, state: MediaState) => ok(supabase.from('media_progress').upsert({ media_id, state, pages_read, updated_at: new Date().toISOString() }))

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   addMentorMeeting, classMentorMeetings, classStudentForms, classStudentProfileDetails, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
   mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting,
-  isCurrentTrajectory, listClassResources, listStudentTrajectory, type Media, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
+  addMedia, isCurrentTrajectory, listClassResources, listStudentTrajectory, setStudentMedia, type Media, type MediaState, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
@@ -18,6 +18,7 @@ import { stateLabel } from '../lib/stars'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import LocationPicker from '../components/LocationPicker'
+import MediaCover from '../components/MediaCover'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { lang, tx } from '../lib/i18n'
 import StudentDossierStructured, { StudentDossierOverview } from '../components/StudentDossierSections'
@@ -3035,17 +3036,23 @@ function FinishSheet({ m, onClose, onDone }: { m: MentorMeeting; onClose: () => 
   )
 }
 
-/** Медиатека: the student's books and films from «Сынып ресурстары», by state (want / doing / done). */
+/** Медиатека: the student's books and films from «Сынып ресурстары», by state (want / doing / done).
+ *  Staff can put an existing title into a column («+»), add a new one, move or remove it. */
 function StudentMedia({ classId, studentId }: { classId: string; studentId: string }) {
+  const { me } = useMe()
   const data = useLoad(() => listClassResources(classId), [classId])
   const [kind, setKind] = useState<Media['kind']>('book')
+  const [pick, setPick] = useState<MediaState | null>(null)
+  const [open, setOpen] = useState<{ m: Media; st: MediaState } | null>(null)
   if (data.loading && !data.data) return <Skeleton />
   if (data.error) return <ErrorBox text={data.error} retry={data.reload} />
-  const mine = (data.data?.media ?? []).filter((m) => m.kind === kind).flatMap((m) => {
+  const all = (data.data?.media ?? []).filter((m) => m.kind === kind && m.approved)
+  const mine = all.flatMap((m) => {
     const p = m.progress.find((x) => x.user_id === studentId)
     return p ? [{ m, p }] : []
   })
   const book = kind === 'book'
+  const set = (mediaId: string, st: MediaState | null) => setStudentMedia(mediaId, studentId, st).then(() => { setPick(null); setOpen(null); data.reload() }, (e) => toast(errText(e)))
   return (
     <Card className="grid grid-cols-1 gap-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -3053,24 +3060,107 @@ function StudentMedia({ classId, studentId }: { classId: string; studentId: stri
         <a href={`#/resources/${classId}`} className="text-xs font-semibold text-accent hover:underline">{tx('Сынып ресурстары →')}</a>
       </div>
       <Chips label={tx('Түрі')} value={kind} onChange={setKind} items={[['book', tx('Кітаптар')], ['film', tx('Фильмдер')]]} />
-      <div className="grid sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {(['want', 'doing', 'done'] as const).map((st) => {
           const list = mine.filter((x) => x.p.state === st)
           return (
-            <div key={st} className="rounded-lg bg-surface-2 p-2 grid gap-1.5 content-start">
-              <p className="text-xs font-bold uppercase text-muted">{stateLabel(st, book)} · {list.length}</p>
-              {list.length ? list.map(({ m, p }) => (
-                <div key={m.id} className="rounded-md bg-surface p-2 text-sm">
-                  <p className="font-semibold leading-tight">{m.title}</p>
-                  {(m.author || p.rating || m.pages) && <p className="text-xs text-muted">{[m.author, m.pages ? (st === 'doing' && p.pages_read ? tx('{0} / {1} бет', p.pages_read, m.pages) : tx('{0} бет', m.pages)) : '', p.rating ? '★'.repeat(p.rating) : ''].filter(Boolean).join(' · ')}</p>}
-                  {st === 'doing' && m.pages && p.pages_read ? <div className="mt-1 h-1.5 rounded-full bg-surface-2 overflow-hidden"><div className="h-full bg-accent" style={{ width: `${Math.min(100, (100 * p.pages_read) / m.pages)}%` }} /></div> : null}
-                  {p.review && <p className="text-xs mt-1 italic">«{p.review}»</p>}
-                </div>
-              )) : <p className="text-xs text-muted">—</p>}
+            <div key={st} className="rounded-lg bg-surface-2 p-2 grid grid-cols-1 gap-2 content-start">
+              <div className="flex items-center gap-2">
+                <p className="flex-1 text-xs font-bold uppercase text-muted">{stateLabel(st, book)} · {list.length}</p>
+                <button type="button" aria-label={tx('Қосу: {0}', stateLabel(st, book))} onClick={() => setPick(st)} className="size-8 grid place-items-center rounded-full bg-surface text-accent hover:bg-accent-soft"><Icon n="plus" size={16} /></button>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-2 gap-2">
+                {list.map(({ m, p }) => (
+                  <button key={m.id} type="button" onClick={() => setOpen({ m, st })} className="grid gap-1 text-left min-w-0">
+                    <MediaCover m={m} className="text-2xl" />
+                    {st === 'doing' && m.pages && p.pages_read ? <span className="h-1.5 rounded-full bg-surface overflow-hidden"><span className="block h-full bg-accent" style={{ width: `${Math.min(100, (100 * p.pages_read) / m.pages)}%` }} /></span> : null}
+                    <span className="text-xs font-semibold leading-tight line-clamp-2">{m.title}</span>
+                    {(p.rating || m.pages) && <span className="text-[11px] text-muted truncate">{[m.pages ? (st === 'doing' && p.pages_read ? tx('{0} / {1} бет', p.pages_read, m.pages) : tx('{0} бет', m.pages)) : '', p.rating ? '★'.repeat(p.rating) : ''].filter(Boolean).join(' · ')}</span>}
+                  </button>
+                ))}
+              </div>
+              {!list.length && <p className="text-xs text-muted">—</p>}
             </div>
           )
         })}
       </div>
+      {pick && <MediaPicker classId={classId} kind={kind} state={pick} media={all.filter((m) => !mine.some((x) => x.m.id === m.id))} meId={me.id}
+        onPick={(id) => set(id, pick)} onClose={() => setPick(null)} />}
+      {open && (
+        <Sheet title={open.m.title} onClose={() => setOpen(null)}>
+          <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-[6rem_1fr] gap-3">
+              <MediaCover m={open.m} />
+              <div className="grid gap-1 content-start text-sm">
+                {open.m.author && <p className="font-semibold">{open.m.author}</p>}
+                {open.m.pages ? <p className="text-muted">{tx('{0} бет', open.m.pages)}</p> : null}
+                {(() => { const p = open.m.progress.find((x) => x.user_id === studentId); return p?.review ? <p className="italic">«{p.review}»</p> : null })()}
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(['want', 'doing', 'done'] as const).map((st) => (
+                <button key={st} type="button" aria-pressed={open.st === st} onClick={() => st !== open.st && set(open.m.id, st)}
+                  className={`min-h-11 px-1 rounded-md text-sm font-semibold leading-tight ${open.st === st ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{stateLabel(st, book)}</button>
+              ))}
+            </div>
+            <Button kind="danger" onClick={() => confirm(tx('«{0}» тізімнен алынсын ба?', open.m.title)) && set(open.m.id, null)}>{tx('Тізімнен алу')}</Button>
+          </div>
+        </Sheet>
+      )}
     </Card>
+  )
+}
+
+/** Choose an existing book/film of the class, or add a new one, for one column of the student's Медиатека. */
+function MediaPicker({ classId, kind, state, media, meId, onPick, onClose }: { classId: string; kind: Media['kind']; state: MediaState; media: Media[]; meId: string; onPick: (id: string) => void; onClose: () => void }) {
+  const book = kind === 'book'
+  const [q, setQ] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [f, setF] = useState({ title: '', author: '', pages: '' })
+  const [busy, setBusy] = useState(false)
+  const shown = media.filter((m) => !q || `${m.title} ${m.author ?? ''}`.toLowerCase().includes(q.toLowerCase()))
+  const addNew = async () => {
+    if (f.title.trim().length < 2) return toast(tx('Атауын жазыңыз'))
+    setBusy(true)
+    try {
+      const pages = book && Number(f.pages) > 0 ? Math.min(10000, Math.round(Number(f.pages))) : null
+      const { id } = await addMedia({ class_id: classId, kind, title: f.title.trim(), author: f.author.trim() || null, note: null, cover: null, genre: null, format: book ? 'book' : 'movie', seasons: null, pages, approved: true, proposed_by: meId })
+      onPick(id)
+    } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <Sheet title={`${stateLabel(state, book)} · ${book ? tx('Кітап таңдау') : tx('Фильм таңдау')}`} onClose={onClose}>
+      <div className="grid grid-cols-1 gap-3">
+        {adding ? (
+          <div className="grid grid-cols-1 gap-2">
+            <input aria-label={tx('Атауы')} value={f.title} maxLength={200} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={tx('Атауы')} className={inputCls} />
+            <input aria-label={book ? tx('Авторы') : tx('Режиссері')} value={f.author} maxLength={200} onChange={(e) => setF({ ...f, author: e.target.value })} placeholder={book ? tx('Авторы') : tx('Режиссері')} className={inputCls} />
+            {book && <input aria-label={tx('Бет саны')} type="number" inputMode="numeric" min={1} max={10000} value={f.pages} onChange={(e) => setF({ ...f, pages: e.target.value })} placeholder={tx('Бет саны')} className={inputCls} />}
+            <div className="grid grid-cols-2 gap-2">
+              <Button kind="ghost" onClick={() => setAdding(false)}>{tx('Артқа')}</Button>
+              <Button loading={busy} onClick={addNew}>{tx('Қосу')}</Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex gap-2">
+              <input aria-label={tx('Іздеу')} value={q} onChange={(e) => setQ(e.target.value)} placeholder={book ? tx('Кітап не автор іздеу') : tx('Фильм іздеу')} className={`${inputCls} flex-1 min-w-0`} />
+              <Button kind="secondary" onClick={() => setAdding(true)}><Icon n="plus" size={16} />{tx('Жаңа')}</Button>
+            </div>
+            {!shown.length ? <p className="text-sm text-muted text-center py-6">{media.length ? tx('Ештеңе табылмады') : tx('Сынып ресурстарында басқа таңдайтын ештеңе жоқ — «Жаңа» арқылы қосыңыз.')}</p> : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {shown.map((m) => (
+                  <button key={m.id} type="button" onClick={() => onPick(m.id)} className="grid gap-1 text-left min-w-0">
+                    <MediaCover m={m} className="text-2xl" />
+                    <span className="text-xs font-semibold leading-tight line-clamp-2">{m.title}</span>
+                    {m.author && <span className="text-[11px] text-muted truncate">{m.author}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </Sheet>
   )
 }
