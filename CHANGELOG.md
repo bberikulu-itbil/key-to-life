@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.11 — 2026-11-08
+
+- Сынып қоры counts each wallet separately: a tile per wallet with its own balance (and planned), «Барлығы» for the total; tapping a tile filters the totals and the list. Every new entry is written to a chosen wallet (`class_fund.wallet_id`, already in the DB); a new wallet can be added right there. Event expenses count in their own wallet; older entries without a wallet show as «Әмиянсыз». Deleting an entry asks first.
+
 ## 1.17.10 — 2026-11-08
 
 - Анкета → Медиатека: covers (medium size) in each column; a «+» on every column (Оқимын / Оқып жатырмын / Оқыдым) opens a picker of the class's books or films with covers and search, plus «Жаңа» to add a new title (title, author, pages) straight into that column. Tapping a title moves it to another column or removes it from the student's list.
