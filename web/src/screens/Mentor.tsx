@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   addMentorMeeting, classMentorMeetings, classStudentForms, classStudentProfileDetails, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
   mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting,
-  addMedia, isCurrentTrajectory, listClassResources, listStudentTrajectory, setStudentMedia, type Media, type MediaState, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
+  addMedia, isCurrentTrajectory, listClassResources, listReadingLog, listStudentTrajectory, setFinishedOn, setStudentMedia, type Media, type MediaState, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
 import { MI_KINDS, miScore } from '../lib/mi'
@@ -14,7 +14,7 @@ import {
 } from '../lib/mentor'
 import { GALLUP_DOMAINS, GALLUP_THEMES, findGallup } from '../lib/gallup'
 import { addDays, fmtDate, today } from '../lib/time'
-import { stateLabel } from '../lib/stars'
+import { pagesByDay, stateLabel } from '../lib/stars'
 import { useMe } from '../App'
 import Avatar from '../components/Avatar'
 import LocationPicker from '../components/LocationPicker'
@@ -3041,6 +3041,7 @@ function FinishSheet({ m, onClose, onDone }: { m: MentorMeeting; onClose: () => 
 function StudentMedia({ classId, studentId }: { classId: string; studentId: string }) {
   const { me } = useMe()
   const data = useLoad(() => listClassResources(classId), [classId])
+  const logs = useLoad(() => listReadingLog(classId, new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10), studentId), [classId, studentId])
   const [kind, setKind] = useState<Media['kind']>('book')
   const [pick, setPick] = useState<MediaState | null>(null)
   const [open, setOpen] = useState<{ m: Media; st: MediaState } | null>(null)
@@ -3059,6 +3060,30 @@ function StudentMedia({ classId, studentId }: { classId: string; studentId: stri
         <p className="font-bold text-base">{tx('Медиатека')}</p>
         <a href={`#/resources/${classId}`} className="text-xs font-semibold text-accent hover:underline">{tx('Сынып ресурстары →')}</a>
       </div>
+      {(() => {
+        // 30-day reading picture: pages, finished books, watched films, and a 14-day bar strip.
+        const l30 = logs.data ?? []
+        const pages = l30.reduce((a, l) => a + l.pages, 0)
+        const from = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10)
+        const doneIn = (k: Media['kind']) => (data.data?.media ?? []).filter((m) => m.kind === k && m.progress.some((p) => p.user_id === studentId && p.state === 'done' && (p.finished_on ?? '') >= from)).length
+        const days = pagesByDay(l30, 14, today())
+        const max = Math.max(1, ...days.map((d) => d.pages))
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr] gap-3 rounded-lg bg-surface-2 p-3">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {([['📖', pages, tx('бет · 30 күн')], ['✅', doneIn('book'), tx('кітап оқыды')], ['🎬', doneIn('film'), tx('фильм көрді')]] as const).map(([e, v, t]) => (
+                <div key={t} className="rounded-md bg-surface p-2"><p className="font-bold tabular-nums">{e} {v}</p><p className="text-[11px] text-muted leading-tight">{t}</p></div>
+              ))}
+            </div>
+            <div className="grid gap-1">
+              <p className="text-[11px] text-muted">{tx('Соңғы 14 күн, бет')}</p>
+              <div className="flex items-end gap-0.5 h-12" role="img" aria-label={tx('{0} күнде {1} бет', 14, days.reduce((a, d) => a + d.pages, 0))}>
+                {days.map((d) => <span key={d.day} title={`${fmtDate(d.day)} · ${d.pages}`} className="flex-1 rounded-t-sm bg-accent min-h-px" style={{ height: `${(100 * d.pages) / max}%`, opacity: d.pages ? 1 : 0.15 }} />)}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       <Chips label={tx('Түрі')} value={kind} onChange={setKind} items={[['book', tx('Кітаптар')], ['film', tx('Фильмдер')]]} />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {(['want', 'doing', 'done'] as const).map((st) => {
@@ -3074,8 +3099,9 @@ function StudentMedia({ classId, studentId }: { classId: string; studentId: stri
                   <button key={m.id} type="button" onClick={() => setOpen({ m, st })} className="grid gap-1 text-left min-w-0">
                     <MediaCover m={m} className="text-2xl" />
                     {st === 'doing' && m.pages && p.pages_read ? <span className="h-1.5 rounded-full bg-surface overflow-hidden"><span className="block h-full bg-accent" style={{ width: `${Math.min(100, (100 * p.pages_read) / m.pages)}%` }} /></span> : null}
+                    {m.series && <span className="text-[10px] font-semibold text-accent truncate">{m.series}{m.series_no ? ` · ${m.series_no}` : ''}</span>}
                     <span className="text-xs font-semibold leading-tight line-clamp-2">{m.title}</span>
-                    {(p.rating || m.pages) && <span className="text-[11px] text-muted truncate">{[m.pages ? (st === 'doing' && p.pages_read ? tx('{0} / {1} бет', p.pages_read, m.pages) : tx('{0} бет', m.pages)) : '', p.rating ? '★'.repeat(p.rating) : ''].filter(Boolean).join(' · ')}</span>}
+                    {(p.rating || m.pages || p.finished_on) && <span className="text-[11px] text-muted truncate">{[st === 'done' && p.finished_on ? fmtDate(p.finished_on) : '', m.pages ? (st === 'doing' && p.pages_read ? tx('{0} / {1} бет', p.pages_read, m.pages) : tx('{0} бет', m.pages)) : '', p.rating ? '★'.repeat(p.rating) : ''].filter(Boolean).join(' · ')}</span>}
                   </button>
                 ))}
               </div>
@@ -3094,6 +3120,11 @@ function StudentMedia({ classId, studentId }: { classId: string; studentId: stri
               <div className="grid gap-1 content-start text-sm">
                 {open.m.author && <p className="font-semibold">{open.m.author}</p>}
                 {open.m.pages ? <p className="text-muted">{tx('{0} бет', open.m.pages)}</p> : null}
+                {open.st === 'done' && (
+                  <label className="grid gap-1 text-xs text-muted">{open.m.kind === 'book' ? tx('Оқып бітірген күні') : tx('Көрген күні')}
+                    <input type="date" max={today()} defaultValue={open.m.progress.find((x) => x.user_id === studentId)?.finished_on ?? ''} onBlur={(e) => e.target.value && setFinishedOn(open.m.id, studentId, e.target.value).then(() => { toast(tx('Сақталды')); data.reload() }, (er) => toast(errText(er)))} className={`${inputCls} h-9 px-2`} />
+                  </label>
+                )}
                 {(() => { const p = open.m.progress.find((x) => x.user_id === studentId); return p?.review ? <p className="italic">«{p.review}»</p> : null })()}
               </div>
             </div>

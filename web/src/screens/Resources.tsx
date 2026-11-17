@@ -1,21 +1,22 @@
 import { useState } from 'react'
 import {
   addHabit, addMedia, approveMedia, classStudents, errText, listClasses, listHabits, listClassResources, listRecipes, listStaff, logScreening, uploadPhoto,
-  removeMedia, rateMedia, setMediaPages, setMediaProgress, setPagesRead, type Media, type MediaState, type Student,
+  removeMedia, rateMedia, setMediaProgress, updateMedia, setFinishedOn, listReadingLog, addReadingLog, removeReadingLog, type Media, type MediaState, type Student,
 } from '../lib/api'
-import { today } from '../lib/time'
-import { avgStars, seasonAvgs, stateLabel } from '../lib/stars'
+import { fmtDate, today } from '../lib/time'
+import { avgStars, groupSeries, seasonAvgs, stateLabel } from '../lib/stars'
 import { useMe } from '../App'
 import { ClassHoursPanel } from './Journal'
 import Recipes from '../components/Recipes'
 import Avatar from '../components/Avatar'
 import MediaCover from '../components/MediaCover'
+import ReadingStats from '../components/ReadingStats'
 import { Button, Chips, Empty, ErrorBox, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { tx } from '../lib/i18n'
 
 /* «Сынып ресурстары» — the class's shared shelf: books, films (with film club), recipes, class hours (staff). The fund lives in the class calendar. */
 
-type Tab = 'book' | 'film' | 'recipes' | 'hours'
+type Tab = 'book' | 'film' | 'stats' | 'recipes' | 'hours'
 
 export default function Resources({ classId }: { classId?: string }) {
   const { me } = useMe()
@@ -43,9 +44,10 @@ export default function Resources({ classId }: { classId?: string }) {
         <select aria-label={tx('Сынып')} value={cid} onChange={(e) => go(`/resources/${e.target.value}`)} className={`${inputCls} w-auto`}>
           {options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>) : undefined} />
-      <Chips label={tx('Бөлім')} value={tab} onChange={setTab} items={[['book', tx('Кітаптар')], ['film', tx('Фильмдер')], ['recipes', tx('Рецепттер')], ...(staff ? [['hours', tx('Тәрбие сағаттары')]] as [Tab, string][] : [])]} />
+      <Chips label={tx('Бөлім')} value={tab} onChange={setTab} items={[['book', tx('Кітаптар')], ['film', tx('Фильмдер')], ['stats', tx('Оқу аналитикасы')], ['recipes', tx('Рецепттер')], ...(staff ? [['hours', tx('Тәрбие сағаттары')]] as [Tab, string][] : [])]} />
       {data.loading && !d ? <Skeleton /> : data.error ? <ErrorBox text={data.error} retry={data.reload} /> : d && (
         tab === 'book' || tab === 'film' ? <Shelf key={tab} kind={tab} classId={cid} media={d.media.filter((m) => m.kind === tab)} students={d.students} staff={staff} name={name} reload={data.reload} />
+        : tab === 'stats' ? <ReadingStats classId={cid} media={d.media} students={d.students} staff={staff} meId={me.id} />
         : tab === 'recipes' ? <Recipes classId={cid} recipes={d.recipes} classSize={d.students.length} staff={staff} me={me.id} reload={data.reload} />
         : tab === 'hours' && cls ? <ClassHoursPanel cls={cls} /> : null
       )}
@@ -76,8 +78,8 @@ function Stars({ value, onPick, size = 18, label }: { value: number | null; onPi
 }
 
 const GENRES: Record<Media['kind'], [string, string][]> = {
-  book: [['novel', tx('Көркем')], ['science', tx('Ғылыми-танымдық')], ['history', tx('Тарих')], ['adventure', tx('Шытырман')], ['fantasy', tx('Фантастика')], ['bio', tx('Өмірбаян')], ['poetry', tx('Поэзия')], ['self', tx('Өзін-өзі дамыту')]],
-  film: [['drama', tx('Драма')], ['comedy', tx('Комедия')], ['history', tx('Тарихи')], ['docs', tx('Деректі')], ['anim', tx('Анимация')], ['fantasy', tx('Фантастика')], ['adventure', tx('Шытырман')], ['family', tx('Отбасылық')]],
+  book: [['novel', tx('Көркем')], ['science', tx('Ғылыми-танымдық')], ['history', tx('Тарих')], ['adventure', tx('Шытырман')], ['fantasy', tx('Фантастика')], ['bio', tx('Өмірбаян')], ['poetry', tx('Поэзия')], ['self', tx('Өзін-өзі дамыту')], ['detective', tx('Детектив')]],
+  film: [['drama', tx('Драма')], ['comedy', tx('Комедия')], ['history', tx('Тарихи')], ['docs', tx('Деректі')], ['anim', tx('Анимация')], ['fantasy', tx('Фантастика')], ['adventure', tx('Шытырман')], ['family', tx('Отбасылық')], ['horror', tx('Қорқынышты')]],
 }
 const genreName = (kind: Media['kind'], g: string | null) => GENRES[kind].find(([k]) => k === g)?.[1] ?? ''
 // a cover colour from the title, for books and films without a photo
@@ -96,6 +98,9 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
   // not started yet, most finished by classmates first
   const forYou = shelf.filter((m) => !m.progress.some((p) => p.user_id === me.id)).sort((a, b) => doneBy(b) - doneBy(a)).slice(0, 6)
   const cur = media.find((m) => m.id === open)
+  const [openSeries, setOpenSeries] = useState<string | null>(null)
+  const seriesItems = openSeries ? shelf.filter((m) => m.series?.trim().toLowerCase() === openSeries.toLowerCase()).sort((a, b) => (a.series_no ?? 999) - (b.series_no ?? 999)) : []
+  const myState = (m: Media) => m.progress.find((p) => p.user_id === me.id)?.state
   return (
     <div className="grid gap-3">
       <div className="flex gap-2">
@@ -124,8 +129,22 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
       </>}
 
       {!shown.length ? <Empty icon={book ? 'book' : 'heart'} title={shelf.length ? tx('Ештеңе табылмады') : book ? tx('Кітап әлі жоқ') : tx('Фильм әлі жоқ')} text={shelf.length ? undefined : tx('Бірінші болып ұсыныңыз!')} />
-        : <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">{shown.map((m) => {
-          const mine = m.progress.find((p) => p.user_id === me.id)?.state
+        : <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">{groupSeries(shown).map((g) => {
+          // A series is one card (stacked covers, «done/all» for me); its parts open in a list with their own status.
+          if (g.series && g.items.length > 1) {
+            const done = g.items.filter((m) => myState(m) === 'done').length
+            return (
+              <button key={g.key} type="button" onClick={() => setOpenSeries(g.series)} className="relative grid gap-1 text-left">
+                <span className="relative block"><span aria-hidden className="absolute inset-0 translate-x-1.5 -translate-y-1.5 rounded-md bg-surface-2 border border-line" /><MediaCover m={g.items[0]} className="relative" /></span>
+                <span className="absolute top-1 left-1 rounded-full bg-black/70 text-white text-[11px] font-semibold px-2 py-0.5">{tx('{0} бөлім', g.items.length)}</span>
+                <span className="text-sm font-semibold leading-tight line-clamp-2">{g.series}</span>
+                <span className="text-xs text-muted truncate">{done ? tx('{0}/{1} {2}', done, g.items.length, book ? tx('оқыдым') : tx('көрдім')) : [formatName(kind, g.items[0].format), g.items[0].author].filter(Boolean).join(' · ')}</span>
+                {done > 0 && <span className="h-1.5 rounded-full bg-surface-2 overflow-hidden"><span className="block h-full bg-success" style={{ width: `${(100 * done) / g.items.length}%` }} /></span>}
+              </button>
+            )
+          }
+          const m = g.items[0]
+          const mine = myState(m)
           return (
             <button key={m.id} type="button" onClick={() => setOpen(m.id)} className="relative grid gap-1 text-left">
               <MediaCover m={m} />
@@ -138,57 +157,85 @@ function Shelf({ kind, classId, media, students, staff, name, reload }: { kind: 
           )
         })}</div>}
 
-      {cur && <Detail m={cur} students={students} staff={staff} name={name} onClose={() => setOpen(null)} reload={reload} />}
-      {adding && <AddMedia kind={kind} classId={classId} staff={staff} onClose={() => setAdding(false)} onDone={() => { setAdding(false); reload() }} />}
+      {openSeries && !cur && seriesItems.length > 0 && (
+        <Sheet title={openSeries} onClose={() => setOpenSeries(null)}>
+          <ul className="grid gap-2">{seriesItems.map((m) => {
+            const st = myState(m)
+            return (
+              <li key={m.id}><button type="button" onClick={() => setOpen(m.id)} className="w-full grid grid-cols-[3.5rem_1fr_auto] gap-3 items-center text-left rounded-lg bg-surface-2 p-2">
+                <MediaCover m={m} className="text-xl" />
+                <span className="min-w-0"><span className="block text-xs text-muted">{tx('{0}-бөлім', m.series_no ?? '?')}{m.year ? ` · ${m.year}` : ''}</span><span className="block text-sm font-semibold leading-tight line-clamp-2">{m.title}</span></span>
+                <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${st === 'done' ? 'bg-success-soft text-success' : st === 'doing' ? 'bg-accent-soft text-accent' : st === 'want' ? 'bg-warning-soft text-warning' : 'text-muted'}`}>{st ? stateLabel(st, book) : '—'}</span>
+              </button></li>
+            )
+          })}</ul>
+        </Sheet>
+      )}
+      {cur && <Detail m={cur} classId={classId} students={students} staff={staff} name={name} onClose={() => setOpen(null)} reload={reload} />}
+      {adding && <MediaForm kind={kind} classId={classId} staff={staff} onClose={() => setAdding(false)} onDone={() => { setAdding(false); reload() }} />}
     </div>
   )
 }
 
-function AddMedia({ kind, classId, staff, onClose, onDone }: { kind: Media['kind']; classId: string; staff: boolean; onClose: () => void; onDone: () => void }) {
+/** Add (or propose) a book/film; with `edit`, staff change an existing one. */
+function MediaForm({ kind, classId, staff, edit, onClose, onDone }: { kind: Media['kind']; classId: string; staff: boolean; edit?: Media; onClose: () => void; onDone: () => void }) {
   const { me } = useMe()
   const book = kind === 'book'
-  const [f, setF] = useState({ title: '', author: '', note: '', genre: '', format: kind === 'book' ? 'book' : 'movie', seasons: '', pages: '' })
+  const str = (v: unknown) => (v == null ? '' : String(v))
+  const [f, setF] = useState({ title: str(edit?.title), author: str(edit?.author), note: str(edit?.note), genre: str(edit?.genre), format: edit?.format ?? (book ? 'book' : 'movie'), seasons: str(edit?.seasons), pages: str(edit?.pages), year: str(edit?.year), description: str(edit?.description), series: str(edit?.series), series_no: str(edit?.series_no) })
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
+  const int = (v: string, max: number) => (Number(v) > 0 ? Math.min(max, Math.round(Number(v))) : null)
   const save = async () => {
     setBusy(true)
     try {
-      const cover = file ? await uploadPhoto(me.id, file) : null
-      await addMedia({ class_id: classId, kind, title: f.title.trim(), author: f.author.trim() || null, note: f.note.trim() || null, genre: f.genre || null, format: f.format, seasons: hasSeasons(f.format) && Number(f.seasons) > 0 ? Math.min(50, Number(f.seasons)) : null, pages: kind === 'book' && Number(f.pages) > 0 ? Math.min(10000, Math.round(Number(f.pages))) : null, cover, approved: staff, proposed_by: me.id })
-      toast(staff ? tx('Қосылды') : tx('Ұсыныс жіберілді')); onDone()
+      const cover = file ? await uploadPhoto(me.id, file) : edit?.cover ?? null
+      const row = { title: f.title.trim(), author: f.author.trim() || null, note: f.note.trim() || null, genre: f.genre || null, format: f.format, cover,
+        seasons: hasSeasons(f.format) ? int(f.seasons, 50) : null, pages: book ? int(f.pages, 10000) : null, year: int(f.year, 2100),
+        description: f.description.trim() || null, series: f.series.trim() || null, series_no: f.series.trim() ? int(f.series_no, 999) : null }
+      if (edit) await updateMedia(edit.id, row)
+      else await addMedia({ ...row, class_id: classId, kind, approved: staff, proposed_by: me.id })
+      toast(edit ? tx('Сақталды') : staff ? tx('Қосылды') : tx('Ұсыныс жіберілді')); onDone()
     } catch (e) { toast(errText(e)) } finally { setBusy(false) }
   }
   return (
-    <Sheet title={staff ? (book ? tx('Кітап қосу') : tx('Фильм қосу')) : (book ? tx('Кітап ұсыну') : tx('Фильм ұсыну'))} onClose={onClose}>
-      <div className="grid gap-3">
+    <Sheet title={edit ? tx('Өңдеу: {0}', edit.title) : staff ? (book ? tx('Кітап қосу') : tx('Фильм қосу')) : (book ? tx('Кітап ұсыну') : tx('Фильм ұсыну'))} onClose={onClose}>
+      <div className="grid grid-cols-1 gap-3">
         <div className="grid grid-cols-[6rem_1fr] gap-3">
           <label className="aspect-[2/3] rounded-md border-2 border-dashed border-line grid place-items-center text-center text-xs text-muted cursor-pointer overflow-hidden">
-            {file ? <img src={URL.createObjectURL(file)} alt="" className="size-full object-cover" /> : <span className="grid justify-items-center gap-1 p-1"><Icon n="plus" size={18} />{tx('Мұқаба')}</span>}
+            {file ? <img src={URL.createObjectURL(file)} alt="" className="size-full object-cover" /> : edit?.cover ? <MediaCover m={edit} /> : <span className="grid justify-items-center gap-1 p-1"><Icon n="plus" size={18} />{tx('Мұқаба')}</span>}
             <input type="file" accept="image/*" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
           <div className="grid gap-2 content-start">
             <input aria-label={tx('Атауы')} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} maxLength={200} className={inputCls} placeholder={tx('Атауы')} />
             <input aria-label={book ? tx('Авторы') : tx('Режиссері')} value={f.author} onChange={(e) => setF({ ...f, author: e.target.value })} maxLength={200} className={inputCls} placeholder={book ? tx('Авторы') : tx('Режиссері')} />
+            <input aria-label={tx('Жылы')} type="number" inputMode="numeric" min={1000} max={2100} value={f.year} onChange={(e) => setF({ ...f, year: e.target.value })} className={inputCls} placeholder={tx('Жылы')} />
           </div>
         </div>
         <Chips label={tx('Түрі')} value={f.format} onChange={(format) => setF({ ...f, format })} items={FORMATS[kind]} />
-        {kind === 'book' && <input aria-label={tx('Бет саны')} type="number" inputMode="numeric" min={1} max={10000} value={f.pages} onChange={(e) => setF({ ...f, pages: e.target.value })} className={inputCls} placeholder={tx('Бет саны')} />}
+        {book && <input aria-label={tx('Бет саны')} type="number" inputMode="numeric" min={1} max={10000} value={f.pages} onChange={(e) => setF({ ...f, pages: e.target.value })} className={inputCls} placeholder={tx('Бет саны')} />}
         {hasSeasons(f.format) && <input aria-label={tx('Неше маусым')} type="number" inputMode="numeric" min={1} max={50} value={f.seasons} onChange={(e) => setF({ ...f, seasons: e.target.value })} className={inputCls} placeholder={tx('Неше маусым (сезон)')} />}
         <Chips label={tx('Жанр')} value={f.genre} onChange={(genre) => setF({ ...f, genre })} items={GENRES[kind]} />
-        <input aria-label={tx('Неге ұсынасыз?')} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={1000} className={inputCls} placeholder={tx('Неге ұсынасыз? (міндетті емес)')} />
+        <div className="grid grid-cols-[1fr_5.5rem] gap-2 [&_input]:min-w-0">
+          <input aria-label={tx('Серия')} value={f.series} onChange={(e) => setF({ ...f, series: e.target.value })} maxLength={120} className={inputCls} placeholder={tx('Серия (міндетті емес): Гарри Поттер')} />
+          <input aria-label={tx('Бөлім №')} type="number" inputMode="numeric" min={1} max={999} value={f.series_no} disabled={!f.series.trim()} onChange={(e) => setF({ ...f, series_no: e.target.value })} className={inputCls} placeholder={tx('№')} />
+        </div>
+        <textarea aria-label={tx('Қысқаша мазмұны')} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} maxLength={2000} rows={3} className={`${inputCls} h-auto py-2`} placeholder={tx('Қысқаша мазмұны (міндетті емес)')} />
+        {!edit && <input aria-label={tx('Неге ұсынасыз?')} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={1000} className={inputCls} placeholder={tx('Неге ұсынасыз? (міндетті емес)')} />}
         {!staff && <p className="text-xs text-muted">{tx('Ұсынысыңызды тәрбиеші не сынып жетекшісі мақұлдаған соң, бүкіл сыныпқа көрінеді.')}</p>}
-        <Button onClick={save} loading={busy} disabled={f.title.trim().length < 2}>{staff ? tx('Қосу') : tx('Ұсыну')}</Button>
+        <Button onClick={save} loading={busy} disabled={f.title.trim().length < 2}>{edit ? tx('Сақтау') : staff ? tx('Қосу') : tx('Ұсыну')}</Button>
       </div>
     </Sheet>
   )
 }
 
 /** One book or film: status, classmates, reviews; staff approve, screen or remove. */
-function Detail({ m, students, staff, name, onClose, reload }: { m: Media; students: Student[]; staff: boolean; name: (id: string | null) => string; onClose: () => void; reload: () => void }) {
+function Detail({ m, classId, students, staff, name, onClose, reload }: { m: Media; classId: string; students: Student[]; staff: boolean; name: (id: string | null) => string; onClose: () => void; reload: () => void }) {
   const { me } = useMe()
   const book = m.kind === 'book'
   const [busy, setBusy] = useState(false)
   const [screen, setScreen] = useState(false)
+  const [editing, setEditing] = useState(false)
   const run = async (fn: () => Promise<unknown>, done?: string) => { setBusy(true); try { await fn(); if (done) toast(done); reload() } catch (e) { toast(errText(e)) } finally { setBusy(false) } }
   const mineP = m.progress.find((p) => p.user_id === me.id)
   const done = m.progress.filter((p) => p.state === 'done' && students.some((s) => s.id === p.user_id))
@@ -213,13 +260,14 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
           <MediaCover m={m} />
           <div className="grid gap-1 content-start text-sm">
             {m.author && <p className="font-semibold">{m.author}</p>}
-            <p className="text-muted">{[formatName(m.kind, m.format), genreName(m.kind, m.genre), m.seasons ? tx('{0} маусым', m.seasons) : '', m.pages ? tx('{0} бет', m.pages) : ''].filter(Boolean).join(' · ')}</p>
+            <p className="text-muted">{[formatName(m.kind, m.format), genreName(m.kind, m.genre), m.year ? String(m.year) : '', m.seasons ? tx('{0} маусым', m.seasons) : '', m.pages ? tx('{0} бет', m.pages) : ''].filter(Boolean).join(' · ')}</p>
+            {m.series && <p className="text-xs font-semibold text-accent">{tx('Серия: {0}', m.series)}{m.series_no ? ` · ${tx('{0}-бөлім', m.series_no)}` : ''}</p>}
             {avg && <p className="flex items-center gap-1.5"><Stars value={avg.avg} size={16} label={tx('Орташа баға')} /><b>{avg.avg}</b><span className="text-muted">· {tx('{0} баға', avg.n)}</span></p>}
             {m.note && <p>{m.note}</p>}
-            {book && staff && <label className="flex items-center gap-2 text-xs text-muted">{tx('Бет саны')}<input type="number" inputMode="numeric" min={1} max={10000} defaultValue={m.pages ?? ''} onBlur={(e) => { const n = Math.round(Number(e.target.value)) || null; if (n !== (m.pages ?? null)) run(() => setMediaPages(m.id, n && n > 0 ? Math.min(10000, n) : null)) }} className={`${inputCls} h-8 w-24 px-2 text-sm`} /></label>}
             {!m.approved && <p className="text-warning font-semibold">{tx('Күтуде · ұсынған: {0}', name(m.proposed_by))}</p>}
           </div>
         </div>
+        {m.description && <p className="text-sm whitespace-pre-line">{m.description}</p>}
         {!m.approved ? (
           <div className="flex gap-2">
             {staff && <Button onClick={() => run(() => approveMedia(m.id), tx('Мақұлданды'))}><Icon n="check" size={18} />{tx('Мақұлдау')}</Button>}
@@ -233,7 +281,13 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
                 className={`min-h-11 px-1 rounded-md text-sm font-semibold leading-tight ${on ? 'bg-accent text-on-accent' : 'bg-surface-2'}`}>{stateLabel(st, book)}</button>
             })}
           </div>
-          {book && mineP?.state === 'doing' && <PagesRead m={m} read={mineP.pages_read ?? 0} busy={busy} save={(n) => run(() => setPagesRead(m.id, n, m.pages && n >= m.pages ? 'done' : 'doing'), m.pages && n >= m.pages ? tx('Оқып бітірдің!') : undefined)} />}
+          {book && mineP && mineP.state !== 'want' && <ReadingDays key={mineP.updated_at} m={m} read={mineP.pages_read ?? 0} classId={classId} meId={me.id} reload={reload} />}
+          {mineP?.state === 'done' && (
+            <label className="flex items-center gap-3 rounded-md bg-surface-2 px-3 min-h-12 text-sm">
+              <span className="flex-1 font-semibold">{book ? tx('Оқып бітірген күні') : tx('Көрген күні')}</span>
+              <input type="date" max={today()} defaultValue={mineP.finished_on ?? ''} onBlur={(e) => e.target.value && e.target.value !== mineP.finished_on && run(() => setFinishedOn(m.id, me.id, e.target.value), tx('Сақталды'))} className={`${inputCls} h-9 w-auto px-2`} />
+            </label>
+          )}
           <div className="grid gap-2 rounded-md bg-surface-2 p-3">
             <div className="flex items-center gap-2"><span className="flex-1 text-sm font-semibold">{tx('Сенің бағаң')}</span><Stars value={mineP?.rating ?? null} onPick={(v) => rate({ rating: v })} size={26} label={tx('Сенің бағаң')} /></div>
             {m.seasons && Array.from({ length: m.seasons }, (_, i) => String(i + 1)).map((k, i) => (
@@ -259,6 +313,7 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
             ))}</ul>
           )}
           {staff && <div className="flex gap-2 border-t border-line pt-3">
+            <Button kind="secondary" onClick={() => setEditing(true)}><Icon n="compose" size={18} />{tx('Өңдеу')}</Button>
             {!book && <Button kind="secondary" onClick={() => setScreen(true)}><Icon n="users" size={18} />{tx('Көрсетілім')}</Button>}
             <span className="flex-1" />
             <Button kind="ghost" onClick={() => run(async () => { await removeMedia(m.id); onClose() })}>{tx('Өшіру')}</Button>
@@ -266,6 +321,7 @@ function Detail({ m, students, staff, name, onClose, reload }: { m: Media; stude
         </>}
       </div>
       {screen && <Screening m={m} students={students} onClose={() => setScreen(false)} reload={reload} />}
+      {editing && <MediaForm kind={m.kind} classId={classId} staff edit={m} onClose={() => setEditing(false)} onDone={() => { setEditing(false); reload() }} />}
     </Sheet>
   )
 }
@@ -308,19 +364,40 @@ function Screening({ m, students, onClose, reload }: { m: Media; students: Stude
   )
 }
 
-/** «Неше бет оқыдың?» — a page counter with a progress bar; reaching the last page marks the book read. */
-function PagesRead({ m, read, busy, save }: { m: Media; read: number; busy: boolean; save: (n: number) => void }) {
-  const [n, setN] = useState(String(read || ''))
-  const v = Math.max(0, Math.round(Number(n) || 0))
+/** Pages read per day: add today's (or another day's) pages; the total and progress are their sum. */
+function ReadingDays({ m, read, classId, meId, reload }: { m: Media; read: number; classId: string; meId: string; reload: () => void }) {
+  const logs = useLoad(async () => (await listReadingLog(classId, '2000-01-01', meId)).filter((l) => l.media_id === m.id), [m.id, read])
+  const [day, setDay] = useState(today())
+  const [n, setN] = useState('')
+  const [busy, setBusy] = useState(false)
+  const v = Math.round(Number(n) || 0)
+  const add = async () => {
+    setBusy(true)
+    try {
+      await addReadingLog(m.id, day, v)
+      setN('')
+      if (m.pages && read + v >= m.pages) toast(tx('Оқып бітірдің!'))
+      reload()
+    } catch (e) { toast(errText(e)) } finally { setBusy(false) }
+  }
   return (
-    <div className="grid gap-2 rounded-md bg-surface-2 p-3">
-      <label htmlFor="pages-read" className="text-sm font-semibold">{tx('Неше бет оқыдың?')}</label>
-      <div className="flex items-center gap-2">
-        <input id="pages-read" type="number" inputMode="numeric" min={0} max={m.pages ?? 10000} value={n} onChange={(e) => setN(e.target.value)} className={`${inputCls} h-9 w-20 px-2 text-center`} />
-        {m.pages ? <span className="flex-1 text-sm text-muted whitespace-nowrap">/ {m.pages} {m.pages ? `· ${Math.round((100 * read) / m.pages)}%` : ''}</span> : <span className="flex-1" />}
-        <Button kind="secondary" loading={busy} disabled={v === read} onClick={() => save(m.pages ? Math.min(v, m.pages) : v)}>{tx('Сақтау')}</Button>
+    <div className="grid grid-cols-1 gap-2 rounded-md bg-surface-2 p-3">
+      <div className="flex items-baseline gap-2">
+        <span className="flex-1 text-sm font-semibold">{tx('Оқу күнделігі')}</span>
+        <span className="text-sm text-muted tabular-nums">{m.pages ? tx('{0} / {1} бет', read, m.pages) : tx('{0} бет', read)}{m.pages ? ` · ${Math.min(100, Math.round((100 * read) / m.pages))}%` : ''}</span>
       </div>
       {m.pages ? <div className="h-2 rounded-full bg-surface overflow-hidden"><div className="h-full bg-accent" style={{ width: `${Math.min(100, (100 * read) / m.pages)}%` }} /></div> : null}
+      <div className="grid grid-cols-[1fr_5rem_auto] items-center gap-2 [&_input]:min-w-0">
+        <input aria-label={tx('Күні')} type="date" max={today()} value={day} onChange={(e) => setDay(e.target.value)} className={`${inputCls} h-10 px-2`} />
+        <input aria-label={tx('Неше бет оқыдың?')} type="number" inputMode="numeric" min={1} max={2000} value={n} onChange={(e) => setN(e.target.value)} placeholder={tx('бет')} className={`${inputCls} h-10 px-2 text-center`} />
+        <Button kind="secondary" loading={busy} disabled={v < 1 || v > 2000 || !day} onClick={add}>{tx('Қосу')}</Button>
+      </div>
+      {(logs.data ?? []).length > 0 && (
+        <ul className="grid gap-1 text-sm">{(logs.data ?? []).slice(0, 7).map((l) => (
+          <li key={l.id} className="flex items-center gap-2"><span className="flex-1 text-muted">{fmtDate(l.on_date)}</span><span className="font-semibold tabular-nums">+{l.pages}</span>
+            <button type="button" aria-label={tx('Өшіру')} onClick={() => removeReadingLog(l.id).then(reload, (e) => toast(errText(e)))} className="size-8 grid place-items-center rounded-md text-muted"><Icon n="x" size={14} /></button></li>
+        ))}</ul>
+      )}
     </div>
   )
 }

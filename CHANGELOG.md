@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.18.0 — 2026-11-17
+
+- Books and films: staff can edit every field of an existing title (cover, title, author/director, year, type, genre, pages/seasons, series and part number, summary). New genres: «Детектив» (books), «Қорқынышты» (films).
+- Series: parts with the same series show as one card («Гарри Поттер · 3 бөлім», «2/3 көрдім»); opening it lists the parts, each with its own status.
+- Reading log: pages are entered per day (`media_reading_log`); the total, progress and «Оқыдым» on the last page come from a DB trigger. Earlier page counts were moved into the log.
+- Date finished / watched (`media_progress.finished_on`): set on «Оқыдым/Көрдім», editable by the student and by staff in the dossier.
+- New «Оқу аналитикасы» tab in Resources: pages per day, readers, books finished, films watched for 7/30/90 days; staff see every student, a student sees their own line; most-read books.
+- Dossier → Медиатека: 30-day pages, books read, films watched, a 14-day bar strip, series label and finish dates.
+- Data: existing 7B books and films filled in (author/director, year, type, genre, summary); «Гарри Поттер» (8), «Астрал» (5), «Соник» (3), «Зверопой» (2) split into parts — earlier marks stay on part 1 (Соник — part 3).
+- Migration 0079_media_series_reading (applied).
+
 ## 1.17.11 — 2026-11-08
 
 - Сынып қоры counts each wallet separately: a tile per wallet with its own balance (and planned), «Барлығы» for the total; tapping a tile filters the totals and the list. Every new entry is written to a chosen wallet (`class_fund.wallet_id`, already in the DB); a new wallet can be added right there. Event expenses count in their own wallet; older entries without a wallet show as «Әмиянсыз». Deleting an entry asks first.
