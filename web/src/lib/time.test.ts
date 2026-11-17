@@ -219,3 +219,12 @@ assert.equal(scaleAmount(1, 3, 2), 0.67)
 assert.equal(scaleAmount(null, 4, 8), null)
 assert.deepEqual(parseTags('#Пудинг #десерт, шоколад #пудинг'), ['пудинг', 'десерт', 'шоколад'])
 console.log('recipe ok')
+
+import { groupSeries, pagesByDay } from './stars'
+{
+  const g = groupSeries([{ id: 'a' }, { id: 'h2', series: 'HP', series_no: 2 }, { id: 'b' }, { id: 'h1', series: 'hp ', series_no: 1 }])
+  assert.deepEqual(g.map((x) => x.items.map((i) => i.id)), [['a'], ['h1', 'h2'], ['b']])
+  const d = pagesByDay([{ on_date: '2026-11-17', pages: 10 }, { on_date: '2026-11-17', pages: 5 }, { on_date: '2026-11-15', pages: 3 }, { on_date: '2026-10-01', pages: 99 }], 3, '2026-11-17')
+  assert.deepEqual(d, [{ day: '2026-11-15', pages: 3 }, { day: '2026-11-16', pages: 0 }, { day: '2026-11-17', pages: 15 }])
+  console.log('series ok')
+}

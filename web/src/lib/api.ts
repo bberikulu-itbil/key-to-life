@@ -1252,25 +1252,36 @@ export const removeClassPhoto = (id: string) => ok(supabase.from('class_photos')
 
 /* ---------- class resources: library, film club, shopping lists, class fund ---------- */
 export type MediaState = 'want' | 'doing' | 'done'
-export type Media = { id: string; kind: 'book' | 'film'; title: string; author: string | null; note: string | null; cover: string | null; genre: string | null; format: string | null; seasons: number | null; pages?: number | null; approved: boolean; proposed_by: string | null; progress: { user_id: string; state: MediaState; review: string | null; rating: number | null; season_stars: Record<string, number>; pages_read?: number | null; updated_at: string }[] }
+export type Media = { id: string; kind: 'book' | 'film'; title: string; author: string | null; note: string | null; cover: string | null; genre: string | null; format: string | null; seasons: number | null; pages?: number | null; year?: number | null; description?: string | null; series?: string | null; series_no?: number | null; approved: boolean; proposed_by: string | null; progress: { user_id: string; state: MediaState; review: string | null; rating: number | null; season_stars: Record<string, number>; pages_read?: number | null; finished_on?: string | null; updated_at: string }[] }
 export type ClassList = { id: string; title: string; on_date: string | null; items: { id: string; name: string; price: number; qty: number; student_id: string | null; done: boolean }[] }
 export type FundRow = { id: string; on_date: string; amount: number; note: string; planned: boolean; wallet_id?: string | null }
 export const listClassResources = async (classId: string) => {
   const [media, lists, fund] = await Promise.all([
-    ok(supabase.from('class_media').select('id, kind, title, author, note, cover, genre, format, seasons, pages, approved, proposed_by, progress:media_progress(user_id, state, review, rating, season_stars, pages_read, updated_at)').eq('class_id', classId).order('created_at', { ascending: false })),
+    ok(supabase.from('class_media').select('id, kind, title, author, note, cover, genre, format, seasons, pages, year, description, series, series_no, approved, proposed_by, progress:media_progress(user_id, state, review, rating, season_stars, pages_read, finished_on, updated_at)').eq('class_id', classId).order('created_at', { ascending: false })),
     ok(supabase.from('class_lists').select('id, title, on_date, items:class_list_items(id, name, price, qty, student_id, done)').eq('class_id', classId).order('created_at', { ascending: false })),
     ok(supabase.from('class_fund').select('id, on_date, amount, note, planned, wallet_id').eq('class_id', classId).order('on_date', { ascending: false })),
   ])
   return { media, lists, fund } as { media: Media[]; lists: ClassList[]; fund: FundRow[] }
 }
-export const addMedia = (row: { class_id: string; kind: Media['kind']; title: string; author: string | null; note: string | null; cover: string | null; genre: string | null; format: string | null; seasons: number | null; pages?: number | null; approved: boolean; proposed_by: string }) => ok<{ id: string }>(supabase.from('class_media').insert(row).select('id').single())
+export const addMedia = (row: { class_id: string; kind: Media['kind']; title: string; author: string | null; note: string | null; cover: string | null; genre: string | null; format: string | null; seasons: number | null; pages?: number | null; year?: number | null; description?: string | null; series?: string | null; series_no?: number | null; approved: boolean; proposed_by: string }) => ok<{ id: string }>(supabase.from('class_media').insert(row).select('id').single())
 /** Staff set a book/film state for a student (Анкета → Медиатека); null removes it. */
 export const setStudentMedia = (media_id: string, user_id: string, state: MediaState | null) => state
   ? ok(supabase.from('media_progress').upsert({ media_id, user_id, state, updated_at: new Date().toISOString() }))
   : ok(supabase.from('media_progress').delete().eq('media_id', media_id).eq('user_id', user_id))
-export const setMediaPages = (id: string, pages: number | null) => ok(supabase.from('class_media').update({ pages }).eq('id', id))
+export type MediaPatch = Partial<Pick<Media, 'title' | 'author' | 'note' | 'cover' | 'genre' | 'format' | 'seasons' | 'pages' | 'year' | 'description' | 'series' | 'series_no'>>
+export const updateMedia = (id: string, patch: MediaPatch) => ok(supabase.from('class_media').update(patch).eq('id', id))
+/** The day a book was read / a film watched (own, or a student's for staff). */
+export const setFinishedOn = (media_id: string, user_id: string, finished_on: string) => ok(supabase.from('media_progress').update({ finished_on }).eq('media_id', media_id).eq('user_id', user_id))
+export type ReadingLog = { id: string; media_id: string; user_id: string; on_date: string; pages: number }
+/** Daily page entries for a class's books since `from` (optionally one user); pages_read is their sum (DB trigger). */
+export const listReadingLog = async (classId: string, from: string, userId?: string) => {
+  let q = supabase.from('media_reading_log').select('id, media_id, user_id, on_date, pages, media:class_media!inner(class_id)').eq('media.class_id', classId).gte('on_date', from).order('on_date', { ascending: false })
+  if (userId) q = q.eq('user_id', userId)
+  return ((await ok(q)) as (ReadingLog & { media: unknown })[]).map((r) => ({ id: r.id, media_id: r.media_id, user_id: r.user_id, on_date: r.on_date, pages: r.pages }))
+}
+export const addReadingLog = (media_id: string, on_date: string, pages: number) => ok(supabase.from('media_reading_log').insert({ media_id, on_date, pages }))
+export const removeReadingLog = (id: string) => ok(supabase.from('media_reading_log').delete().eq('id', id))
 /** Pages read so far; reaching the book's page count marks it read. */
-export const setPagesRead = (media_id: string, pages_read: number, state: MediaState) => ok(supabase.from('media_progress').upsert({ media_id, state, pages_read, updated_at: new Date().toISOString() }))
 export const approveMedia = (id: string) => ok(supabase.from('class_media').update({ approved: true }).eq('id', id))
 export const removeMedia = (id: string) => ok(supabase.from('class_media').delete().eq('id', id))
 export const setMediaProgress = (media_id: string, state: MediaState | null, review?: string | null) => state
