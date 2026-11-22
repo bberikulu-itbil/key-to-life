@@ -1,16 +1,14 @@
 import { listClassResources, type Media, type MentorItem, type MentorMeeting } from '../lib/api'
 import { calcGoalProgress, type StudentRoadmap } from '../lib/mentor'
 import { addDays, fmtDate, today } from '../lib/time'
-import { lang, tx } from '../lib/i18n'
+import { tx } from '../lib/i18n'
 import { Card, Icon, useLoad } from './ui'
 import MediaCover from './MediaCover'
+import { WeekHabits } from './DossierParts'
 
 /** «Шолу»: the student's picture on one screen — next meeting and what was agreed last time, goals,
  *  this week's habits, the book being read, strengths, and (staff only) the closed notes. */
 
-const isoDow = (d: string) => { const n = new Date(d + 'T00:00:00').getDay(); return n === 0 ? 7 : n }
-const LETTERS: Record<string, string[]> = { kk: ['Д', 'С', 'С', 'Б', 'Ж', 'С', 'Ж'], ru: ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'], tr: ['P', 'S', 'Ç', 'P', 'C', 'C', 'P'], en: ['M', 'T', 'W', 'T', 'F', 'S', 'S'] }
-const dayLetter = (d: string) => (LETTERS[lang] ?? LETTERS.kk)[isoDow(d) - 1]
 
 export default function DossierHome({
   studentId, classId, meetings, items, roadmap, strengths, notes, together, onTab, onPlanMeeting, onStartMeeting,
@@ -33,8 +31,6 @@ export default function DossierHome({
   const goals = roadmap.goals.filter((g) => !g.done)
   const habits = roadmap.habits.filter((h) => !h.archived).slice(0, 4)
   const t0 = today()
-  const monday = addDays(t0, 1 - isoDow(t0))
-  const week = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
   const privateNote = !together ? (notes[0] ?? null) : null
   const lastClosed = !together ? meetings.find((m) => m.done_at && m.notes) : undefined
 
@@ -86,20 +82,7 @@ export default function DossierHome({
 
       <Card className="grid gap-2.5 content-start">
         <p className="font-bold">{tx('Әдеттер · осы апта')}</p>
-        {habits.length ? (
-          <>
-            <div className="grid grid-cols-[minmax(0,1fr)_repeat(7,18px)] gap-1.5 text-[11px] text-muted text-center"><span />{week.map((d) => <span key={d}>{dayLetter(d)}</span>)}</div>
-            {habits.map((h) => {
-              const checks = new Set(h.checks ?? [])
-              return (
-                <div key={h.id} className="grid grid-cols-[minmax(0,1fr)_repeat(7,18px)] gap-1.5 items-center">
-                  <span className="text-sm truncate">{h.title}</span>
-                  {week.map((d) => <span key={d} title={fmtDate(d)} className={`size-[18px] rounded-md ${checks.has(d) ? 'bg-accent' : d > t0 ? 'ring-1 ring-inset ring-line' : 'bg-surface-2'}`} />)}
-                </div>
-              )
-            })}
-          </>
-        ) : <p className="text-sm text-muted">{tx('Әдет қосылмаған')}</p>}
+        <WeekHabits habits={habits} />
       </Card>
 
       {classId && <Reading classId={classId} studentId={studentId} onOpen={() => onTab('resources')} />}

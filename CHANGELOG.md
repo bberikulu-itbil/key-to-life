@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.19.1 — 2026-11-23
+
+- Dossier → Жоспар: a side column with «Осы апта» (habit week grid) and «Мерзімдер» (open tasks and goals by due date; overdue red, next 3 days amber).
+- Dossier → Бағыт: «Мен кіммін» band (the student's interests, dream profession and goal for the year, MBTI, Holland, top Gallup); test cards in two columns on wide screens; olympiads and clubs on a timeline (current / finished); the questionnaire moved here from Мәліметтер so it can be filled in together.
+- Dossier → Медиатека: four figures — pages in 30 days, daily average, reading streak, books and films finished in 30 days — beside the 14-day bars.
+- Dossier → Мәліметтер: a «closed section» note and a completeness bar that names what is missing (birthday, ЖСН, nationality, city, address, parents' phones and workplace, health).
+
 ## 1.19.0 — 2026-11-23
 
 - Dossier (Анкета) redesigned for working with the student: a header with the student's current sections and traits, «Жоспарға қосу» and «Кездесуді бастау»; tabs Шолу · Кездесу · Жоспар · Бағыт · Медиатека · Мәліметтер.

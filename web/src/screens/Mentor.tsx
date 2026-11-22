@@ -21,7 +21,8 @@ import LocationPicker from '../components/LocationPicker'
 import MediaCover from '../components/MediaCover'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { lang, tx } from '../lib/i18n'
-import StudentDossierStructured, { StudentDossierOverview } from '../components/StudentDossierSections'
+import StudentDossierStructured from '../components/StudentDossierSections'
+import { Deadlines, DirectionSummary, PrivateSummary, WeekHabits } from '../components/DossierParts'
 import DossierHome from '../components/DossierHome'
 import MeetingMode from '../components/MeetingMode'
 
@@ -519,15 +520,7 @@ function StudentDossierView({
 
       {tab === 'info' && !hideClosed && (
         <div className="grid grid-cols-1 gap-6">
-          <StudentDossierOverview
-            student={displayStudent}
-            classNameStr={classNameStr}
-            meetings={d.meetings}
-            roadmap={roadmap}
-            profile={d.profileDetails}
-            health={d.health}
-            parentContacts={d.contacts}
-          />
+          {isStaff && <PrivateSummary profile={d.profileDetails} health={d.health} family={d.familyContacts} />}
           <StudentDossierStructured
             studentId={student.id}
             profile={d.profileDetails}
@@ -538,68 +531,6 @@ function StudentDossierView({
             isStudent={me.role === 'student'}
           />
 
-          {/* Quick Previews of Low Gallup & MBTI (from bottom of screenshot) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-line">
-            <div
-              onClick={() => onTabChange('tests')}
-              className="p-3.5 rounded-lg bg-surface-2 hover:bg-surface-2/80 transition cursor-pointer flex items-center justify-between"
-            >
-              <div>
-                <span className="text-xs font-semibold text-muted block">Low Gallup</span>
-                <span className="text-sm font-medium mt-0.5 block">
-                  {lowGallupList.length ? lowGallupList.join(', ') : tx('Белгіленбеген (толтыру →)')}
-                </span>
-              </div>
-              <Icon n="chev" size={16} className="text-muted" />
-            </div>
-
-            <div
-              onClick={() => onTabChange('tests')}
-              className="p-3.5 rounded-lg bg-surface-2 hover:bg-surface-2/80 transition cursor-pointer flex items-center justify-between"
-            >
-              <div>
-                <span className="text-xs font-semibold text-muted block">MBTI</span>
-                <span className="text-sm font-bold text-accent mt-0.5 block tracking-wider">
-                  {mbtiDisplayType}
-                </span>
-              </div>
-              <Icon n="chev" size={16} className="text-muted" />
-            </div>
-          </div>
-
-          {/* Personal reflections & detailed questionnaire questions */}
-          <div className="rounded-xl border border-line bg-surface p-4 grid gap-3">
-            <button
-              type="button"
-              onClick={() => setQuestionsOpen(!questionsOpen)}
-              className="flex items-center justify-between w-full text-left font-semibold text-sm"
-            >
-              <span className="flex items-center gap-2">
-                <Icon n="file" size={16} className="text-accent" />
-                <span>{tx('Жеке сұрақтар мен рефлексия (Анкета)')}</span>
-              </span>
-              <Icon n="chev" size={16} className={`text-muted transition-transform ${questionsOpen ? 'rotate-90' : ''}`} />
-            </button>
-
-            {questionsOpen && (
-              <div className="grid gap-3 pt-2">
-                {FORM.map(([k, q, hint]) => (
-                  <div key={k} className="grid gap-1 text-sm">
-                    <label className="font-medium text-xs text-muted">{q}</label>
-                    <textarea
-                      value={answers[k] ?? ''}
-                      onChange={(e) => setAnswers({ ...answers, [k]: e.target.value })}
-                      onBlur={(e) => saveField(k, e.target.value)}
-                      maxLength={800}
-                      rows={2}
-                      className={`${inputCls} py-2 h-auto text-sm`}
-                      placeholder={hint || tx('Жауабын жазыңыз...')}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -607,8 +538,9 @@ function StudentDossierView({
           TAB 2: PERSONALITIES TEST (MBTI, Gallup CliftonStrengths, Holland, MI)
           ==================================================================== */}
       {tab === 'tests' && (
-        <div className="grid grid-cols-1 gap-5">
-          <StudentTrajectory studentId={student.id} />
+        <div className="grid grid-cols-1 gap-4">
+          <DirectionSummary mbti={mbtiDisplayType} holland={answers.holland?.trim() ?? ''} gallup={topGallupList} answers={answers} />
+          <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-4 items-start">
           {/* 1. MBTI Card */}
           <Card className="grid grid-cols-1 gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -786,6 +718,41 @@ function StudentDossierView({
               </div>
             </Card>
           )}
+          </div>
+          <StudentTrajectory studentId={student.id} />
+          {/* Personal reflections & detailed questionnaire questions */}
+          <div className="rounded-xl border border-line bg-surface p-4 grid gap-3">
+            <button
+              type="button"
+              onClick={() => setQuestionsOpen(!questionsOpen)}
+              className="flex items-center justify-between w-full text-left font-semibold text-sm"
+            >
+              <span className="flex items-center gap-2">
+                <Icon n="file" size={16} className="text-accent" />
+                <span>{tx('Жеке сұрақтар мен рефлексия (Анкета)')}</span>
+              </span>
+              <Icon n="chev" size={16} className={`text-muted transition-transform ${questionsOpen ? 'rotate-90' : ''}`} />
+            </button>
+
+            {questionsOpen && (
+              <div className="grid gap-3 pt-2">
+                {FORM.map(([k, q, hint]) => (
+                  <div key={k} className="grid gap-1 text-sm">
+                    <label className="font-medium text-xs text-muted">{q}</label>
+                    <textarea
+                      value={answers[k] ?? ''}
+                      onChange={(e) => setAnswers({ ...answers, [k]: e.target.value })}
+                      onBlur={(e) => saveField(k, e.target.value)}
+                      maxLength={800}
+                      rows={2}
+                      className={`${inputCls} py-2 h-auto text-sm`}
+                      placeholder={hint || tx('Жауабын жазыңыз...')}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -793,7 +760,8 @@ function StudentDossierView({
           TAB 3: PLAN (Rich Roadmap: Goals, Habits, Tasks, Presets Bank)
           ==================================================================== */}
       {tab === 'plan' && (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 @4xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-4 items-start">
+          <div className="min-w-0">
           <RoadmapSection
             studentId={student.id}
             roadmap={roadmap}
@@ -803,6 +771,17 @@ function StudentDossierView({
               setAddPlan(true)
             }}
           />
+          </div>
+          <div className="grid gap-4 @4xl:sticky @4xl:top-4">
+            <Card className="grid gap-3">
+              <p className="font-bold">{tx('Осы апта')}</p>
+              <WeekHabits habits={roadmap.habits} />
+            </Card>
+            <Card className="grid gap-3">
+              <p className="font-bold">{tx('Мерзімдер')}</p>
+              <Deadlines roadmap={roadmap} />
+            </Card>
+          </div>
         </div>
       )}
 
@@ -1199,6 +1178,29 @@ function StudentTrajectory({ studentId }: { studentId: string }) {
         </div>
         <Button kind="secondary" onClick={openAdd}><Icon n="plus" size={15} />{tx('Қосу')}</Button>
       </div>
+      {(() => {
+        // Олимпиада мен үйірме уақыт сызығында: қазіргілері толық нүкте, біткендері бос нүкте.
+        const line = rows.filter((r) => isPeriodTrajectory(r.kind) && r.started_on).sort((a, b) => (a.started_on ?? '').localeCompare(b.started_on ?? ''))
+        if (!line.length) return null
+        return (
+          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+            <div className="relative flex gap-4 pt-5 min-w-max">
+              <span className="absolute top-[7px] left-0 right-0 h-0.5 bg-line" />
+              {line.map((r) => {
+                const now = isCurrentTrajectory(r)
+                return (
+                  <div key={r.id} className="relative w-44 grid gap-0.5 content-start">
+                    <span className={`absolute -top-[18px] size-3 rounded-full ${now ? 'bg-accent' : 'bg-surface ring-2 ring-inset ring-line'}`} />
+                    <span className={`text-xs ${now ? 'text-success font-semibold' : 'text-muted'}`}>{fmtDate(r.started_on!)}{now ? ' · ' + tx('қазір') : r.ended_on ? ' — ' + fmtDate(r.ended_on) : ''}</span>
+                    <span className={`text-sm font-bold break-words ${now ? '' : 'text-muted'}`}>{r.title}</span>
+                    <span className="text-xs text-muted">{TRAJECTORY_META[r.kind].label}{r.started_on ? ' · ' + trajectoryDuration(r.started_on, r.ended_on) : ''}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
       {data.loading && !data.data ? <p className="text-sm text-muted">{tx('Жүктелуде...')}</p> : !rows.length ? <Empty icon="list" title={tx('Бағыттар әлі қосылмаған')} text={tx('Хобби мен спортқа уақыт кестесін, олимпиада мен үйірмеге қатысу кезеңін қосыңыз.')} /> : (
         <div className="grid grid-cols-1 gap-2">
           {rows.map((item) => {
@@ -2947,23 +2949,27 @@ function StudentMedia({ classId, studentId }: { classId: string; studentId: stri
         <a href={`#/resources/${classId}`} className="text-xs font-semibold text-accent hover:underline">{tx('Сынып ресурстары →')}</a>
       </div>
       {(() => {
-        // 30-day reading picture: pages, finished books, watched films, and a 14-day bar strip.
+        // 30-day reading picture: pages, daily average, streak, finished titles, and a 14-day bar strip.
         const l30 = logs.data ?? []
         const pages = l30.reduce((a, l) => a + l.pages, 0)
         const from = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10)
         const doneIn = (k: Media['kind']) => (data.data?.media ?? []).filter((m) => m.kind === k && m.progress.some((p) => p.user_id === studentId && p.state === 'done' && (p.finished_on ?? '') >= from)).length
         const days = pagesByDay(l30, 14, today())
         const max = Math.max(1, ...days.map((d) => d.pages))
+        // Days in a row with pages logged, ending today (or yesterday, if today is not logged yet).
+        const all30 = pagesByDay(l30, 30, today()).map((d) => d.pages > 0)
+        let streak = 0
+        for (let i = all30.length - (all30[all30.length - 1] ? 1 : 2); i >= 0 && all30[i]; i--) streak++
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr] gap-3 rounded-lg bg-surface-2 p-3">
-            <div className="grid grid-cols-3 gap-2 text-center">
-              {([['📖', pages, tx('бет · 30 күн')], ['✅', doneIn('book'), tx('кітап оқыды')], ['🎬', doneIn('film'), tx('фильм көрді')]] as const).map(([e, v, t]) => (
-                <div key={t} className="rounded-md bg-surface p-2"><p className="font-bold tabular-nums">{e} {v}</p><p className="text-[11px] text-muted leading-tight">{t}</p></div>
+          <div className="grid grid-cols-1 @2xl:grid-cols-[1.3fr_1fr] gap-3">
+            <div className="grid grid-cols-2 @lg:grid-cols-4 gap-2">
+              {([[tx('30 күнде'), tx('{0} бет', pages)], [tx('Күніне орташа'), tx('{0} бет', Math.round(pages / 30))], [tx('Қатарынан оқыды'), tx('{0} күн', streak)], [tx('30 күнде бітірді'), tx('{0} кітап · {1} фильм', doneIn('book'), doneIn('film'))]] as const).map(([t, v]) => (
+                <div key={t} className="rounded-lg bg-surface-2 px-3 py-2"><p className="text-[11px] font-semibold text-muted">{t}</p><p className={`font-bold tabular-nums ${t === tx('Қатарынан оқыды') && streak >= 3 ? 'text-success' : ''}`}>{v}</p></div>
               ))}
             </div>
-            <div className="grid gap-1">
-              <p className="text-[11px] text-muted">{tx('Соңғы 14 күн, бет')}</p>
-              <div className="flex items-end gap-0.5 h-12" role="img" aria-label={tx('{0} күнде {1} бет', 14, days.reduce((a, d) => a + d.pages, 0))}>
+            <div className="grid gap-1 rounded-lg bg-surface-2 px-3 py-2">
+              <p className="text-[11px] font-semibold text-muted">{tx('Соңғы 14 күн, бет')}</p>
+              <div className="flex items-end gap-0.5 h-10" role="img" aria-label={tx('{0} күнде {1} бет', 14, days.reduce((a, d) => a + d.pages, 0))}>
                 {days.map((d) => <span key={d.day} title={`${fmtDate(d.day)} · ${d.pages}`} className="flex-1 rounded-t-sm bg-accent min-h-px" style={{ height: `${(100 * d.pages) / max}%`, opacity: d.pages ? 1 : 0.15 }} />)}
               </div>
             </div>
