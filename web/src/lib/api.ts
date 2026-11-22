@@ -781,8 +781,8 @@ export const addParentContact = (row: { class_id: string; student_id: string; on
 export const removeParentContact = (id: string) => ok(supabase.from('parent_contacts').delete().eq('id', id))
 
 /* ---------- one-on-one meetings with a student ---------- */
-export type MentorMeeting = { id: string; student_id: string; staff_id: string | null; starts_at: string; topic: string; visible: boolean; actions: string | null; notes: string | null; done_at: string | null; place?: string | null }
-const MM = 'id, student_id, staff_id, starts_at, topic, visible, actions, notes, done_at, place'
+export type MentorMeeting = { id: string; student_id: string; staff_id: string | null; starts_at: string; topic: string; visible: boolean; actions: string | null; notes: string | null; done_at: string | null; place?: string | null; mood?: number | null; went_well?: string | null; was_hard?: string | null }
+const MM = 'id, student_id, staff_id, starts_at, topic, visible, actions, notes, done_at, place, mood, went_well, was_hard'
 export const classMentorMeetings = (classId: string) =>
   ok(supabase.from('mentor_meetings').select(MM).eq('class_id', classId).order('starts_at', { ascending: false }).limit(500)) as Promise<MentorMeeting[]>
 const normalizeRoadmap = (raw: { goals?: RoadmapGoal[]; habits?: RoadmapHabit[]; tasks?: RoadmapTask[] } | null | undefined): StudentRoadmap => ({
@@ -1000,6 +1000,12 @@ const legacyStudentMentor = async (id: string): Promise<StudentDossier> => {
 export const addMentorMeeting = (row: { class_id: string; student_id: string; starts_at: string; topic: string; visible: boolean; place?: string | null }) => ok(supabase.from('mentor_meetings').insert(row))
 export const finishMentorMeeting = (id: string, actions: string, notes: string) =>
   ok(supabase.from('mentor_meetings').update({ actions: actions || null, notes: notes || null, done_at: new Date().toISOString() }).eq('id', id))
+/** «Кездесуді бастау» with nothing booked: a meeting that starts now (no notification, see 0080). */
+export const startMentorMeeting = async (class_id: string, student_id: string, topic: string) =>
+  (await ok(supabase.from('mentor_meetings').insert({ class_id, student_id, topic, visible: true, starts_at: new Date().toISOString() }).select(MM).single())) as MentorMeeting
+export type MeetingReflection = { actions: string; notes: string; mood: number | null; went_well: string; was_hard: string }
+export const closeMentorMeeting = (id: string, r: MeetingReflection) =>
+  ok(supabase.from('mentor_meetings').update({ actions: r.actions || null, notes: r.notes || null, mood: r.mood, went_well: r.went_well || null, was_hard: r.was_hard || null, done_at: new Date().toISOString() }).eq('id', id))
 export const removeMentorMeeting = (id: string) => ok(supabase.from('mentor_meetings').delete().eq('id', id))
 export type MentorItem = { id: string; kind: 'task' | 'habit'; title: string; due_on: string | null; done: boolean; last7: number | null; meeting_id: string | null; created_at: string }
 export const mentorItems = (student: string) => rpc<MentorItem[]>('mentor_items', { p_student: student })

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.19.0 — 2026-11-23
+
+- Dossier (Анкета) redesigned for working with the student: a header with the student's current sections and traits, «Жоспарға қосу» and «Кездесуді бастау»; tabs Шолу · Кездесу · Жоспар · Бағыт · Медиатека · Мәліметтер.
+- «Оқушымен бірге» switch (remembered on the device): hides Мәліметтер, closed meeting notes, staff-only meetings and council notes, so the dossier can be shown to the student.
+- New «Шолу» tab: next meeting and what was agreed last time (with done marks), goal progress, this week's habits, the book being read, Gallup strengths, and a staff-only notes card.
+- «Кездесу режимі» replaces the old summary sheet: last agreements (re-agree unfinished ones), «Аптаң қалай өтті?» 1–5 with «Не жақсы болды? / Не қиын болды?», question ideas, new agreements as task or habit, and the closed note (hidden in «бірге» mode).
+- «Кездесуді бастау» with nothing booked starts a meeting now; such a meeting sends no «Жеке кездесу» notification.
+- Migration 0080_meeting_reflection: `mentor_meetings.mood`, `went_well`, `was_hard`; `mentor_notify` skips on-the-spot meetings.
+
 ## 1.18.0 — 2026-11-17
 
 - Books and films: staff can edit every field of an existing title (cover, title, author/director, year, type, genre, pages/seasons, series and part number, summary). New genres: «Детектив» (books), «Қорқынышты» (films).
