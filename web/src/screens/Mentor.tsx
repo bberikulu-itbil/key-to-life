@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  addMentorMeeting, classMentorMeetings, classStudentForms, classStudentProfileDetails, classStudents, errText, finishMentorMeeting, listClasses, listStaff,
-  mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting,
+  addMentorMeeting, classMentorMeetings, classStudentForms, classStudentProfileDetails, classStudents, errText, listClasses, listStaff,
+  mentorAssign, mentorEvery, patchStudentForm, patchStudentRoadmap, removeMentorMeeting, startMentorMeeting,
   addMedia, isCurrentTrajectory, listClassResources, listReadingLog, listStudentTrajectory, setFinishedOn, setStudentMedia, type Media, type MediaState, removeStudentTrajectory, saveStudentRoadmap, saveStudentTrajectory, studentMentor, type MentorMeeting, type StudentTrajectoryDraft, type StudentTrajectoryItem, type StudentTrajectoryKind,
 } from '../lib/api'
 import { mbtiScore } from '../lib/mbti'
@@ -22,11 +22,13 @@ import MediaCover from '../components/MediaCover'
 import { Button, Card, Chips, Empty, ErrorBox, Field, Icon, PageHead, Sheet, Skeleton, go, inputCls, toast, useLoad } from '../components/ui'
 import { lang, tx } from '../lib/i18n'
 import StudentDossierStructured, { StudentDossierOverview } from '../components/StudentDossierSections'
+import DossierHome from '../components/DossierHome'
+import MeetingMode from '../components/MeetingMode'
 
 /* «Анкета және жеке даму жоспары» — 1-on-1 mentor meetings, student questionnaire, and rich roadmap (Goals, Habits, Tasks). */
 
 const at = (s: string) => new Date(s).toLocaleString(lang === 'kk' ? 'kk-KZ' : lang, { day: 'numeric', month: 'long', weekday: 'short', hour: '2-digit', minute: '2-digit' })
-export type DossierTab = 'info' | 'tests' | 'plan' | 'meetings' | 'resources'
+export type DossierTab = 'overview' | 'meetings' | 'plan' | 'tests' | 'resources' | 'info'
 
 export default function Mentor({ studentId, classId }: { studentId?: string; classId?: string }) {
   const { me } = useMe()
@@ -62,7 +64,7 @@ function TeacherDossierMasterDetail({ initialStudentId, classId }: { initialStud
   const autoPicked = useRef(false)
   const [search, setSearch] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [tab, setTab] = useState<DossierTab>('info')
+  const [tab, setTab] = useState<DossierTab>('overview')
   const [formsState, setFormsState] = useState<Record<string, Record<string, string>>>({})
 
   useEffect(() => {
@@ -325,7 +327,6 @@ function StudentDossierView({
   const [roadmap, setRoadmap] = useState<StudentRoadmap>({ goals: [], habits: [], tasks: [] })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [plusMenuOpen, setPlusMenuOpen] = useState(false)
   const [dotsMenuOpen, setDotsMenuOpen] = useState(false)
   const [gallupPicker, setGallupPicker] = useState<'top' | 'low' | null>(null)
   const [addPlan, setAddPlan] = useState(false)
@@ -333,6 +334,15 @@ function StudentDossierView({
   const [addMeeting, setAddMeeting] = useState(false)
   const [finishMeeting, setFinishMeeting] = useState<MentorMeeting | null>(null)
   const [questionsOpen, setQuestionsOpen] = useState(true)
+  const isStaff = me.role !== 'student'
+  // «Оқушымен бірге»: the teacher shows the dossier to the student; closed parts are hidden. Remembered on this device.
+  const [together, setTogetherState] = useState(() => { try { return localStorage.getItem('ktl.dossier.together') === '1' } catch { return false } })
+  const setTogether = (v: boolean) => {
+    setTogetherState(v)
+    try { localStorage.setItem('ktl.dossier.together', v ? '1' : '0') } catch { /* private mode */ }
+    if (v && tab === 'info') onTabChange('overview')
+  }
+  const [starting, setStarting] = useState(false)
 
   useEffect(() => {
     if (d?.form?.answers) {
@@ -402,205 +412,122 @@ function StudentDossierView({
     .map((s) => s.trim())
     .filter(Boolean)
 
-  const tabs: { id: DossierTab; label: string; icon: string }[] = [
-    { id: 'info', label: tx('Жеке мәліметтер'), icon: 'file' },
-    { id: 'tests', label: tx('Бағыт-бағдар'), icon: 'list' },
-    { id: 'plan', label: tx('Даму жоспары'), icon: 'grid' },
-    { id: 'meetings', label: tx('Кездесулер'), icon: 'calendar' },
+  const hideClosed = isStaff && together
+  const tabs: { id: DossierTab; label: string; icon: string; lock?: boolean }[] = [
+    { id: 'overview', label: tx('Шолу'), icon: 'home' },
+    { id: 'meetings', label: tx('Кездесу'), icon: 'chat' },
+    { id: 'plan', label: tx('Жоспар'), icon: 'target' },
+    { id: 'tests', label: tx('Бағыт'), icon: 'star' },
     { id: 'resources', label: tx('Медиатека'), icon: 'book' },
+    ...(hideClosed ? [] : [{ id: 'info' as const, label: tx('Мәліметтер'), icon: 'lock', lock: isStaff }]),
   ]
+  const chips = [
+    ...(displayStudent.olympiad ?? '').split(' · '),
+    ...(displayStudent.club ?? '').split(' · '),
+  ].map((x) => x.trim()).filter(Boolean)
+  const traitChips = [mbtiDisplayType !== '—' ? mbtiDisplayType : '', answers.holland?.trim() ?? ''].filter(Boolean)
+  const lastDone = [...d.meetings].filter((m) => m.done_at).sort((a, b) => b.starts_at.localeCompare(a.starts_at))[0] ?? null
+  const startMeeting = async () => {
+    const due = nextMeetings.find((m) => m.starts_at.slice(0, 10) <= today())
+    if (due) { setFinishMeeting(due); return }
+    const cid = classId ?? displayStudent.class_id ?? student.class_id
+    if (!cid) return
+    setStarting(true)
+    try { setFinishMeeting(await startMentorMeeting(cid, student.id, tx('Жеке кездесу'))); data.reload() }
+    catch (e) { toast(errText(e)) } finally { setStarting(false) }
+  }
 
   return (
-    <div className="grid grid-cols-1 gap-5">
-      {/* Top Header Bar matching Notion/Airtable style */}
-      <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
-        {/* Navigation Tabs Bar: wraps on phones so every tab is visible, one scrolling row on desktop */}
-        <div className="flex flex-wrap lg:flex-nowrap items-center gap-1.5 lg:overflow-x-auto no-scrollbar py-0.5 min-w-0">
+    <div className="@container grid grid-cols-1 gap-4">
+      {/* Header: who the student is, the «together» switch and the two main actions */}
+      <section className="rounded-2xl bg-surface-2/60 p-4 @3xl:p-5 flex flex-col @3xl:flex-row @3xl:items-center gap-4">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
           {onBack && (
-            <button
-              type="button"
-              onClick={onBack}
-              className="lg:hidden inline-flex items-center gap-1 h-9 px-2.5 rounded-lg text-sm font-semibold text-muted hover:text-fg hover:bg-surface-2 shrink-0 mr-1"
-            >
-              <Icon n="back" size={16} />
-              <span>{tx('Тізім')}</span>
-            </button>
+            <button type="button" onClick={onBack} aria-label={tx('Тізім')} className="lg:hidden size-9 grid place-items-center rounded-lg text-muted hover:bg-surface shrink-0"><Icon n="back" size={18} /></button>
           )}
-
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onTabChange(t.id)}
-              className={`inline-flex items-center gap-1.5 lg:gap-2 h-9 px-2.5 lg:px-3.5 rounded-lg text-[13px] lg:text-sm font-semibold transition shrink-0 ${
-                tab === t.id
-                  ? 'bg-surface shadow-xs text-fg border border-line ring-1 ring-black/5 dark:ring-white/10'
-                  : 'text-muted hover:text-fg hover:bg-surface-2'
-              }`}
-            >
-              <Icon n={t.icon} size={15} />
-              <span>{t.label}</span>
-            </button>
-          ))}
-
-          {/* Plus button */}
-          <div className="relative">
-            <button
-              type="button"
-              aria-label={tx('Қосымша')}
-              onClick={() => setPlusMenuOpen(!plusMenuOpen)}
-              className="size-9 rounded-lg border border-line grid place-items-center text-muted hover:text-fg hover:bg-surface-2 transition shrink-0"
-            >
-              <Icon n="plus" size={16} />
-            </button>
-            {plusMenuOpen && (
-              <div className="absolute left-0 mt-1 w-52 rounded-lg bg-surface shadow-lg border border-line py-1 z-30 text-sm">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPlusMenuOpen(false)
-                    window.print()
-                  }}
-                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
-                >
-                  <Icon n="file" size={15} />
-                  {tx('Басып шығару (PDF)')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPlusMenuOpen(false)
-                    setAddMeeting(true)
-                  }}
-                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
-                >
-                  <Icon n="calendar" size={15} />
-                  {tx('Кездесу белгілеу')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPlusMenuOpen(false)
-                    setAddPlan(true)
-                  }}
-                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
-                >
-                  <Icon n="grid" size={15} />
-                  {tx('Жоспар құру')}
-                </button>
+          <Avatar name={displayStudent.full_name} photo={displayStudent.photo} size={60} />
+          <div className="min-w-0 grid gap-1.5">
+            <div className="flex flex-wrap items-baseline gap-x-2.5">
+              <h1 className="text-xl lg:text-2xl font-extrabold tracking-tight text-fg">{displayStudent.full_name}</h1>
+              {classNameStr && <span className="text-sm text-muted">{classNameStr}</span>}
+              {saving && <span className="text-xs text-muted italic animate-pulse">{tx('Сақталуда...')}</span>}
+              {saved && <span className="text-xs text-success font-semibold">✓ {tx('Сақталды')}</span>}
+            </div>
+            {(chips.length > 0 || traitChips.length > 0) && (
+              <div className="flex flex-wrap gap-1.5">
+                {chips.map((c) => <span key={c} className="h-7 px-2.5 rounded-full bg-accent-soft text-accent text-xs font-semibold flex items-center">{c}</span>)}
+                {traitChips.map((c) => <span key={c} className="h-7 px-2.5 rounded-full bg-surface text-fg text-xs font-semibold flex items-center">{c}</span>)}
               </div>
             )}
           </div>
         </div>
-
-        {/* Right Action Icons: ⋮ and ⤢ */}
-        <div className="flex items-center gap-1 shrink-0 relative">
-          <div className="relative">
-            <button
-              type="button"
-              aria-label={tx('Мәзір')}
-              onClick={() => setDotsMenuOpen(!dotsMenuOpen)}
-              className="size-9 rounded-lg text-muted hover:text-fg hover:bg-surface-2 grid place-items-center transition"
-            >
-              <Icon n="dots" size={18} />
-            </button>
-            {dotsMenuOpen && (
-              <div className="absolute right-0 mt-1 w-48 rounded-lg bg-surface shadow-lg border border-line py-1 z-30 text-sm">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDotsMenuOpen(false)
-                    window.print()
-                  }}
-                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
-                >
-                  <Icon n="file" size={15} />
-                  {tx('Басып шығару')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDotsMenuOpen(false)
-                    setAddPlan(true)
-                  }}
-                  className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
-                >
-                  <Icon n="plus" size={15} />
-                  {tx('Жоспар құру')}
-                </button>
-                {classId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDotsMenuOpen(false)
-                      go(`/journal/${classId}?tab=mentor`)
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2 text-fg"
-                  >
-                    <Icon n="calendar" size={15} />
-                    {tx('Сынып журналы')}
-                  </button>
+        {isStaff && (
+          <div className="flex flex-wrap items-center gap-2 @3xl:flex-col @3xl:items-end">
+            <label className="flex items-center gap-2.5 text-sm font-semibold cursor-pointer select-none">
+              <span className="flex flex-col @3xl:items-end leading-tight"><span>{tx('Оқушымен бірге')}</span><span className="text-[11px] font-medium text-muted">{tx('жабық бөлімдер жасырылады')}</span></span>
+              <input type="checkbox" role="switch" checked={together} onChange={(e) => setTogether(e.target.checked)} className="size-5 accent-[var(--accent)]" />
+            </label>
+            <div className="flex gap-2 items-center">
+              <button type="button" onClick={() => { setAddPlanTab('presets'); setAddPlan(true) }} className="h-10 px-3 rounded-md bg-accent-soft text-accent text-sm font-semibold whitespace-nowrap inline-flex items-center gap-1.5"><Icon n="plus" size={16} />{tx('Жоспарға қосу')}</button>
+              <button type="button" disabled={starting} aria-busy={starting} onClick={startMeeting} className="h-10 px-3 rounded-md bg-accent text-on-accent text-sm font-bold whitespace-nowrap inline-flex items-center gap-1.5 disabled:opacity-50"><Icon n="chat" size={16} />{tx('Кездесуді бастау')}</button>
+              <div className="relative">
+                <button type="button" aria-label={tx('Мәзір')} onClick={() => setDotsMenuOpen(!dotsMenuOpen)} className="size-10 rounded-md text-muted hover:text-fg hover:bg-surface grid place-items-center"><Icon n="dots" size={18} /></button>
+                {dotsMenuOpen && (
+                  <div className="absolute right-0 mt-1 w-52 rounded-lg bg-surface shadow-lg border border-line py-1 z-30 text-sm">
+                    <button type="button" onClick={() => { setDotsMenuOpen(false); setAddMeeting(true) }} className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2"><Icon n="calendar" size={15} />{tx('Кездесу белгілеу')}</button>
+                    <button type="button" onClick={() => { setDotsMenuOpen(false); window.print() }} className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2"><Icon n="file" size={15} />{tx('Басып шығару (PDF)')}</button>
+                    {classId && <button type="button" onClick={() => { setDotsMenuOpen(false); go(`/journal/${classId}?tab=mentor`) }} className="w-full text-left px-3 py-2 hover:bg-surface-2 flex items-center gap-2"><Icon n="calendar" size={15} />{tx('Сынып журналы')}</button>}
+                    {onToggleSidebar && <button type="button" onClick={() => { setDotsMenuOpen(false); onToggleSidebar() }} className="w-full text-left px-3 py-2 hover:bg-surface-2 hidden lg:flex items-center gap-2"><Icon n="expand" size={15} />{sidebarCollapsed ? tx('Тізімді көрсету') : tx('Толық экран')}</button>}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-
-          {onToggleSidebar && (
-            <button
-              type="button"
-              aria-label={sidebarCollapsed ? tx('Тізімді көрсету') : tx('Толық экран')}
-              onClick={onToggleSidebar}
-              className="size-9 rounded-lg text-muted hover:text-fg hover:bg-surface-2 grid place-items-center transition hidden lg:grid"
-              title={sidebarCollapsed ? tx('Тізімді көрсету') : tx('Толық экран')}
-            >
-              <Icon n="expand" size={17} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Student Name Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <Avatar name={displayStudent.full_name} photo={displayStudent.photo} size={48} />
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight text-fg">
-              {displayStudent.full_name}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted">
-              {classNameStr && <span className="font-semibold text-accent">{classNameStr}</span>}
-              {displayStudent.olympiad && <span>· {displayStudent.olympiad}</span>}
-              {displayStudent.club && <span>· {displayStudent.club}</span>}
-              {saving && (
-                <span className="text-muted italic animate-pulse">
-                  {tx('Сақталуда...')}
-                </span>
-              )}
-              {saved && (
-                <span className="text-success font-semibold flex items-center gap-1">
-                  ✓ {tx('Сақталды')}
-                </span>
-              )}
             </div>
           </div>
-        </div>
-      </div>
+        )}
+      </section>
 
-      {/* ====================================================================
-          TAB 1: INFO (2-Column Property Grid matching screenshot)
-          ==================================================================== */}
-      <StudentDossierOverview
-        student={displayStudent}
-        classNameStr={classNameStr}
-        meetings={d.meetings}
-        roadmap={roadmap}
-        profile={d.profileDetails}
-        health={d.health}
-        parentContacts={d.contacts}
-      />
+      {hideClosed && (
+        <p className="rounded-lg bg-accent-soft text-accent text-sm font-semibold px-3 py-2 flex items-center gap-2"><Icon n="users" size={16} />{tx('Оқушымен бірге көріп отырсыз · жабық бөлімдер жасырын')}</p>
+      )}
 
-      {tab === 'info' && (
+      <nav aria-label={tx('Анкета бөлімдері')} className="flex flex-wrap gap-1 rounded-xl bg-surface-2/60 p-1 self-start justify-self-start max-w-full">
+        {tabs.map((t) => (
+          <button key={t.id} type="button" onClick={() => onTabChange(t.id)} aria-current={tab === t.id ? 'page' : undefined}
+            className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13px] lg:text-sm font-semibold transition ${tab === t.id ? 'bg-accent text-on-accent' : 'text-muted hover:text-fg hover:bg-surface'}`}>
+            {!t.lock && <Icon n={t.icon} size={15} />}
+            <span>{t.label}</span>
+            {t.lock && <Icon n="lock" size={13} />}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'overview' && (
+        <DossierHome
+          studentId={student.id}
+          classId={displayStudent.class_id ?? student.class_id}
+          meetings={d.meetings}
+          items={d.items}
+          roadmap={roadmap}
+          strengths={topGallupList}
+          notes={d.notes}
+          together={hideClosed}
+          onTab={onTabChange}
+          onPlanMeeting={() => setAddMeeting(true)}
+          onStartMeeting={startMeeting}
+        />
+      )}
+
+      {tab === 'info' && !hideClosed && (
         <div className="grid grid-cols-1 gap-6">
+          <StudentDossierOverview
+            student={displayStudent}
+            classNameStr={classNameStr}
+            meetings={d.meetings}
+            roadmap={roadmap}
+            profile={d.profileDetails}
+            health={d.health}
+            parentContacts={d.contacts}
+          />
           <StudentDossierStructured
             studentId={student.id}
             profile={d.profileDetails}
@@ -886,13 +813,13 @@ function StudentDossierView({
         <div className="grid grid-cols-1 gap-4">
           <div className="flex items-center justify-between">
             <p className="font-bold text-base">{tx('Жеке кездесулер журналы')}</p>
-            <Button onClick={() => setAddMeeting(true)}>
-              <Icon n="plus" size={16} />
+            {isStaff && <Button kind="secondary" onClick={() => setAddMeeting(true)}>
+              <Icon n="calendar" size={16} />
               {tx('Кездесу белгілеу')}
-            </Button>
+            </Button>}
           </div>
 
-          {nextMeetings.map((m) => (
+          {nextMeetings.filter((m) => !hideClosed || m.visible).map((m) => (
             <Card key={m.id} className="grid gap-2 border-accent/40">
               <div className="flex items-start gap-2">
                 <span className="size-10 shrink-0 rounded-md bg-accent-soft text-accent grid place-items-center">
@@ -914,10 +841,10 @@ function StudentDossierView({
                   <Icon n="x" size={16} />
                 </button>
               </div>
-              <Button onClick={() => setFinishMeeting(m)}>
-                <Icon n="check" size={18} />
-                {tx('Қорытынды жазу')}
-              </Button>
+              {isStaff && <Button onClick={() => setFinishMeeting(m)}>
+                <Icon n="chat" size={18} />
+                {tx('Кездесуді бастау')}
+              </Button>}
             </Card>
           ))}
 
@@ -935,7 +862,7 @@ function StudentDossierView({
                 {tx('Өткен кездесулер · {0}', pastMeetings.length)}
               </p>
               <div className="grid grid-cols-1 gap-2">
-                {pastMeetings.map((m) => (
+                {pastMeetings.filter((m) => !hideClosed || m.visible).map((m) => (
                   <details key={m.id} className="rounded-lg bg-surface-2 px-3 py-2.5">
                     <summary className="cursor-pointer text-sm font-semibold">
                       {m.topic} ·{' '}
@@ -944,8 +871,11 @@ function StudentDossierView({
                         {m.place ? ` · ${m.place}` : ''}
                       </span>
                     </summary>
-                    {m.actions && <p className="mt-2 text-sm whitespace-pre-line">{m.actions}</p>}
-                    {m.notes && (
+                    {m.mood != null && <p className="mt-2 text-xs font-semibold text-accent">{tx('Апта бағасы: {0} / 5', m.mood)}</p>}
+                    {m.went_well && <p className="mt-2 text-sm whitespace-pre-line"><span className="text-xs font-semibold text-success block">{tx('Не жақсы болды?')}</span>{m.went_well}</p>}
+                    {m.was_hard && <p className="mt-2 text-sm whitespace-pre-line"><span className="text-xs font-semibold text-warning block">{tx('Не қиын болды?')}</span>{m.was_hard}</p>}
+                    {m.actions && <p className="mt-2 text-sm whitespace-pre-line"><span className="text-xs font-semibold text-muted block">{tx('Келісімдер')}</span>{m.actions}</p>}
+                    {m.notes && !hideClosed && (
                       <p className="mt-2 text-sm whitespace-pre-line text-muted">
                         <Icon n="lock" size={12} className="inline mr-1" />
                         {m.notes}
@@ -970,7 +900,7 @@ function StudentDossierView({
             <p className="text-sm text-muted">
               {tx('Оқушының мақсаттарына, олимпиада бағытына және қызығушылығына сай кітаптар, материалдар мен құжаттар.')}
             </p>
-            {d.notes.length > 0 && (
+            {d.notes.length > 0 && !hideClosed && (
               <div className="grid gap-2 border-t border-line pt-3">
                 <p className="text-xs font-bold uppercase text-muted">{tx('Сынып кеңесінің жазбалары')}</p>
                 {d.notes.map((n) => (
@@ -1034,8 +964,11 @@ function StudentDossierView({
 
       {/* Finish Meeting Sheet */}
       {finishMeeting && (
-        <FinishSheet
+        <MeetingMode
           m={finishMeeting}
+          prev={lastDone && lastDone.id !== finishMeeting.id ? lastDone : null}
+          prevItems={lastDone && lastDone.id !== finishMeeting.id ? d.items.filter((i) => i.meeting_id === lastDone.id) : []}
+          together={hideClosed}
           onClose={() => setFinishMeeting(null)}
           onDone={() => {
             setFinishMeeting(null)
@@ -1053,7 +986,7 @@ function StudentDossierView({
 
 function StudentOwnDossier() {
   const { me } = useMe()
-  const [tab, setTab] = useState<DossierTab>('info')
+  const [tab, setTab] = useState<DossierTab>('overview')
   return (
     <div className="grid gap-3 pb-6 w-full">
       <PageHead title={tx('Менің анкетам')} back />
@@ -2984,53 +2917,6 @@ function PlanSheet({ student, onClose, onDone }: { student: { id: string; class_
           try { await addMentorMeeting({ class_id: student.class_id, student_id: student.id, starts_at: new Date(f.when).toISOString(), topic: f.topic.trim(), visible: f.show === 'show', place: f.place.trim() || null }); onDone() }
           catch (e) { toast(errText(e)) } finally { setBusy(false) }
         }}>{tx('Белгілеу')}</Button>
-      </div>
-    </Sheet>
-  )
-}
-
-function FinishSheet({ m, onClose, onDone }: { m: MentorMeeting; onClose: () => void; onDone: () => void }) {
-  const tpl = TEMPLATES.find((t) => t.topic === m.topic)
-  const [items, setItems] = useState<{ title: string; kind: 'task' | 'habit'; due: string }[]>(() => (tpl?.items ?? []).map(([title, kind]) => ({ title, kind, due: '' })))
-  const [notes, setNotes] = useState('')
-  const [busy, setBusy] = useState(false)
-  const put = (k: number, v: Partial<(typeof items)[number]>) => setItems(items.map((x, j) => (j === k ? { ...x, ...v } : x)))
-  const save = async () => {
-    setBusy(true)
-    try {
-      const list = items.filter((i) => i.title.trim().length >= 2)
-      for (const i of list) await mentorAssign(m.id, i.kind, i.title.trim(), i.kind === 'task' ? i.due || null : null)
-      await finishMentorMeeting(m.id, list.map((i) => `• ${i.title.trim()}`).join('\n'), notes.trim())
-      toast(list.length ? tx('Сақталды, міндеттер оқушының жоспарына түсті') : tx('Сақталды')); onDone()
-    } catch (e) { toast(errText(e)) } finally { setBusy(false) }
-  }
-  return (
-    <Sheet title={m.topic} onClose={onClose}>
-      <div className="grid grid-cols-1 gap-4">
-        {tpl && <div className="rounded-md bg-accent-soft p-3 text-sm"><p className="font-semibold text-accent mb-1">{tx('Сұрақтар')}</p>
-          <ul className="list-disc pl-5 grid gap-0.5">{tpl.questions.map((q) => <li key={q}>{q}</li>)}</ul></div>}
-        <div className="grid grid-cols-1 gap-2">
-          <p className="font-semibold">{tx('Оқушыға міндеттер')}</p>
-          <p className="text-xs text-muted">{m.visible ? tx('Тапсырма оқушының Жоспарына, әдет — Әдеттеріне түседі. Орындалғанын осы беттен көресіз.') : tx('Кездесу жабық болса да, міндеттер оқушының жоспарына түседі.')}</p>
-          {items.map((i, k) => (
-            <div key={k} className="grid gap-2 rounded-md bg-surface-2 p-2">
-              <div className="flex gap-2">
-                <input aria-label={tx('Міндет')} value={i.title} onChange={(e) => put(k, { title: e.target.value })} maxLength={200} className={`${inputCls} flex-1 min-w-0`} placeholder={tx('Міндет')} />
-                <button type="button" aria-label={tx('Өшіру')} onClick={() => setItems(items.filter((_, j) => j !== k))} className="size-11 grid place-items-center rounded-md text-muted"><Icon n="x" size={16} /></button>
-              </div>
-              <div className="flex gap-2 items-center">
-                {(['task', 'habit'] as const).map((kind) => <button key={kind} type="button" aria-pressed={i.kind === kind} onClick={() => put(k, { kind })}
-                  className={`h-9 px-3 rounded-full text-sm font-semibold ${i.kind === kind ? 'bg-accent text-on-accent' : 'bg-surface'}`}>{kind === 'task' ? tx('Тапсырма') : tx('Әдет')}</button>)}
-                {i.kind === 'task' && <input aria-label={tx('Дедлайн')} type="date" value={i.due} onChange={(e) => put(k, { due: e.target.value })} className={`${inputCls} h-9 flex-1 min-w-0 text-sm`} />}
-              </div>
-            </div>
-          ))}
-          <Button kind="secondary" onClick={() => setItems([...items, { title: '', kind: 'task', due: '' }])}><Icon n="plus" size={18} />{tx('Міндет қосу')}</Button>
-        </div>
-        <label className="grid gap-1 text-sm"><span className="font-semibold flex items-center gap-1"><Icon n="lock" size={14} />{tx('Жабық жазба')}</span>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={5000} className={`${inputCls} h-24 py-2`} placeholder={tx('Тек ұстаздар көреді.')} />
-        </label>
-        <Button loading={busy} onClick={save}>{tx('Кездесуді аяқтау')}</Button>
       </div>
     </Sheet>
   )
